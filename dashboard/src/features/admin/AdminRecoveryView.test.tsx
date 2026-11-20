@@ -1,12 +1,62 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { AdminRecoveryView } from './AdminRecoveryView'
+import { AdminRecoveryView as RecoveryView } from './AdminRecoveryView'
 import { completionRecoveryComparison } from '../../test/mocks/completionFixtures'
 import { deriveRecoveryPresentation } from '../recovery/presentation'
-import type { RecoveryDecision } from '../recovery/recovery'
+import type { RecoveryDecision, RecoveryOperation, RecoveryOverview } from '../recovery/recovery'
+import { deriveRecoveryViewModel } from '../recovery/view-model'
 import type { ReadResponse } from '../../core/api/admin'
 import { contextStatus } from '../../test/mocks/contextFixtures'
 import type { components } from '../../core/api/schema'
+
+const allowedDecision: RecoveryDecision = { allowed: true }
+const deniedDecision: RecoveryDecision = { allowed: false, reason: 'permission_required' }
+const noHaltSummary = { cause: null, halted: false, check_available: false, reset_available: false, blockers: [], operation: null, control_version: 2 }
+
+function AdminRecoveryView(props: {
+  recoverySummary?: RecoveryOverview | null
+  status?: ReadResponse<'getRuntimeStatus'> | null
+  recoveryPresentation?: ReturnType<typeof deriveRecoveryPresentation> | null
+  activeOperation?: RecoveryOperation
+  checkDecision?: RecoveryDecision
+  reviewDecision?: RecoveryDecision
+  canRetryCheck?: boolean
+  canRetryReset?: boolean
+  isChecking?: boolean
+  isResetting?: boolean
+  checkError?: string
+  resetError?: string
+  comparison?: ReturnType<typeof deriveRecoveryViewModel>['comparison'] | null
+  hasAccess?: boolean
+  onCheckRecovery: () => Promise<unknown>
+  onRetryCheck: () => Promise<unknown>
+  onResetRecovery: () => Promise<unknown>
+  onRetryReset: () => Promise<unknown>
+  onRefresh: () => Promise<unknown>
+}) {
+  const status = props.status ?? contextStatus
+  const model = deriveRecoveryViewModel({
+    permission: props.hasAccess ?? true,
+    summary: props.recoverySummary ?? noHaltSummary,
+    status,
+    operation: props.activeOperation,
+    checkDecision: props.checkDecision ?? allowedDecision,
+    reviewDecision: props.reviewDecision ?? allowedDecision,
+    canRetryCheck: props.canRetryCheck ?? false,
+    canRetryReset: props.canRetryReset ?? false,
+    isChecking: props.isChecking ?? false,
+    isResetting: props.isResetting ?? false,
+    checkError: props.checkError,
+    resetError: props.resetError,
+    fresh: true,
+    now: Date.now(),
+  })
+  return <RecoveryView model={{ ...model,
+    ...(props.recoveryPresentation ? { presentation: props.recoveryPresentation } : {}),
+    ...(props.comparison ? { comparison: props.comparison } : {}),
+  }} onCheckRecovery={props.onCheckRecovery} onRetryCheck={props.onRetryCheck}
+    onResetRecovery={props.onResetRecovery} onRetryReset={props.onRetryReset} onRefresh={props.onRefresh} />
+}
 
 describe('AdminRecoveryView', () => {
   it('uses shutdown guidance and disables manual actions while the runtime reports wait', () => {
@@ -18,10 +68,6 @@ describe('AdminRecoveryView', () => {
     expect(screen.queryByText('HALT Incident Recovery')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Check recovery' })).toBeDisabled()
   })
-  const allowedDecision: RecoveryDecision = { allowed: true }
-  const deniedDecision: RecoveryDecision = { allowed: false, reason: 'permission_required' }
-  const noHaltSummary = { cause: null, halted: false, check_available: false, reset_available: false, blockers: [], operation: null, control_version: 2 }
-
   const automatic: NonNullable<ReadResponse<'getRuntimeStatus'>['automatic_recovery']> = {
     admission_mode: 'paused', cold_recovery_supported: true, isolated: false, last_progress_at: null,
     next_retry_at: null, operator_required: false, order_id: null, phase: 'reconciling',

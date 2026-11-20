@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { transferableAbortController } from 'node:util'
 import type { PropsWithChildren } from 'react'
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +12,8 @@ import { server } from '../../test/mocks/server'
 import { OperationalContext, type OperationalContextValue } from '../operational-context/useOperationalContext'
 import { deriveOperationalContext } from '../operational-context/context'
 import { useConnectionsController } from './useConnectionsController'
+import type { ConnectionsController } from './connections-unit-context'
+import { ConnectionsOperationStateProvider } from './operation-state'
 
 const nativeController = transferableAbortController()
 vi.stubGlobal('AbortController', nativeController.constructor)
@@ -20,6 +23,7 @@ afterAll(() => vi.unstubAllGlobals())
 const baseUrl = 'https://connections.example.test/api/v1/admin'
 const session: ApiSession = { baseUrl, cacheIdentity: 'operator-1:login-1', principalId: 'operator-1', getToken: () => 'token' }
 let canManage = true
+let canRead = true
 let staleRuntime = false
 let recoveryActive = false
 const credentialSlot = {
@@ -31,7 +35,7 @@ const catalogueData = { source: 'postgres_kms', exchanges: [{ exchange: 'okx', e
   { name: 'api_key', label: 'API key', required: true, secret: true }, { name: 'secret_key', label: 'Secret', required: true, secret: true }, { name: 'passphrase', label: 'Passphrase', required: true, secret: true },
 ] }] }
 const runtimeData = { bot_id: 'bot-a', desired_state: 'stopped', control_version: 9, acknowledged_version: 9, owner_available: true, operator: { state: 'stopped', label: 'Stopped', detail: '', next_action: 'monitor' }, observation: { observed_at: '2026-11-11T00:00:00Z', get stale() { return staleRuntime }, session_matches: true, reason_code: null } }
-const identity = () => ({ id: 'operator-1', email: null, kind: 'google' as const, role: 'write' as const, role_label: 'Operator', permissions: { manage_credentials: canManage } })
+const identity = () => ({ id: 'operator-1', email: null, kind: 'google' as const, role: 'write' as const, role_label: 'Operator', permissions: { manage_credentials: canManage, read: canRead } })
 function operational(): OperationalContextValue {
   return { ...deriveOperationalContext({ identity: identity() as never,
     status: { phase: 'ready', data: runtimeData as never, error: null, refreshing: false },
@@ -43,9 +47,9 @@ function operational(): OperationalContextValue {
   } as OperationalContextValue
 }
 function Wrapper({ children }: PropsWithChildren) {
-  return <ApiProvider session={session}><ApiSessionContext.Provider value={{ apiBaseUrl: baseUrl, principalId: 'operator-1' }}>
+  return <ConnectionsOperationStateProvider><ApiProvider session={session}><ApiSessionContext.Provider value={{ apiBaseUrl: baseUrl, principalId: 'operator-1' }}>
     <OperationalContext.Provider value={operational()}>{children}</OperationalContext.Provider>
-  </ApiSessionContext.Provider></ApiProvider>
+  </ApiSessionContext.Provider></ApiProvider></ConnectionsOperationStateProvider>
 }
 function installReads() {
   server.use(
@@ -56,7 +60,7 @@ function installReads() {
   )
 }
 
-afterEach(() => { canManage = true; staleRuntime = false; recoveryActive = false })
+afterEach(() => { canManage = true; canRead = true; staleRuntime = false; recoveryActive = false })
 
 describe('Connections controller', () => {
   it.each(['succeeded', 'failed', 'applying'])('does not announce a historical %s Set operation on entry', async (status) => {
@@ -97,6 +101,44 @@ describe('Connections controller', () => {
     await waitFor(() => expect(result.current.slots[0]?.setOutcome?.state).toBe(expected))
   })
 
+  it('loads connection status for read-only users but rejects credential mutations', async () => {
+    canManage = false
+    installReads()
+    const reads = vi.fn()
+    const writes = vi.fn()
+    server.use(http.get(`${baseUrl}/credentials`, () => { reads(); return HttpResponse.json(catalogueData) }),
+      http.get(`${baseUrl}/credentials/:exchange`, () => { reads(); return HttpResponse.json(statusData) }),
+      http.post(`${baseUrl}/credentials/okx/spot`, () => { writes(); return HttpResponse.json({ id: 'forbidden' }, { status: 202 }) }))
+    const { result } = renderHook(() => useConnectionsController(), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.slots[0]?.slot?.connector).toBe('spot'))
+    expect(reads).toHaveBeenCalledTimes(2)
+    expect(result.current.access.allowed).toBe(false)
+    await act(async () => { await expect(result.current.set({ exchange: 'okx', connector: 'spot', values: { api_key: 'a', secret_key: 'b', passphrase: 'c' }, idempotencyKey: 'viewer' })).rejects.toThrow('manage_credentials permission') })
+    expect(writes).not.toHaveBeenCalled()
+  })
+
+  it('stops catalogue, status, and receipt reads when read permission is revoked', async () => {
+    canRead = false
+    installReads()
+    const reads = vi.fn()
+    server.use(http.get(`${baseUrl}/credentials`, () => { reads(); return HttpResponse.json(catalogueData) }),
+      http.get(`${baseUrl}/credentials/:exchange`, () => { reads(); return HttpResponse.json(statusData) }),
+      http.get(`${baseUrl}/credentials/operations/:id`, () => { reads(); return HttpResponse.json(credentialReceipt) }))
+    renderHook(() => useConnectionsController(), { wrapper: Wrapper })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(reads).not.toHaveBeenCalled()
+  })
+
+  it('does not load catalogue, statuses or receipts while the unit is inactive', async () => {
+    const reads = vi.fn()
+    server.use(http.get(`${baseUrl}/status`, () => HttpResponse.json(runtimeData)),
+      http.get(`${baseUrl}/credentials`, () => { reads(); return HttpResponse.json(catalogueData) }),
+      http.get(`${baseUrl}/credentials/:exchange`, () => { reads(); return HttpResponse.json(statusData) }),
+      http.get(`${baseUrl}/credentials/operations/:id`, () => { reads(); return HttpResponse.json(credentialReceipt) }))
+    renderHook(() => useConnectionsController({ active: false }), { wrapper: Wrapper })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(reads).not.toHaveBeenCalled()
+  })
 
   it.each(['catalogue', 'status'] as const)('never posts retry or repair when %s is deployment-managed', async (source) => {
     installReads()
@@ -183,6 +225,50 @@ describe('Connections controller', () => {
     expect(writes).toBe(0)
   })
 
+  it('does not restore an in-flight retry candidate if permission is revoked before the response', async () => {
+    installReads()
+    let release: (() => void) | undefined
+    server.use(http.post(`${baseUrl}/credentials/okx/spot`, async () => {
+      await new Promise<void>((resolve) => { release = resolve })
+      return HttpResponse.error()
+    }))
+    const { result, rerender } = renderHook(() => useConnectionsController(), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.slots[0]?.decisions.set.allowed).toBe(true))
+    let request!: Promise<unknown>
+    act(() => { request = result.current.set({ exchange: 'okx', connector: 'spot', values: { api_key: 'secret-before-revoke', secret_key: 'secret', passphrase: 'pass' }, idempotencyKey: 'permission-race' }) })
+    await waitFor(() => expect(release).toBeDefined())
+    canManage = false
+    rerender()
+    act(() => release?.())
+    await act(async () => { await expect(request).rejects.toBeDefined() })
+    expect(result.current.decisionLocks).toEqual([])
+  })
+
+  it('does not approve stale retry review after permission is revoked and restored while reads are pending', async () => {
+    installReads()
+    let statusRelease: ((response: Response) => void) | undefined
+    let statusReads = 0
+    server.use(http.post(`${baseUrl}/credentials/okx/spot`, () => HttpResponse.error()),
+      http.get(`${baseUrl}/credentials/okx`, async () => {
+        statusReads++
+        return statusReads === 1 ? HttpResponse.json(statusData) : await new Promise<Response>((resolve) => { statusRelease = resolve })
+      }))
+    const { result, rerender } = renderHook(() => useConnectionsController(), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.slots[0]?.decisions.set.allowed).toBe(true))
+    await act(async () => { await expect(result.current.set({ exchange: 'okx', connector: 'spot', values: { api_key: 'secret', secret_key: 'secret', passphrase: 'pass' }, idempotencyKey: 'review-race' })).rejects.toBeDefined() })
+    let review!: Promise<unknown>
+    act(() => { review = result.current.reviewUnknown({ exchange: 'okx', connector: 'spot', action: 'set' }) })
+    await waitFor(() => expect(statusRelease).toBeDefined())
+    canManage = false
+    rerender()
+    canManage = true
+    rerender()
+    await waitFor(() => expect(result.current.decisionLocks).toEqual([]))
+    act(() => statusRelease?.(Response.json(statusData)))
+    await act(async () => { await expect(review).rejects.toThrow('changed during review') })
+    expect(result.current.decisionLocks.every((lock) => !lock.retryReviewed)).toBe(true)
+  })
+
   it('rejects duplicate in-flight Set and keeps timeout unknown until explicit same-key review', async () => {
     installReads()
     let release: (() => void) | undefined
@@ -205,7 +291,7 @@ describe('Connections controller', () => {
     await act(async () => { await expect(result.current.set({ exchange: 'okx', connector: 'spot', values: { api_key: 'other', secret_key: 'secret', passphrase: 'pass' }, idempotencyKey: 'duplicate' })).rejects.toThrow('open or unknown operation') })
     act(() => release?.())
     await act(async () => { await expect(first).rejects.toBeDefined() })
-    expect(window.localStorage.length).toBe(0)
+    expect(Object.values(window.localStorage).join(' ')).not.toContain('original-secret-value')
     expect(result.current.decisionLocks[0]?.state).toBe('unknown')
     await act(async () => { await expect(result.current.set({ exchange: 'okx', connector: 'spot', values: { api_key: 'fresh', secret_key: 'fresh', passphrase: 'fresh' }, idempotencyKey: 'blocked-unknown' })).rejects.toThrow('unknown operation') })
     let review!: { canRetrySameRequest: boolean; idempotencyKey?: string }
@@ -213,6 +299,43 @@ describe('Connections controller', () => {
     expect(review).toEqual({ canRetrySameRequest: true, idempotencyKey: 'stable-key' })
     await act(async () => { await result.current.set({ exchange: 'okx', connector: 'spot', values: credentials, idempotencyKey: 'stable-key' }) })
     expect(calls).toBe(2)
+  })
+
+  it('retains an unknown Set request across unit unmount and retries the original body/key', async () => {
+    installReads()
+    const posts: { body: unknown; key: string | null }[] = []
+    server.use(http.post(`${baseUrl}/credentials/okx/spot`, async ({ request }) => {
+      posts.push({ body: await request.json(), key: request.headers.get('Idempotency-Key') })
+      return posts.length === 1 ? HttpResponse.error() : HttpResponse.json({ id: 'after-remount', status: 'accepted' }, { status: 202 })
+    }), http.get(`${baseUrl}/credentials/operations/after-remount`, () => HttpResponse.json({ ...credentialReceipt, id: 'after-remount', status: 'applying' })))
+    let controller: ConnectionsController | undefined
+    function Probe() { controller = useConnectionsController(); return null }
+    function Harness() {
+      const [mounted, setMounted] = useState(true)
+      return <><button type="button" onClick={() => setMounted((value) => !value)}>Toggle unit</button>{mounted && <Probe />}</>
+    }
+    render(<Wrapper><Harness /></Wrapper>)
+    await waitFor(() => expect(controller?.slots[0]?.decisions.set.allowed).toBe(true))
+    const original = { api_key: 'original-secret-value', secret_key: 'original-secret', passphrase: 'original-pass' }
+    let first!: Promise<unknown>
+    act(() => {
+      first = controller!.set({ exchange: 'okx', connector: 'spot', values: original, idempotencyKey: 'same-key' })
+      original.api_key = 'mutated-after-submit'
+    })
+    await act(async () => { await expect(first).rejects.toBeDefined() })
+    expect(controller!.decisionLocks[0]?.state).toBe('unknown')
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle unit' }))
+    expect(controller).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle unit' }))
+    await waitFor(() => expect(controller?.slots[0]?.decisions.set.allowed).toBe(true))
+    let reviewed!: { canRetrySameRequest: boolean; idempotencyKey?: string }
+    await act(async () => { reviewed = await controller!.reviewUnknown({ exchange: 'okx', connector: 'spot', action: 'set' }) })
+    expect(reviewed).toEqual({ canRetrySameRequest: true, idempotencyKey: 'same-key' })
+    await act(async () => { await controller!.set({ exchange: 'okx', connector: 'spot', values: { api_key: 'new-value', secret_key: 'new-secret', passphrase: 'new-pass' }, idempotencyKey: 'same-key' }) })
+    expect(posts).toHaveLength(2)
+    expect(posts[1]).toEqual(posts[0])
+    expect(posts[0]?.body).toMatchObject({ credentials: { api_key: 'original-secret-value' } })
+    expect(Object.values(window.localStorage).join(' ')).not.toContain('original-secret-value')
   })
 
   it('keeps an accepted slot action locked until its receipt is terminal, then permits a fresh review', async () => {

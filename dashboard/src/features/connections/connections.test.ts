@@ -39,6 +39,22 @@ describe('Connections workflow logic', () => {
     expect(deriveCredentialSlot(identity, { ...catalogue, data: { ...catalogue.data!, source: 'environment' } }, status, runtime(), 'okx', 'spot').decisions.set.reasonCode).toBe('managed_source_required')
   })
 
+  it('accepts an acknowledged Stop while the operator status reports attention', () => {
+    const current = runtime({ operator: { state: 'needs_attention', label: 'Order verification needs review', detail: 'Recovery needs review.', next_action: 'contact_support' } })
+    const result = deriveCredentialSlot(identity, catalogue, status, current, 'okx', 'spot')
+    expect(result.stopAcknowledged).toBe(true)
+    expect(result.decisions.set.allowed).toBe(true)
+  })
+
+  it('keeps server configure denial and exposes current runtime guidance', () => {
+    const deniedSlot = { ...slot, actions: { ...slot.actions, configure: { allowed: false, detail: 'Stop and confirm order cleanup first.', reason_code: 'bot_must_be_stopped' } } }
+    const deniedStatus = { ...status, data: { ...status.data!, slots: [deniedSlot] } }
+    const current = runtime({ operator: { state: 'needs_attention', label: 'Order verification needs review', detail: 'Check the stopped runtime before changing credentials.', next_action: 'contact_support' } })
+    const result = deriveCredentialSlot(identity, catalogue, deniedStatus, current, 'okx', 'spot')
+    expect(result.decisions.set).toMatchObject({ allowed: false, reasonCode: 'bot_must_be_stopped' })
+    expect(result.runtimeGuidance).toBe('Check the stopped runtime before changing credentials.')
+  })
+
   it('reports credential load only from the matching successful loaded receipt', () => {
     const receipt = { id: 'set-1', action: 'credentials_set', status: 'succeeded', error: null, result: { stage: 'loaded', reason_code: null } } as unknown as import('../../core/api/admin').ReadResponse<'getCredentialOperation'>
     expect(credentialSetOutcome(receipt, 'set-1')).toMatchObject({ state: 'loaded' })

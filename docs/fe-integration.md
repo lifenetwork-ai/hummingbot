@@ -52,8 +52,23 @@ checks the current state and versions again, so refresh after a conflict.
 A new empty managed deployment can onboard without an MM session. Existing unbound
 ledgers require reviewed account binding during cutover.
 
+For credential replacement, follow Stop's command receipt to `succeeded`, then
+refresh `/status` and `/credentials/okx`. Enable Set only with current, trustworthy
+status, managed-source permission and the selected slot's
+`actions.configure.allowed=true`. Acknowledged stopped intent is determined by
+`desired_state=stopped` and the acknowledged control version; `operator.state`
+is separate diagnostic guidance, not another Stop acknowledgment. If Configure
+remains denied, retain its reason/detail and show current `operator.detail` or
+`recovery.detail` alongside it. Do not ask the operator to repeat an already
+acknowledged Stop or imply that refreshing resolves an outstanding recovery.
+Submit `expected_version` from that slot and `expected_control_version` from
+`/status`; after a conflict, refresh and review the updated state.
+
 Poll the returned operation: `accepted/waiting_for_owner`, `applying/loading`, then
 `succeeded/loaded` or `failed`. Receipt success describes loading, never active MM.
+Only `status=succeeded` with `result.stage=loaded` confirms a successful Set;
+HTTP202 confirms acceptance only. Terminal failures stop polling and remain
+failures rather than being presented as loaded.
 The current status additionally requires fresh matching owner/version evidence to
 say Connected; historical receipt failure does not override later verified recovery.
 After confirmation the operator explicitly chooses Start. Clear all secret inputs

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useApiSessionScope } from '../../core/api/ApiSessionContext'
 import { useAdminMutation, useAdminQuery, useReceiptInspection } from '../../core/api/hooks'
 import { clearPendingOperation, readPendingOperation, savePendingOperation } from '../../core/api/operation-journal'
@@ -12,28 +12,46 @@ type Input = WriteInput<'requestReconciliation'>
 const definitive = (error: unknown) => error instanceof ApiError && ['fix_request', 'refresh_state', 'reconnect', 'contact_support'].includes(error.retry ?? '')
 
 /** A bounded observational operation; completion is distinct from a matched report. */
-export function useReconciliation() {
+export function useReconciliation(options: { active?: boolean } = {}) {
   const mutation = useAdminMutation('requestReconciliation')
   const operational = useOperationalContext()
   const canCheck = operational.identity?.permissions.operate === true
-  const latest = useAdminQuery('getReconciliation', {}, { enabled: operational.identity?.permissions.read === true })
+  const canRead = operational.identity?.permissions.read === true
+  const latest = useAdminQuery('getReconciliation', {}, { enabled: canRead && options.active !== false })
   const session = useApiSessionScope()
   const botId = operational.botId
   const scope = session?.apiBaseUrl && session.principalId && botId
     ? { apiBaseUrl: session.apiBaseUrl, principalId: session.principalId, botId } : undefined
   const scopeKey = JSON.stringify(scope ?? null)
-  const current = useRef({ scopeKey, canCheck, pending: undefined as Input | undefined, busy: false, retryAt: 0 })
-  if (current.current.scopeKey !== scopeKey) current.current = { scopeKey, canCheck, pending: undefined, busy: false, retryAt: 0 }
+  const current = useRef({ scopeKey, scope, canCheck, generation: 0, pending: undefined as Input | undefined, busy: false, retryAt: 0 })
+  const revokedCandidate = useRef<{ scope: typeof scope; idempotencyKey?: string } | null>(null)
+  if (current.current.scopeKey !== scopeKey || current.current.canCheck !== canCheck) {
+    const previous = current.current
+    if (previous.scopeKey !== scopeKey && previous.scope || previous.canCheck && !canCheck) {
+      const stored = readPendingOperation(previous.scope, 'reconciliation')
+      revokedCandidate.current = { scope: previous.scope, idempotencyKey: previous.pending?.idempotencyKey ?? stored?.input.idempotencyKey }
+    }
+    current.current = { scopeKey, scope, canCheck, generation: previous.generation + 1, pending: undefined, busy: false, retryAt: 0 }
+  }
   current.current.canCheck = canCheck
-  const [submitted, setSubmitted] = useState<{ scopeKey: string; id: string }>()
+  current.current.scope = scope
+  useEffect(() => {
+    const candidate = revokedCandidate.current
+    if (!candidate) return
+    clearPendingOperation(candidate.scope, 'reconciliation', candidate.idempotencyKey)
+    revokedCandidate.current = null
+  }, [canCheck, scopeKey])
+  const [submitted, setSubmitted] = useState<{ scopeKey: string; generation: number; id: string }>()
   const tracked = useTrackedReceipts().find((reference) => reference.kind === 'reconciliation')
-  const referenceId = submitted?.scopeKey === scopeKey ? submitted.id : tracked?.id
+  const referenceId = canRead ? submitted?.scopeKey === scopeKey && submitted.generation === current.current.generation ? submitted.id : tracked?.id : undefined
   const receipt = useReceiptInspection(referenceId ? { kind: 'reconciliation', id: referenceId } : null)
   const terminal = ['succeeded', 'failed'].includes(receipt?.status ?? '')
   const receiptUnresolved = Boolean(referenceId && !terminal)
   const stored = readPendingOperation(scope, 'reconciliation')
-  const pendingRetry = stored?.operation === 'requestReconciliation' ? stored.input : current.current.pending
-  const feedback = operationFeedback(mutation.error)
+  const pendingRetry = canCheck ? stored?.operation === 'requestReconciliation' ? stored.input : current.current.pending : undefined
+  const mutationOwner = useRef<typeof current.current | null>(null)
+  const errorOwner = useRef<typeof current.current | null>(null)
+  const feedback = errorOwner.current === current.current ? operationFeedback(mutation.error) : undefined
 
   const submit = async (input: Input) => {
     const owner = current.current
@@ -41,6 +59,8 @@ export function useReconciliation() {
     if (owner.busy) throw new Error('reconciliation_request_pending')
     if (Date.now() < owner.retryAt) throw new Error('reconciliation_cooldown')
     owner.busy = true
+    mutationOwner.current = owner
+    errorOwner.current = null
     // Keep a private immutable candidate even when browser storage is unavailable.
     owner.pending = input
     savePendingOperation(scope, 'requestReconciliation', input)
@@ -50,10 +70,17 @@ export function useReconciliation() {
       if (current.current === owner) {
         owner.pending = undefined
         owner.retryAt = Date.now() + 30_000
-        setSubmitted({ scopeKey, id: accepted.id })
+        setSubmitted({ scopeKey, generation: owner.generation, id: accepted.id })
+      } else if (owner.generation !== current.current.generation) {
+        owner.pending = undefined
       }
       return accepted
     } catch (error) {
+      if (current.current !== owner) {
+        if (owner.generation !== current.current.generation) clearPendingOperation(scope, 'reconciliation', input.idempotencyKey)
+        throw error
+      }
+      errorOwner.current = owner
       if (definitive(error)) {
         clearPendingOperation(scope, 'reconciliation', input.idempotencyKey)
         owner.pending = undefined
@@ -81,7 +108,7 @@ export function useReconciliation() {
     if (!pendingRetry) throw new Error('No reconciliation request is available to retry')
     return submit(pendingRetry)
   }
-  return { check, retryPending, pendingRetry, receipt, submitting: mutation.isPending, latest, feedback,
+  return { check, retryPending, pendingRetry, receipt, submitting: mutation.isPending && mutationOwner.current === current.current, latest, feedback,
     access: { allowed: canCheck && Boolean(scope), reasonCode: canCheck && scope ? null : 'permission_or_context_required' },
     retryAt: Math.max(current.current.retryAt, feedback?.retryAt ?? 0) || null,
     refresh: latest.refetch }

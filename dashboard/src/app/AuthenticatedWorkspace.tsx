@@ -5,6 +5,7 @@ import { safeRedirect } from './redirect'
 import { OperationalProvider } from '../features/operational-context/OperationalProvider'
 import { OperationalShell } from './OperationalShell'
 import { SessionRestoring } from '../features/auth/SessionRestoring'
+import { FeatureOperationsBoundary } from './FeatureOperationsBoundary'
 
 export function AuthenticatedWorkspace() {
   const auth = useAuth()
@@ -16,5 +17,9 @@ export function AuthenticatedWorkspace() {
     }
   }, [auth.status, href, navigate])
   if (auth.status === 'restoring') return <SessionRestoring />
-  return auth.status === 'authenticated' ? <OperationalProvider><OperationalShell /></OperationalProvider> : null
+  return auth.status === 'authenticated' ? (
+    <OperationalProvider>
+      <FeatureOperationsBoundary><OperationalShell /></FeatureOperationsBoundary>
+    </OperationalProvider>
+  ) : null
 }

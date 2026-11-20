@@ -52,6 +52,20 @@ describe('ManagedCredentialsView', () => {
     expect(screen.getByRole('button', { name: /Disconnect/ })).toBeInTheDocument()
   })
 
+  it('shows runtime recovery guidance beside a backend credential lock', () => {
+    const blocked = {
+      ...sampleSlot,
+      runtimeGuidance: 'The stopped runtime still needs recovery review.',
+      decisions: { ...sampleSlot.decisions, set: { allowed: false, detail: 'Stop trading and wait for cleanup.', reasonCode: 'bot_must_be_stopped' } },
+    }
+    renderView([blocked])
+    expect(screen.getByText('The stopped runtime still needs recovery review.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Set okx credentials/ }))
+    expect(screen.getByText(/Stop trading and wait for cleanup/)).toBeInTheDocument()
+    expect(screen.getByText(/The stopped runtime still needs recovery review/)).toBeInTheDocument()
+    expect(screen.queryByText(/Resolve this condition, then refresh status/)).not.toBeInTheDocument()
+  })
+
   it.each([
     ['loaded', 'Credentials loaded and verified.'],
     ['failed', 'Credentials were not loaded.'],

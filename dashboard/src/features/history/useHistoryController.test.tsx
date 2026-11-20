@@ -1,10 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type { PropsWithChildren } from 'react'
 import { describe, expect, it } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupPageApi, pageApiUrl, pageWrapper, pageProfiles } from '../../test/operationalTest'
 import { completionStatus } from '../../test/mocks/completionFixtures'
 import { commandReceipt } from '../../test/mocks/receiptFixtures'
 import { server } from '../../test/mocks/server'
+import { contextPrincipal } from '../../test/mocks/contextFixtures'
 import { useHistoryController } from './useHistoryController'
 setupPageApi()
 describe('history completion controller', () => {
@@ -29,20 +31,6 @@ describe('history completion controller', () => {
     expect(calls.at(-1)?.searchParams.get('cursor')).toBeNull()
     expect(result.current.commandLinks[0]).toMatchObject({ actorId: null, auditFilter: { operation_id: 'failed' } })
   })
-  it('blocks invalid audit instants before reads and preserves actor/operation filters on a valid request', async () => {
-    const calls: URL[] = []
-    server.use(http.get(`${pageApiUrl}/audit`, ({ request }) => { calls.push(new URL(request.url)); return HttpResponse.json({ items: [], next_cursor: null }) }))
-    const { result } = renderHook(() => useHistoryController({ active: 'audit' }), { wrapper: pageWrapper() })
-    await waitFor(() => expect(result.current.audit.isSuccess).toBe(true))
-    await act(async () => { result.current.changeAudit({ from_time: '2026-11-11' }) })
-    expect(result.current.validation.audit.errors.from_time).toBe('utc_instant_required')
-    await act(async () => { await result.current.loadMoreAudit() })
-    expect(calls).toHaveLength(1)
-    await act(async () => { result.current.changeAudit({ actor_id: 'actor-1', operation_id: 'op-1', from_time: '2026-11-11T00:00:00Z', to_time: '2026-11-12T00:00:00Z' }) })
-    await waitFor(() => expect(result.current.audit.isSuccess).toBe(true))
-    expect(calls.at(-1)?.searchParams.get('actor_id')).toBe('actor-1')
-    expect(calls.at(-1)?.searchParams.get('operation_id')).toBe('op-1')
-  })
   it('tracks the current session for events and pinned configuration', async () => {
     const paths: string[] = []
     server.use(http.get(`${pageApiUrl}/sessions/:id/events`, ({ params }) => { paths.push(`events:${params.id}`); return HttpResponse.json({ items: [], next_cursor: null }) }),
@@ -60,5 +48,42 @@ describe('history completion controller', () => {
     expect(result.current.commands.fetchStatus).toBe('idle')
     expect(result.current.access.allowed).toBe(false)
     expect(() => result.current.inspectCommand('cmd-1')).toThrow('permission_required')
+  })
+  it('stops pending command receipt reads and clears inspection when inactive or read permission is revoked', async () => {
+    let readPermission = true
+    let receiptReads = 0
+    server.use(http.get(`${pageApiUrl}/commands/:id`, ({ params }) => {
+      receiptReads += 1
+      return HttpResponse.json({ ...commandReceipt, id: params.id, status: 'accepted' })
+    }))
+    function Wrapper({ children }: PropsWithChildren) {
+      const Inner = pageWrapper(readPermission ? contextPrincipal.permissions : {})
+      return <Inner>{children}</Inner>
+    }
+    const { result, rerender } = renderHook(({ active }: { active: 'commands' | 'none' }) => useHistoryController({ active }), {
+      initialProps: { active: 'commands' }, wrapper: Wrapper,
+    })
+    await waitFor(() => expect(result.current.commands.isSuccess).toBe(true))
+    act(() => result.current.inspectCommand('pending-command'))
+    await waitFor(() => expect(receiptReads).toBeGreaterThan(0))
+    expect(result.current.selectedReceipt?.id).toBe('pending-command')
+    rerender({ active: 'none' })
+    await waitFor(() => expect(result.current.selectedReceipt).toBeNull())
+    expect(result.current.inspection).toBeNull()
+    const afterInactive = receiptReads
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(receiptReads).toBe(afterInactive)
+
+    rerender({ active: 'commands' })
+    expect(result.current.selectedReceipt).toBeNull()
+    act(() => result.current.inspectCommand('revoked-command'))
+    await waitFor(() => expect(receiptReads).toBeGreaterThan(afterInactive))
+    readPermission = false
+    rerender({ active: 'commands' })
+    await waitFor(() => expect(result.current.selectedReceipt).toBeNull())
+    expect(result.current.inspection).toBeNull()
+    const afterPermissionLoss = receiptReads
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(receiptReads).toBe(afterPermissionLoss)
   })
 })

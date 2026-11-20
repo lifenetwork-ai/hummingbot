@@ -7,6 +7,7 @@ import { ApiProvider, type ApiSession } from '../../core/api/ApiProvider'
 import { AuthContext, type AuthContextValue } from '../../core/auth/auth-context'
 import { server } from '../../test/mocks/server'
 import { useAccountsController } from './useAccountsController'
+import { AccountsOperationProvider } from './AccountsOperationProvider'
 
 const nativeController = transferableAbortController()
 vi.stubGlobal('AbortController', nativeController.constructor)
@@ -17,10 +18,18 @@ const baseUrl = 'https://accounts.example.test/api/v1/admin'
 const session: ApiSession = { baseUrl, cacheIdentity: 'accounts-test', getToken: () => 'token' }
 function wrapperFor(permissions: Record<string, boolean>) {
   const auth: AuthContextValue = { status: 'authenticated', identity: { id: 'admin-1', email: 'admin@example.test', kind: 'google', role: 'admin', role_label: 'Admin', permissions }, error: null, login: async () => {}, logout: () => {}, apiSession: session }
-  return function Wrapper({ children }: PropsWithChildren) { return <AuthContext.Provider value={auth}><ApiProvider session={session}>{children}</ApiProvider></AuthContext.Provider> }
+  return function Wrapper({ children }: PropsWithChildren) { return <AuthContext.Provider value={auth}><ApiProvider session={session}><AccountsOperationProvider>{children}</AccountsOperationProvider></ApiProvider></AuthContext.Provider> }
 }
 
 describe('accounts controller', () => {
+  it('does not read account data while the Accounts unit is inactive', async () => {
+    let reads = 0
+    server.use(http.get(`${baseUrl}/access/accounts`, () => { reads++; return HttpResponse.json({ items: [], next_cursor: null }) }),
+      http.get(`${baseUrl}/access/bootstrap`, () => { reads++; return HttpResponse.json({}) }))
+    renderHook(() => useAccountsController({ active: false }), { wrapper: wrapperFor({ manage_accounts: true }) })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(reads).toBe(0)
+  })
   it('requires manage_accounts permission before reading or mutating accounts', async () => {
     let reads = 0
     let writes = 0

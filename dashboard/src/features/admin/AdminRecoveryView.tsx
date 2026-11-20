@@ -1,68 +1,61 @@
 import { AlertOctagon, CheckCircle2, Clock, Info, Loader2, RefreshCw, ShieldAlert, Wrench } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import type { components } from '../../core/api/schema'
-import type { RecoveryDecision } from '../recovery/recovery'
-import { buildRecoveryComparison, type RecoveryComparisonModel } from '../recovery/comparison'
-import { deriveRecoveryVerification, deriveRecoveryPresentation } from '../recovery/presentation'
+import { useState } from 'react'
+import type { RecoveryViewModel } from '../recovery/view-model'
 import { Badge } from '../../shared/components/Badge'
 import { Button } from '../../shared/components/Button'
 import { Surface } from '../../shared/components/Surface'
 import { RecoveryResetDialog } from './RecoveryResetDialog'
 
 export interface AdminRecoveryViewProps {
-  recoverySummary?: components['schemas']['RecoveryOverviewOutput'] | null
-  status?: components['schemas']['StatusResponseOutput'] | null
-  /** Logic-derived automatic recovery presentation; guards the "No recovery needed" state. */
-  recoveryPresentation?: ReturnType<typeof deriveRecoveryPresentation> | null
-  activeOperation?: components['schemas']['RecoveryOperationOutput']
-  checkDecision: RecoveryDecision
-  reviewDecision: RecoveryDecision
-  canRetryCheck?: boolean
-  canRetryReset?: boolean
-  isChecking?: boolean
-  isResetting?: boolean
-  checkError?: string
-  resetError?: string
+  model: RecoveryViewModel
   onCheckRecovery: () => Promise<unknown>
   onRetryCheck: () => Promise<unknown>
   onResetRecovery: () => Promise<unknown>
   onRetryReset: () => Promise<unknown>
   onRefresh: () => Promise<unknown>
-  comparison?: RecoveryComparisonModel | null
-  hasAccess?: boolean
 }
 
 export function AdminRecoveryView({
-  recoverySummary,
-  status,
-  recoveryPresentation,
-  activeOperation,
-  checkDecision,
-  reviewDecision,
-  canRetryCheck = false,
-  canRetryReset = false,
-  isChecking = false,
-  isResetting = false,
-  checkError,
-  resetError,
   onCheckRecovery,
   onRetryCheck,
   onResetRecovery,
   onRetryReset,
   onRefresh,
-  comparison,
-  hasAccess = true,
+  model,
 }: AdminRecoveryViewProps) {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
-  const [now, setNow] = useState(Date.now)
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [])
+  const { recoverySummary, status, activeOperation, checkDecision, reviewDecision, canRetryCheck, canRetryReset,
+    isChecking, isResetting, checkError, resetError, hasAccess, presentation, verification, comparisonItems,
+    halted, stage, recovered, blockers, proposedChanges, automaticEngaged, isCheckSucceededButCannotRecover,
+    previewValid, previewSecondsRemaining } = {
+    recoverySummary: model.summary,
+    status: model.status,
+    activeOperation: model.operation,
+    checkDecision: model.checkDecision,
+    reviewDecision: model.reviewDecision,
+    canRetryCheck: model.canRetryCheck,
+    canRetryReset: model.canRetryReset,
+    isChecking: model.isChecking,
+    isResetting: model.isResetting,
+    checkError: model.checkError,
+    resetError: model.resetError,
+    hasAccess: model.hasAccess,
+    presentation: model.presentation,
+    verification: model.verification,
+    comparisonItems: model.comparison,
+    halted: model.halted,
+    stage: model.stage,
+    recovered: model.recovered,
+    blockers: model.blockers,
+    proposedChanges: model.proposedChanges,
+    automaticEngaged: model.automaticEngaged,
+    isCheckSucceededButCannotRecover: model.isCheckSucceededButCannotRecover,
+    previewValid: model.previewValid,
+    previewSecondsRemaining: model.previewSecondsRemaining,
+  }
 
   // 1. Permission Denied Entry (T-22)
-  if (hasAccess === false || checkDecision.reason === 'permission_required') {
+  if (!hasAccess || checkDecision.reason === 'permission_required') {
     return (
       <Surface className="p-6 text-center">
         <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-app-warning/10 text-app-warning">
@@ -78,39 +71,11 @@ export function AdminRecoveryView({
     )
   }
 
-  const halted = recoverySummary?.halted === true
-  const stage = activeOperation?.stage ?? 'initial'
-  const recovered = activeOperation?.action === 'recovery_reset' && activeOperation.status === 'succeeded' && stage === 'recovered'
-  const blockers = activeOperation?.blockers ?? recoverySummary?.blockers ?? []
-  const proposedChanges = activeOperation?.proposed_changes ?? []
-
-  // Automatic recovery observation (scoped to the runtime status passed in).
-  // Never claim "No recovery needed" while automatic recovery is operating or unobserved.
-  const presentation = recoveryPresentation ?? deriveRecoveryPresentation(status ?? undefined, false)
   const automatic = presentation.automatic
-  const automaticEngaged = automatic !== null &&
-    (presentation.active || presentation.isolated || (presentation.quarantinedOrders ?? 0) > 0 ||
-      automatic.phase === 'manual_required' || automatic.phase === 'reconciling' ||
-      automatic.phase === 'bootstrapping_recovery' || automatic.phase === 'waiting_for_readiness' ||
-      automatic.phase === 'settled_stopped' || Object.keys(presentation.reservedBase ?? {}).length > 0 ||
-      presentation.reservedQuoteWorstCase !== null && presentation.reservedQuoteWorstCase !== '0')
-  const verification = deriveRecoveryVerification(activeOperation)
 
   // Check succeeded but can_recover=false (T-23)
-  const isCheckSucceededButCannotRecover = activeOperation?.action === 'recovery_check' &&
-    activeOperation.status === 'succeeded' &&
-    stage !== 'review_required'
-
-  // Comparison model with all 7 fields (T-23, T-25)
-  const comparisonItems = comparison !== undefined && comparison !== null
-    ? comparison
-    : buildRecoveryComparison(proposedChanges)
-
   const isCheckUnknown = canRetryCheck
   const isResetUnknown = canRetryReset
-
-  const expiresAt = Date.parse(activeOperation?.expires_at ?? '')
-  const previewValid = Number.isFinite(expiresAt) && expiresAt > now
 
   const handleConfirmReset = async () => {
     try {
@@ -313,7 +278,7 @@ export function AdminRecoveryView({
           <Clock size={14} />
           <span>
             Preview expiry: {new Date(activeOperation.expires_at).toLocaleString('en-US')} ·{' '}
-            {previewValid ? `${Math.ceil((expiresAt - now) / 1000)}s remaining` : 'Expired — run new Check'}
+            {previewValid ? `${previewSecondsRemaining}s remaining` : 'Expired — run new Check'}
           </span>
         </p>
       )}

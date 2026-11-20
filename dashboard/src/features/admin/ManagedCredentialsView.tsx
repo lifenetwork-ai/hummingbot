@@ -1,9 +1,8 @@
 import { KeyRound, Loader2, Lock, Unlink } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import type { ResponseBody } from '../../core/api/types'
 import type { FormFeedbackModel } from '../../core/api/operation-feedback'
 import type { CredentialFormValues } from '../connections/connections'
-import type { useConnectionsController } from '../connections/useConnectionsController'
+import type { CredentialCatalogue as Catalogue, CredentialSlot, CredentialLock } from '../connections/connection-types'
 import { Badge } from '../../shared/components/Badge'
 import { Button } from '../../shared/components/Button'
 import { CopyableId } from '../../shared/components/CopyableId'
@@ -11,10 +10,6 @@ import { Input } from '../../shared/components/Input'
 import { Surface } from '../../shared/components/Surface'
 import { FeedbackDetailsView } from '../session/FeedbackDetailsView'
 
-type Controller = ReturnType<typeof useConnectionsController>
-type CredentialSlot = Controller['slots'][number]
-type CredentialLock = Controller['decisionLocks'][number]
-type Catalogue = ResponseBody<'listCredentialInputs'>
 type ValuesBySlot = Record<string, CredentialFormValues>
 const slotKey = (slot: Pick<CredentialSlot, 'exchange' | 'connector'>) => `${slot.exchange}:${slot.connector}`
 
@@ -253,6 +248,7 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
             {canManage && blocked === undefined && !openForms[key] && lockedActionHints.length > 0 && (
               <div role="status" className="mt-2 space-y-1 text-xs text-app-warning">
                 {lockedActionHints.map((hint) => <p key={hint.name}>{hint.name} is locked: {hint.reason}. You can still review the flow; the confirm action stays disabled until the backend allows it.</p>)}
+                {!slot.decisions.set.allowed && slot.runtimeGuidance && <p>{slot.runtimeGuidance}</p>}
               </div>
             )}
 
@@ -260,7 +256,8 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
               <div><h4 className="text-xs font-bold text-app-text">{formAction === 'repair' ? 'Repair cleanup credentials' : 'Set credential bundle'}</h4>
                 {!formDecision.allowed ? (
                   <p role="status" className="mt-1 rounded-card border border-app-warning/30 bg-app-warning/10 p-2 text-xs text-app-text">
-                    Submitting is locked: {formDecision.detail || formDecision.reasonCode || 'refresh status to see the reason'}. Resolve this condition, then refresh status.
+                    Submitting is locked: {formDecision.detail || formDecision.reasonCode || 'refresh status to see the reason'}.
+                    {slot.runtimeGuidance ? <> {slot.runtimeGuidance}</> : <> Refresh status after the condition is resolved.</>}
                   </p>
                 ) : formDecision.detail && <p className="mt-1 text-xs text-app-muted">{formDecision.detail}</p>}
               </div>

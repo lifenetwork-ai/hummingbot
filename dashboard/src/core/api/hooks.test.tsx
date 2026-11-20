@@ -179,6 +179,32 @@ describe('admin React Query integration', () => {
     expect(pollingInterval('getCommand', result.current.receipt.data, null, 0)).toBe(false)
   })
 
+  it('refreshes runtime and credential capability after a Stop receipt succeeds', async () => {
+    let receipts = 0
+    let statusReads = 0
+    let credentialReads = 0
+    server.use(
+      http.get(`${baseUrl}/commands/:id`, () => HttpResponse.json({ ...pendingCommand,
+        action: 'stop', status: ++receipts === 1 ? 'applying' : 'succeeded' })),
+      http.get(`${baseUrl}/status`, () => { statusReads++; return HttpResponse.json({ desired_state: 'stopped', control_version: 114, acknowledged_version: 114 }) }),
+      http.get(`${baseUrl}/credentials/okx`, () => {
+        credentialReads++
+        return HttpResponse.json({ slots: [{ connector: 'okx', actions: { configure: { allowed: credentialReads > 1 } } }] })
+      }),
+    )
+    const { result } = renderHook(() => ({
+      receipt: useAdminQuery('getCommand', { path: { command_id: 'stop-receipt' } }),
+      status: useAdminQuery('getRuntimeStatus', {}, { poll: false }),
+      credentials: useAdminQuery('getExchangeCredentialStatus', { path: { exchange: 'okx' } }, { poll: false }),
+    }), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.credentials.data?.slots[0].actions.configure.allowed).toBe(false))
+    await waitFor(() => expect(result.current.receipt.data?.status).toBe('succeeded'), { timeout: 2500 })
+    await waitFor(() => expect(result.current.credentials.data?.slots[0].actions.configure.allowed).toBe(true))
+    expect(statusReads).toBe(2)
+    expect(credentialReads).toBe(2)
+    expect(pollingInterval('getCommand', result.current.receipt.data, null, 0)).toBe(false)
+  })
+
   it.each([401, 403, 409, 422])('does not retry HTTP %s validation/auth/conflict errors', async (status) => {
     let calls = 0
     server.use(http.get(`${baseUrl}/orders`, () => { calls++; return HttpResponse.json(apiFailure('blocked', 'fix_request'), { status }) }))

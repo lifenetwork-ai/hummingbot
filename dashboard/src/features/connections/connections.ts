@@ -37,7 +37,10 @@ export function deriveCredentialSlot(identity: Identity | null, catalogue: Sourc
     runtimeServerTime >= slotObservedAt && runtimeServerTime - slotObservedAt <= 5000 &&
     cacheFresh(status.updatedAt) && cacheFresh(runtime.updatedAt)
   const stopAcknowledged = Boolean(runtimeFresh && currentRuntime && currentRuntime.desired_state === 'stopped' &&
-    currentRuntime.acknowledged_version >= currentRuntime.control_version && currentRuntime.operator?.state === 'stopped')
+    currentRuntime.acknowledged_version >= currentRuntime.control_version)
+  const runtimeGuidance = runtimeFresh
+    ? (currentRuntime?.operator?.state !== 'stopped' ? currentRuntime?.operator?.detail : currentRuntime?.recovery?.detail) || currentRuntime?.recovery?.detail || null
+    : null
   const managed = catalogue.data?.source === 'postgres_kms' && status.data?.source === 'postgres_kms'
   const action = (name: CredentialAction) => actionDecision(identity, slot?.actions, name)
   const configure = action('configure')
@@ -73,6 +76,7 @@ export function deriveCredentialSlot(identity: Identity | null, catalogue: Sourc
         : status.phase !== 'ready' ? denied('credential_status_unavailable', 'Refresh credential status before repairing cleanup.')
         : !runtimeFresh ? denied('status_stale', 'Refresh fresh bot status before repairing cleanup.') : repair },
     stopAcknowledged,
+    runtimeGuidance: setDecision.allowed ? null : runtimeGuidance,
     connectionState: catalogue.phase === 'error' || status.phase === 'error' ? 'unavailable' as const
       : !slot ? 'unknown' as const
       : slot.cleanup_operation_id ? (slot.actions.retry_cleanup?.allowed ? 'action_required' as const : 'disconnecting' as const)

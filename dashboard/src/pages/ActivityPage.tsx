@@ -1,17 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Activity, Clock, GitCompare, Terminal } from 'lucide-react'
-import { notify } from '../core/feedback/notify'
-import { useAdminQuery } from '../core/api/hooks'
-import { useReconciliation } from '../features/reconciliation/useReconciliation'
-import { useHistoryController } from '../features/history/useHistoryController'
-import { PinnedSessionDetailView } from '../features/activity/PinnedSessionDetailView'
-import { SecurityAuditView } from '../features/admin/SecurityAuditView'
-import { Button } from '../shared/components/Button'
+import { HistoryUnit } from '../features/history/HistoryUnit'
+import { AuditUnit } from '../features/audit/AuditUnit'
+import { useAuditState } from '../features/audit/useAuditState'
+import { ReconciliationUnit } from '../features/reconciliation/ReconciliationUnit'
 import { useOperationalContext } from '../features/operational-context/useOperationalContext'
-import { CommandHistoryList } from '../features/activity/CommandHistoryList'
-import { ReconciliationPanel } from '../features/activity/ReconciliationPanel'
-import { SessionEventsTimeline } from '../features/activity/SessionEventsTimeline'
 import { CopyableId } from '../shared/components/CopyableId'
 import { SectionLabel } from '../shared/components/SectionLabel'
 import { MotionPage } from '../shared/motion/MotionPage'
@@ -19,7 +13,7 @@ import { MotionPage } from '../shared/motion/MotionPage'
 export type ActivityTab = 'reconciliation' | 'events' | 'commands' | 'audit'
 
 export function ActivityPage() {
-  const { status } = useOperationalContext()
+  const { status, identity } = useOperationalContext()
   const search = useSearch({ strict: false })
   const navigate = useNavigate()
   const initialTab: ActivityTab = search.tab === 'events' || search.tab === 'commands' || search.tab === 'audit' ? search.tab : 'reconciliation'
@@ -35,31 +29,9 @@ export function ActivityPage() {
   const auditTabRef = useRef<HTMLButtonElement>(null)
   const focusAudit = useRef(false)
   useEffect(() => { if (activeTab === 'audit' && focusAudit.current) { auditTabRef.current?.focus(); focusAudit.current = false } }, [activeTab])
-  const [checkError, setCheckError] = useState<string | null>(null)
-  const reconciliation = useReconciliation()
-  const exactCheck = useAdminQuery('getReconciliationById', reconciliation.receipt ? { path: { check_id: reconciliation.receipt.reference.id } } : undefined)
-  const history = useHistoryController({ active: activeTab === 'reconciliation' ? 'none' : activeTab, currentSessionId: currentSessionId || undefined })
-  const eventsQuery = history.events
-  const commandsQuery = history.commands
-  const auditForOperation = (id: string) => { focusAudit.current = true; history.auditForOperation(id); history.closeInspection(); selectTab('audit') }
-  const handleRequestCheck = async (retry = false) => {
-    setCheckError(null)
-    notify.loading('Submitting reconciliation request...', { id: 'recon-check' })
-    try {
-      if (retry) await reconciliation.retryPending()
-      else await reconciliation.check({ lookback_seconds: 3600, market: 'all', max_orders: 100, max_pages: 5, pair: null })
-      notify.success('Reconciliation request accepted', {
-        id: 'recon-check',
-        description: 'Track the receipt to verify progress; accepted does not yet mean the data has matched.',
-      })
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Reconciliation result unknown.'
-      setCheckError(msg)
-      notify.dismiss('recon-check')
-    }
-  }
-  const events = eventsQuery.data?.pages.flatMap((page) => page.items) ?? []
-  const commands = commandsQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const auditState = useAuditState()
+  const historyMode = activeTab === 'events' || activeTab === 'commands' ? activeTab : 'none'
+  const auditForOperation = (id: string) => { focusAudit.current = true; auditState.requestLookup(id); selectTab('audit') }
 
   return (
     <MotionPage>
@@ -125,59 +97,15 @@ export function ActivityPage() {
               <Terminal size={14} />
               <span>Commands</span>
             </button>
-            {history.audit.access.allowed && <button type="button" ref={auditTabRef} onClick={() => selectTab('audit')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold ${activeTab === 'audit' ? 'border-app-action text-app-action' : 'border-transparent text-app-muted'}`}>Audit / Actor Lookup</button>}
+            {identity?.permissions.read === true && <button type="button" ref={auditTabRef} onClick={() => selectTab('audit')} className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-bold ${activeTab === 'audit' ? 'border-app-action text-app-action' : 'border-transparent text-app-muted'}`}>Audit / Actor Lookup</button>}
           </nav>
         </div>
 
-        {(checkError || reconciliation.latest.error) && <p role="alert" className="mb-3 text-sm text-app-danger">{checkError ?? reconciliation.latest.error?.message}</p>}
-        {reconciliation.pendingRetry && <Button variant="secondary" onClick={() => { void handleRequestCheck(true) }}>Retry check with same body/key</Button>}
-        {reconciliation.feedback?.requestId && <p className="text-xs text-app-muted">Request ID: {reconciliation.feedback.requestId}</p>}
-        {activeTab === 'events' && eventsQuery.error && <p role="alert">{eventsQuery.error.message}</p>}
-        {activeTab === 'commands' && commandsQuery.error && <p role="alert">{commandsQuery.error.message}</p>}
+        <HistoryUnit active={historyMode} currentSessionId={currentSessionId || undefined} onAuditForOperation={auditForOperation} />
         {/* Tab content */}
-        {activeTab === 'reconciliation' && (
-          <ReconciliationPanel
-            reconciliation={reconciliation.latest.data}
-            receipt={exactCheck.data}
-            isChecking={reconciliation.submitting || reconciliation.receipt?.status === 'accepted' || reconciliation.receipt?.status === 'applying'}
-            canRequest={reconciliation.access.allowed && !reconciliation.pendingRetry}
-            onRequestCheck={() => { void handleRequestCheck() }}
-          />
-        )}
+        <ReconciliationUnit active={activeTab === 'reconciliation'} />
 
-        {activeTab === 'events' && (
-          <SessionEventsTimeline
-            events={events}
-            isLoading={eventsQuery.isLoading}
-            filters={history.filters.events}
-            onFilterChange={history.changeEvents}
-            validationErrors={history.validation.events.errors}
-            hasMore={eventsQuery.hasNextPage}
-            onLoadMore={() => { void history.loadMoreEvents() }}
-          />
-        )}
-
-        {activeTab === 'commands' && (
-          <CommandHistoryList
-            commands={commands}
-            isLoading={commandsQuery.isLoading}
-            filters={history.filters.commands}
-            onFilterChange={history.changeCommands}
-            validationErrors={history.validation.commands.errors}
-            commandLinks={history.commandLinks}
-            onInspectCommand={history.inspectCommand}
-            onAuditForOperation={auditForOperation}
-            selectedReceipt={history.selectedReceipt}
-            inspection={history.inspection ?? undefined}
-            onCloseInspection={history.closeInspection}
-            hasMore={commandsQuery.hasNextPage}
-            onLoadMore={() => { void history.loadMoreCommands() }}
-          />
-        )}
-        {activeTab === 'events' && <>
-          <PinnedSessionDetailView className="mt-6" sessionId={history.sessionId} pinnedConfig={history.pinned.data} isLoading={history.pinned.isLoading} error={history.pinned.error?.message} />
-        </>}
-        {activeTab === 'audit' && <SecurityAuditView entries={history.audit.data?.pages.flatMap((page) => page.items)} filters={history.filters.audit} onFilterChange={history.changeAudit} validationErrors={history.validation.audit.errors} isLoading={history.audit.isLoading} error={history.audit.error?.message} hasMore={history.audit.hasNextPage} onLoadMore={() => { void history.loadMoreAudit() }} onInspectOperation={history.auditForOperation} />}
+        <AuditUnit active={activeTab === 'audit'} state={auditState} />
 
       </div>
     </MotionPage>

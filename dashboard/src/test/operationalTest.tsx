@@ -9,6 +9,7 @@ import { OperationalProvider } from '../features/operational-context/Operational
 import { contextPrincipal, contextStatus } from './mocks/contextFixtures'
 import { staleBalances } from './mocks/adminFixtures'
 import { server } from './mocks/server'
+import { FeatureOperationsBoundary } from '../app/FeatureOperationsBoundary'
 
 export const pageApiUrl = 'https://pages.test/api/v1/admin'
 export const pageProfiles: ReadResponse<'listProfiles'> = {
@@ -46,6 +47,6 @@ export function pageWrapper(permissions = contextPrincipal.permissions) {
   return function Wrapper({ children }: PropsWithChildren) {
     const apiSession = { baseUrl: pageApiUrl, principalId: contextPrincipal.id, cacheIdentity: 'page-1', getToken: () => 'test-token' }
     const auth: AuthContextValue = { status: 'authenticated', identity: { ...contextPrincipal, permissions }, error: null, login: async () => {}, logout: () => {}, apiSession }
-    return <AuthContext.Provider value={auth}><ApiProvider session={apiSession}><OperationalProvider>{children}</OperationalProvider></ApiProvider></AuthContext.Provider>
+    return <AuthContext.Provider value={auth}><ApiProvider session={apiSession}><OperationalProvider><FeatureOperationsBoundary>{children}</FeatureOperationsBoundary></OperationalProvider></ApiProvider></AuthContext.Provider>
   }
 }

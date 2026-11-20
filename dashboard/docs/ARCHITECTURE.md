@@ -29,9 +29,10 @@ The root `AppShell` owns the shared brand header, theme control and footer for p
 root AppShell
 └── AuthenticatedWorkspace (auth guard)
     └── features/operational-context/OperationalProvider
-        └── app/OperationalShell
-            ├── ContextBar
-            └── Outlet → protected pages
+        └── app/FeatureOperationsBoundary
+            └── app/OperationalShell
+                ├── ContextBar
+                └── Outlet → protected pages
 ```
 
 The workspace provider mounts only after authentication. It owns the cross-page operational context and its server queries. `OperationalShell` renders the persistent operational layout, `ContextBar` presents the shared context, and route pages compose page-specific content. Public routes such as `/login` and `/ui-kit` do not mount the operational provider or its polling queries. `HomePage` is an Overview page; it does not own the provider or global context bar.
@@ -39,6 +40,25 @@ The workspace provider mounts only after authentication. It owns the cross-page 
 `OperationalProvider` calls the feature's `useOperationalController()` once. Its
 consumer hook, `useOperationalContext()`, reads the already-derived model; it does
 not create another controller or query subscription.
+
+`FeatureOperationsBoundary` composes the Connections, Recovery, Accounts and
+Reconciliation operation owners inside the authenticated workspace. Each feature
+owns its controller and private operation state across protected route changes;
+the boundary contains no business state. Feature units activate presentation reads
+only while needed. Pending receipts continue to be observed when a unit's view
+unmounts, without automatically resubmitting a mutation.
+
+Retry candidates retain their original body/key within the feature's operation
+lifetime. Credentials and recovery tokens remain private and are never serialized
+into context models, query caches or journals. Scope/permission invalidation clears
+private retry state; a hard reload only restores non-secret journals and receipt
+references supported by the workflow.
+
+Admin and Activity use the same Audit unit with route-local state. Filters survive
+switching content within one route and reset on leaving that route. Command lookup
+replaces only `operation_id`, preserving other filters; cursor reset follows an
+actual filter change. Pages own tab navigation/focus, while Audit owns its reads,
+filters and internal interactions.
 
 ## Dependency rules
 

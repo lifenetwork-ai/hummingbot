@@ -15,6 +15,31 @@ vi.mock('@tanstack/react-router', () => ({ useSearch: () => ({ tab: searchTab })
 
 setupPageApi()
 describe('ActivityPage integrated controller', () => {
+  it('pauses reconciliation latest reads outside its active tab and retries the same request after switching away', async () => {
+    const latestReads: number[] = []
+    const requests: { body: unknown; key: string | null }[] = []
+    server.use(
+      http.get(`${pageApiUrl}/reconciliation`, () => { latestReads.push(Date.now()); return HttpResponse.json({ check: null, report: { state: 'not_checked' } }) }),
+      http.get(`${pageApiUrl}/reconciliation/:id`, ({ params }) => HttpResponse.json({ id: params.id, status: 'accepted', report: { state: 'checking', markets: [] } })),
+      http.post(`${pageApiUrl}/reconciliation/check`, async ({ request }) => {
+        requests.push({ body: await request.json(), key: request.headers.get('Idempotency-Key') })
+        return requests.length === 1 ? HttpResponse.error() : HttpResponse.json({ id: 'retry-check', status: 'accepted' }, { status: 202 })
+      }),
+    )
+    render(<ActivityPage />, { wrapper: pageWrapper() })
+    const submit = await screen.findByRole('button', { name: 'Request Reconciliation' })
+    await waitFor(() => expect(submit).toBeEnabled())
+    fireEvent.click(submit)
+    await screen.findByRole('button', { name: 'Retry check with same body/key' })
+    fireEvent.click(screen.getByRole('button', { name: /Session Events/ }))
+    const readsWhileInactive = latestReads.length
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(latestReads).toHaveLength(readsWhileInactive)
+    fireEvent.click(screen.getByRole('button', { name: /Exchange Reconciliation/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry check with same body/key' }))
+    await waitFor(() => expect(requests).toHaveLength(2))
+    expect(requests[1]).toEqual(requests[0])
+  })
   it('derives the active tab from URL search and syncs clicks to it', async () => {
     searchTab = 'events'
     try {
