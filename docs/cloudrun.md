@@ -292,6 +292,16 @@ or pure wire latency. A placement return alone does not prove Created was
 published; private WS can publish before a REST return. IDs remain hashed and
 no batch is logged from the trading writer or while holding its diagnostic lock.
 
+On each `order.admission` span, `admission_slot_wait_ms`,
+`recorder_lock_wait_ms` and `ownership_backoff_ms` accumulate the actual time
+spent acquiring each local lock or sleeping between retries. The trace lists
+only phases that the order entered. Each `order.intent` attempt records
+`ownership_row_check_ms` for its PostgreSQL NOWAIT row check, including a
+failed check. The rest of the intent span includes preparation, writer
+scheduling, database work and rollback or commit. Join the spans by the
+hashed order and parent span ID, then use the probe timestamps and the Spot
+SELL replacement markers to compare latency with quote activity.
+
 Project sink exclusions can discard these INFO events and correlated successful
 `Admin status read` records after the service emits them. Check Log Router when
 headers carry timing but successful server logs are missing. Exempt only the

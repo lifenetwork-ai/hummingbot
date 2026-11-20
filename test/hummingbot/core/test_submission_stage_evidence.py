@@ -15,6 +15,34 @@ from hummingbot.core.engine_diagnostics import EngineDiagnostics
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 
 
+@pytest.mark.asyncio
+async def test_admission_timing_accumulates_waits_without_charging_the_held_lock(monkeypatch):
+    now = [1_000_000_000]
+    tracer = EngineDiagnostics(clock=lambda: now[0])
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    lock = asyncio.Lock()
+
+    async def acquire():
+        async with diagnostic.timed_submission_lock(lock, 'admission_slot_wait_ms'):
+            now[0] += 100_000_000
+
+    with tracer.span('order.admission', order='fixture'):
+        await lock.acquire()
+        waiter = asyncio.create_task(acquire())
+        await asyncio.sleep(0)
+        now[0] += 12_000_000
+        lock.release()
+        await waiter
+        for _ in range(2):
+            with diagnostic.submission_timing('ownership_backoff_ms'):
+                now[0] += 500_000_000
+
+    phase, = tracer.snapshot()['submission_recent']
+    assert phase['admission_slot_wait_ms'] == 12
+    assert phase['ownership_backoff_ms'] == 1000
+    assert phase['duration_ms'] == 1112
+
+
 def test_completed_submission_phases_survive_sql_churn_and_publish_on_watchdog():
     now, records = [10_000_000_000], []
     tracer = EngineDiagnostics(clock=lambda: now[0], emit=records.append, capacity=8)

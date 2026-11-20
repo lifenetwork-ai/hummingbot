@@ -19,6 +19,7 @@ from hummingbot.cli.service_processes import probe_health
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.connector.trading_rule import TradingRule
+from hummingbot.core import engine_diagnostics
 from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
@@ -440,8 +441,11 @@ def test_fresh_burst_callback_and_completion_work(native, legacy):
 
 
 @pytest.mark.parametrize('after_wait', ['send', 'stop', 'retire', 'reprice'])
-def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(native, after_wait):
+def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(native, after_wait, monkeypatch):
     from hummingbot.core.order_submission_guard import QuoteRefreshRequired
+
+    diagnostics = engine_diagnostics.EngineDiagnostics()
+    monkeypatch.setattr(engine_diagnostics, '_ACTIVE', diagnostics)
 
     async def run():
         blocker = native.engine.connect()
@@ -452,7 +456,10 @@ def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(
             with session_order_scope(native.session.id, native.session.generation):
                 task = asyncio.create_task(native.market._create_order(
                     TradeType.BUY, 'busy-native', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
-            await asyncio.sleep(.65)  # The same real row stays busy across two admission fences.
+            async with asyncio.timeout(3):
+                while sum(phase['operation'] == 'order.intent' and phase['error']
+                          for phase in diagnostics.snapshot()['submission_recent']) < 2:
+                    await asyncio.sleep(.01)
             assert not task.done(), 'A proven unsent conflict must wait instead of triggering executor retries'
             assert task in native.owner.submission_tasks and not native.owner.submission_admission.locked()
             native.transport.call.assert_not_awaited()
@@ -482,6 +489,15 @@ def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(
 
     native.loop.run_until_complete(run())
     sends = int(after_wait == 'send')
+    phases = diagnostics.snapshot()['submission_recent']
+    admission, = [phase for phase in phases if phase['operation'] == 'order.admission']
+    intents = [phase for phase in phases if phase['operation'] == 'order.intent']
+    assert admission['ownership_backoff_ms'] >= 980
+    assert admission['admission_slot_wait_ms'] >= 0
+    assert admission['recorder_lock_wait_ms'] >= 0
+    assert len(intents) == 2 + sends
+    assert all(0 <= phase['ownership_row_check_ms'] <= phase['duration_ms'] for phase in intents)
+    assert all(phase['order'] == admission['order'] for phase in intents)
     assert native.transport.call.await_count == sends
     with native.manager.get_new_session() as db:
         assert db.query(Order).count() == db.query(SubmissionAttempt).count() == sends

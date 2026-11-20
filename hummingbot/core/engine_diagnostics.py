@@ -16,7 +16,7 @@ import threading
 import time
 import weakref
 from collections import deque
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 
 OPERATIONS = frozenset({
@@ -39,6 +39,12 @@ SLOW_MS = {
     'shutdown.proof_before': 1000, 'shutdown.proof_after': 1000,
 }
 SUBMISSION_OPERATIONS = frozenset({'order.submit', 'order.admission', 'order.intent', 'order.place', 'order.created'})
+_SUBMISSION_TIMING_OPERATIONS = {
+    'admission_slot_wait_ms': 'order.admission',
+    'recorder_lock_wait_ms': 'order.admission',
+    'ownership_backoff_ms': 'order.admission',
+    'ownership_row_check_ms': 'order.intent',
+}
 _QUOTE_LIMIT = 64
 _QUOTE_LINK_TTL_NS = 120_000_000_000
 _HEARTBEAT_INTERVAL_S = .05
@@ -77,6 +83,51 @@ def _finish(tracer, token, error):
         tracer.finish(token, error=error)
     except Exception:
         pass
+
+
+@contextmanager
+def submission_timing(field):
+    """Accumulate a fixed phase on its existing span without adding ring entries."""
+    tracer = _ACTIVE
+    parent = _PARENT.get() if tracer is not None else None
+    started = None
+    if parent is not None:
+        try:
+            started = tracer.clock()
+        except Exception:
+            pass
+
+    def finish():
+        nonlocal started
+        if started is None:
+            return
+        try:
+            elapsed_ms = (tracer.clock() - started) / 1e6
+            with tracer.lock:
+                row = tracer.active.get(parent)
+                if row is not None and row['operation'] == _SUBMISSION_TIMING_OPERATIONS[field]:
+                    row[field] = round(row.get(field, 0) + elapsed_ms, 3)
+        except Exception:
+            pass
+        finally:
+            started = None
+
+    try:
+        yield finish
+    finally:
+        finish()
+
+
+@asynccontextmanager
+async def timed_submission_lock(lock, field):
+    if _ACTIVE is None:
+        async with lock:
+            yield
+        return
+    with submission_timing(field) as acquired:
+        async with lock:
+            acquired()
+            yield
 
 
 def _identity(value):

@@ -15,7 +15,12 @@ from psycopg2 import Error as PostgreSQLError
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import DBAPIError, OperationalError
 
-from hummingbot.core.engine_diagnostics import active_shutdown_stages, trace_runtime
+from hummingbot.core.engine_diagnostics import (
+    active_shutdown_stages,
+    submission_timing,
+    timed_submission_lock,
+    trace_runtime,
+)
 from hummingbot.core.operational_warnings import OperationalWarnings
 from hummingbot.core.order_submission_guard import (
     SUPPORTED_CONNECTORS,
@@ -430,8 +435,9 @@ class BotOwnership:
             # shutdown callbacks must remain able to run throughout contention.
             delay = self._intent_admission_retry_at - time.monotonic()
             if delay > 0:
-                await asyncio.sleep(delay)
-            async with self.submission_admission:
+                with submission_timing('ownership_backoff_ms'):
+                    await asyncio.sleep(delay)
+            async with timed_submission_lock(self.submission_admission, 'admission_slot_wait_ms'):
                 # Even uncontended admissions yield before fresh authority and
                 # price/risk checks. Another waiter may have renewed cooldown.
                 await asyncio.sleep(0)
@@ -445,7 +451,7 @@ class BotOwnership:
                     if recorder is None:
                         self.before_order(connector, order)
                     else:
-                        async with recorder.order_writes:
+                        async with timed_submission_lock(recorder.order_writes, 'recorder_lock_wait_ms'):
                             if active_guard() is not self:
                                 raise SubmissionBlocked("Trading owner changed before durable order admission.")
                             recorder = self._prepare_order_intent(connector, order)
@@ -743,9 +749,10 @@ class BotOwnership:
         transaction = session.get_transaction()
         if transaction is not None and session.info.get("ownership_fenced_transaction") is transaction:
             return
-        row = session.connection().execute(select(BotState.owner_generation).where(
-            BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
-            BotState.owner_generation == self.generation).with_for_update(read=True, nowait=nowait)).first()
+        with submission_timing('ownership_row_check_ms') if nowait else nullcontext():
+            row = session.connection().execute(select(BotState.owner_generation).where(
+                BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
+                BotState.owner_generation == self.generation).with_for_update(read=True, nowait=nowait)).first()
         if not row:
             raise OwnershipLost("A stale process cannot write trading/recovery state.",
                                 reason_code='ownership_identity_mismatch')
