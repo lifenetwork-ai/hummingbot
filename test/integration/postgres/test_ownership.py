@@ -1079,12 +1079,14 @@ def test_terminal_checkpoint_only_accepts_fills_covered_by_the_new_snapshot(owne
     assert not owned.owner.allow_new_orders
 
 
-@pytest.mark.parametrize("pruned", [False, True])
+@pytest.mark.parametrize("pruned", [False, True, "expired"], ids=["active", "pruned", "expired"])
 @pytest.mark.parametrize("initial", ["0", "0.011"])
 def test_late_cancel_fill_round_trips_through_real_position_checkpoint(owned, monkeypatch, initial, pruned):
-    from hummingbot.core.data_type.in_flight_order import TradeUpdate
+    from hummingbot.connector.client_order_tracker import ClientOrderTracker
+    from hummingbot.core.data_type.in_flight_order import OrderUpdate, TradeUpdate
     from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
     from hummingbot.core.rate_oracle.rate_oracle import RateOracle
+    from hummingbot.model.trade_fill import TradeFill
     from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
     from hummingbot.strategy_v2.executors.position_executor.data_types import (
         PositionExecutorConfig,
@@ -1124,15 +1126,15 @@ def test_late_cancel_fill_round_trips_through_real_position_checkpoint(owned, mo
     orchestrator.positions_held = {"maker": []}
     core.strategy.executor_orchestrator = orchestrator
 
-    def fill(identity, amount):
-        order.update_with_trade_update(TradeUpdate(
+    def trade(identity, amount):
+        return TradeUpdate(
             trade_id=identity, client_order_id=order.client_order_id, exchange_order_id="1",
             trading_pair="BTC-USDT", fill_timestamp=1700000001, fill_price=Decimal("100"),
             fill_base_amount=Decimal(amount), fill_quote_amount=Decimal(amount) * 100,
-            fee=AddedToCostTradeFee(flat_fees=[TokenAmount("USDT", Decimal("0.000001"))])))
+            fee=AddedToCostTradeFee(flat_fees=[TokenAmount("USDT", Decimal("0.000001"))]))
 
     if Decimal(initial):
-        fill("first", initial)
+        order.update_with_trade_update(trade("first", initial))
     if pruned:
         # The executor still owns the reference when the connector has already
         # retired it from active orders during controller cleanup.
@@ -1140,11 +1142,21 @@ def test_late_cancel_fill_round_trips_through_real_position_checkpoint(owned, mo
 
     async def refresh(connector, orders, **kwargs):
         assert executor.terminated.is_set()
-        fill("late", "0.001")  # Repeated readback of the same fill remains idempotent.
+        order.update_with_trade_update(trade("late", "0.001"))
         order.current_state = OrderState.CANCELED
 
     core.cancel_outstanding_orders = AsyncMock(return_value=True)
-    owned.owner._refresh_orders = AsyncMock(side_effect=refresh)
+    if pruned == "expired":
+        # No connector reference survives; only the executor carries the object.
+        owned.market._order_tracker = ClientOrderTracker(owned.market)
+        order.update_exchange_order_id("1")
+        order.current_state = OrderState.CANCELED
+        owned.market._request_order_status = AsyncMock(return_value=OrderUpdate(
+            "BTC-USDT", 1700000001, OrderState.CANCELED, client_order_id=order.client_order_id,
+            exchange_order_id="1"))
+        owned.market._all_trade_updates_for_order = AsyncMock(return_value=[trade("late", "0.001")])
+    else:
+        owned.owner._refresh_orders = AsyncMock(side_effect=refresh)
 
     async def shutdown(**kwargs):
         await orchestrator.stop(keep_position=True, before_position_checkpoint=core.before_position_checkpoint)
@@ -1157,6 +1169,9 @@ def test_late_cancel_fill_round_trips_through_real_position_checkpoint(owned, mo
     assert len(saved) == 1
     assert saved[0].amount == Decimal(initial) + Decimal("0.001")
     assert saved[0].cum_fees_quote == Decimal("0.000001") * (2 if Decimal(initial) else 1)
+    if pruned == "expired":
+        with owned.manager.get_new_session() as session:
+            assert session.query(TradeFill).count() == 1
     restored = ExecutorOrchestrator(strategy)
     assert restored.positions_held["maker"][0].net_amount_base == saved[0].amount
     assert restored.positions_held["maker"][0].cum_fees_quote == saved[0].cum_fees_quote

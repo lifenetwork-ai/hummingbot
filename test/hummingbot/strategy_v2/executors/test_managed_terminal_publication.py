@@ -69,7 +69,7 @@ async def test_native_cancel_applies_partial_then_publishes_without_clock_tick(n
 
     def commit(*args, **kwargs):
         assert not controller.executors_update_event.is_set()
-        assert executor.config.id in orchestrator.executors_ids_position_held
+        assert executor.config.id not in orchestrator.executors_ids_position_held
 
     recorder.checkpoint_held_positions.side_effect = commit
     executor.process_order_canceled_event(None, None, SimpleNamespace(order_id=order.client_order_id))
@@ -77,6 +77,7 @@ async def test_native_cancel_applies_partial_then_publishes_without_clock_tick(n
     assert not controller.executors_update_event.is_set()  # Never publish inside a native callback.
     await asyncio.wait_for(controller.executors_update_event.wait(), .25)
     recorder.checkpoint_held_positions.assert_called_once()
+    assert executor.config.id in orchestrator.executors_ids_position_held
     assert abs(orchestrator.positions_held['maker'][0].net_amount_base) == Decimal('.8')
     assert orchestrator.positions_held['maker'][0].reduction_basis.amount == Decimal('.8')
     assert controller.executors_info[0].is_done

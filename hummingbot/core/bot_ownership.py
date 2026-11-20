@@ -1478,13 +1478,16 @@ class BotOwnership:
 
         @trace_runtime('shutdown.proof_before')
         async def before_position_checkpoint(checkpoint_orders):
+            from hummingbot.connector.client_order_tracker import ClientOrderTracker
+
             # The orchestrator has stopped its PositionExecutor control loops,
             # retaining live order objects but taking no held-position snapshot.
             # An order may have left connector.in_flight_orders while controllers
             # were draining; its retained reference still needs terminal readback.
             by_connector = {id(connector): orders for connector, orders in tracked}
             for order_id, (name, order) in checkpoint_orders.items():
-                orders = by_connector.get(id(self.connectors.get(name)))
+                connector = self.connectors.get(name)
+                orders = by_connector.get(id(connector))
                 if orders is None or order.client_order_id != order_id:
                     raise SubmissionBlocked('Position checkpoint order identity is unavailable.')
                 if any(existing.client_order_id == order_id and existing is not order for existing in orders):
@@ -1492,6 +1495,9 @@ class BotOwnership:
                 if all(existing is not order for existing in orders):
                     orders.append(order)
                     execution_before_stop.setdefault(order_id, order.executed_amount_base)
+                tracker = connector._order_tracker
+                if isinstance(tracker, ClientOrderTracker) and not local_rejection(order):
+                    tracker.restore_terminal_checkpoint_order(order)
             await core.cancel_outstanding_orders()
             await read_terminal_orders()
             if not changed_orders() <= checkpoint_orders.keys():

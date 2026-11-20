@@ -1,15 +1,18 @@
 """Terminal fill proof must precede persisted V2 position snapshots."""
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from cachetools import TTLCache
 
+from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core.data_type.common import OrderType, PositionMode, TradeType
-from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, TradeUpdate
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
+from hummingbot.core.event.events import MarketEvent
 from hummingbot.core.rate_oracle.rate_oracle import RateOracle
 from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
@@ -62,6 +65,61 @@ def fill(order, identity, amount):
                          fill_base_amount=Decimal(amount), fill_quote_amount=Decimal(amount) * Decimal('.1'),
                          fee=AddedToCostTradeFee(flat_fees=[TokenAmount('USDT', Decimal('.000001'))]))
     order.update_with_trade_update(update)
+
+
+def publish_before_tracker_expiry(executor, order, update, tag, callback):
+    connector = executor.connectors[executor.config.connector_name]
+    tracker = ClientOrderTracker(connector)
+    connector._order_tracker = tracker
+    clock = [0.]
+    tracker._cached_orders = TTLCache(maxsize=100, ttl=tracker.CACHED_ORDER_TTL, timer=lambda: clock[0])
+
+    def dispatch(event_tag, event):
+        if event_tag is tag:
+            callback(None, connector, event)
+
+    connector.trigger_event.side_effect = dispatch
+    tracker.start_tracking_order(order)
+    tracker._apply_order_update(order, update)
+    assert tracker.fetch_order(client_order_id=order.client_order_id) is order
+    clock[0] += tracker.CACHED_ORDER_TTL + 1
+    assert tracker.fetch_order(client_order_id=order.client_order_id) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('reason', ['MarketReadinessBlocked', 'QuoteRefreshRequired', 'SpotOutflowPending'])
+async def test_step_checkpoint_keeps_rejected_entry_after_tracker_expiry(monkeypatch, reason):
+    orchestrator, executor, order, recorder = setup_checkpoint(monkeypatch)
+    executor.config.mm_session_id = 'session'
+    executor.config.mm_generation = 1
+    executor._open_order.order = None
+    order.exchange_order_id = None
+    order.current_state = OrderState.PENDING_CREATE
+    update = OrderUpdate(order.trading_pair, 2, OrderState.FAILED, client_order_id=order.client_order_id,
+                         misc_updates={'error_type': reason})
+    publish_before_tracker_expiry(executor, order, update, MarketEvent.OrderFailure, executor.process_order_failed_event)
+
+    async def terminal_proof(orders):
+        assert orders[order.client_order_id][1] is order
+        return {order.client_order_id: order.to_json()}
+
+    await orchestrator.stop(keep_position=True, before_position_checkpoint=terminal_proof)
+    assert not executor._held_position_orders and not orchestrator.active_executors
+    recorder.update_or_store_positions.assert_called_once_with([])
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_refuses_order_identity_without_native_evidence(monkeypatch):
+    orchestrator, executor, _, recorder = setup_checkpoint(monkeypatch)
+    executor._open_order.order = None
+    executor.get_in_flight_order = lambda *args: None
+    terminal_proof = AsyncMock()
+
+    with pytest.raises(ValueError, match='Terminal position checkpoint order is unavailable'):
+        await orchestrator.stop(keep_position=True, before_position_checkpoint=terminal_proof)
+
+    terminal_proof.assert_not_awaited()
+    recorder.update_or_store_positions.assert_not_called()
 
 
 @pytest.mark.asyncio

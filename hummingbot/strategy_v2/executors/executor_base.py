@@ -6,6 +6,7 @@ from hummingbot.client.settings import AllConnectorSettings
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core.data_type.common import OrderType, PositionAction, PriceType, TradeType
+from hummingbot.core.data_type.in_flight_order import InFlightOrder
 from hummingbot.core.data_type.order_candidate import OrderCandidate
 from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.core.event.event_forwarder import SourceInfoEventForwarder
@@ -23,7 +24,7 @@ from hummingbot.core.order_submission_guard import session_order_scope
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.data_types import ExecutorConfigBase
 from hummingbot.strategy_v2.models.base import RunnableStatus
-from hummingbot.strategy_v2.models.executors import CloseType
+from hummingbot.strategy_v2.models.executors import CloseType, TrackedOrder
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 from hummingbot.strategy_v2.runnable_base import RunnableBase
 
@@ -333,6 +334,15 @@ class ExecutorBase(RunnableBase):
         :return: The in-flight order.
         """
         return self.connectors[connector_name]._order_tracker.fetch_order(client_order_id=order_id)
+
+    def _retain_managed_terminal_order(self, tracked: TrackedOrder) -> None:
+        if tracked.order is not None or getattr(self.config, 'mm_session_id', None) is None:
+            return
+        # A terminal event can arrive without a creation event. Keep the
+        # native object while it is still visible to the connector tracker.
+        native = self.get_in_flight_order(self.config.connector_name, tracked.order_id)
+        if isinstance(native, InFlightOrder) and native.client_order_id == tracked.order_id:
+            tracked.order = native
 
     def register_events(self):
         """

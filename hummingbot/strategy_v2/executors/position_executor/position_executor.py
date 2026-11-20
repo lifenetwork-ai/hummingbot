@@ -795,14 +795,12 @@ class PositionExecutor(ExecutorBase):
         """
         self._notify_shutdown_order_change(event.order_id)
         if self._close_order and event.order_id == self._close_order.order_id:
+            self._retain_managed_terminal_order(self._close_order)
             self._failed_orders.append(self._close_order)
             self._close_order = None
         if self._open_order and event.order_id == self._open_order.order_id:
             managed_maker = self._is_managed_maker_entry
-            if managed_maker and self._open_order.order is None:
-                # A native cancel can arrive before the created event/REST ACK.
-                # Its terminal order is still available in the connector cache.
-                self.update_tracked_orders_with_order_id(event.order_id)
+            self._retain_managed_terminal_order(self._open_order)
             order = self._open_order.order
             retire = (managed_maker and self.status == RunnableStatus.RUNNING and order is not None
                       and order.exchange_order_id and order.is_cancelled and order.executed_amount_base == 0)
@@ -815,6 +813,7 @@ class PositionExecutor(ExecutorBase):
             elif self._restored_pending_entry is not None:
                 self.early_stop(keep_position=True)
         if self._take_profit_limit_order and event.order_id == self._take_profit_limit_order.order_id:
+            self._retain_managed_terminal_order(self._take_profit_limit_order)
             self._failed_orders.append(self._take_profit_limit_order)
             self._take_profit_limit_order = None
 
@@ -828,10 +827,7 @@ class PositionExecutor(ExecutorBase):
             session_closed = (event.error_type == 'SessionSubmissionBlocked'
                               and getattr(self.config, 'mm_session_id', None) is not None
                               and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
-            if session_closed and self._open_order.order is None:
-                # Native failure may precede the created callback. Retain its
-                # cached order/fills for the existing terminal-first checkpoint.
-                self.update_tracked_orders_with_order_id(event.order_id)
+            self._retain_managed_terminal_order(self._open_order)
             self._failed_orders.append(self._open_order)
             self._open_order = None
             # A configured entry cannot fix a fresh spread rejection by retrying
@@ -852,11 +848,13 @@ class PositionExecutor(ExecutorBase):
             if not (outflow_wait or session_closed):
                 self._current_retries += 1
         elif self._close_order and event.order_id == self._close_order.order_id:
+            self._retain_managed_terminal_order(self._close_order)
             self._failed_orders.append(self._close_order)
             self._close_order = None
             self._log_order_failure("Close", event)
             self._current_retries += 1
         elif self._take_profit_limit_order and event.order_id == self._take_profit_limit_order.order_id:
+            self._retain_managed_terminal_order(self._take_profit_limit_order)
             self._failed_orders.append(self._take_profit_limit_order)
             self._take_profit_limit_order = None
             self._log_order_failure("Take profit", event)

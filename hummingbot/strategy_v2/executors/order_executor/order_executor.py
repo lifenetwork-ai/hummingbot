@@ -427,6 +427,7 @@ class OrderExecutor(ExecutorBase):
         Process the order canceled event.
         """
         if self._order and event.order_id == self._order.order_id:
+            self._retain_managed_terminal_order(self._order)
             if self._order.executed_amount_base > Decimal("0"):
                 self._partial_filled_orders.append(self._order)
             else:
@@ -447,13 +448,7 @@ class OrderExecutor(ExecutorBase):
         """
         if self._order and event.order_id == self._order.order_id:
             managed_close = self.config.mm_session_id is not None and self.config.position_action == PositionAction.CLOSE
-            if managed_close and self._order.order is None:
-                # Failed local admission has no creation callback. Retain the
-                # native reference for terminal/financial proof and late fills.
-                from hummingbot.core.data_type.in_flight_order import InFlightOrder
-                native = self.get_in_flight_order(self.config.connector_name, event.order_id)
-                if isinstance(native, InFlightOrder):
-                    self._order.order = native
+            self._retain_managed_terminal_order(self._order)
             # An order that failed AFTER partially filling carries real exposure:
             # keep those fills in the partial list so they count toward
             # executed_amount_base (sizing) and the terminal hold.

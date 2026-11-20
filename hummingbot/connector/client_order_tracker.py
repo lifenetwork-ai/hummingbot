@@ -172,6 +172,17 @@ class ClientOrderTracker:
     def fetch_cached_order(self, client_order_id: str) -> Optional[InFlightOrder]:
         return self._cached_orders.get(client_order_id, None)
 
+    def restore_terminal_checkpoint_order(self, order: InFlightOrder) -> None:
+        """Make the executor's retained order visible to native proof updates."""
+        identity = order.client_order_id
+        current = self._in_flight_orders.get(identity) or self._cached_orders.get(identity)
+        if current is order:
+            return
+        if (current is not None or identity in self._lost_orders
+                or order.current_state not in (OrderState.CANCELED, OrderState.FILLED, OrderState.FAILED)):
+            raise ValueError("Terminal checkpoint order conflicts with native tracking")
+        self._cached_orders[identity] = order
+
     def fetch_order(
         self, client_order_id: Optional[str] = None, exchange_order_id: Optional[str] = None
     ) -> Optional[InFlightOrder]:

@@ -1,15 +1,19 @@
 """A native closing quote must retain fills arriving after its loop freezes."""
 from decimal import Decimal
-from test.hummingbot.strategy_v2.executors.test_terminal_position_checkpoint import fill, setup_checkpoint
+from test.hummingbot.strategy_v2.executors.test_terminal_position_checkpoint import (
+    fill,
+    publish_before_tracker_expiry,
+    setup_checkpoint,
+)
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
 from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
-from hummingbot.core.data_type.in_flight_order import OrderState
+from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
-from hummingbot.core.event.events import MarketOrderFailureEvent
+from hummingbot.core.event.events import MarketEvent, MarketOrderFailureEvent
 from hummingbot.core.rate_oracle.rate_oracle import RateOracle
 from hummingbot.strategy_v2.executors.executor_orchestrator import PositionHold
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
@@ -99,6 +103,26 @@ def test_cancel_callback_preserves_close_effect_and_partial_for_retry(monkeypatc
     assert executor._order is None
     assert executor.executed_amount_base == Decimal('.2')
     assert executor._collect_held_position_orders()[0]['position'] == 'CLOSE'
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_keeps_close_canceled_before_create_after_tracker_expiry(monkeypatch):
+    orchestrator, executor, order, recorder = closing_quote(monkeypatch)
+    executor._order.order = None
+    order.exchange_order_id = None
+    order.current_state = OrderState.PENDING_CREATE
+    fill(order, 'partial', '.2')
+    update = OrderUpdate(order.trading_pair, 2, OrderState.CANCELED, client_order_id=order.client_order_id,
+                         exchange_order_id='1')
+    publish_before_tracker_expiry(executor, order, update, MarketEvent.OrderCancelled,
+                                  executor.process_order_canceled_event)
+
+    async def terminal_proof(orders):
+        assert orders[order.client_order_id][1] is order
+        return {order.client_order_id: order.to_json()}
+
+    await orchestrator.stop(keep_position=True, before_position_checkpoint=terminal_proof)
+    assert recorder.update_or_store_positions.call_args.args[0][0].amount == Decimal('.8')
 
 
 def test_legacy_report_does_not_add_a_scan_of_zero_fill_cancel_history(monkeypatch):
