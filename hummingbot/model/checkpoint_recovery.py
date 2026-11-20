@@ -97,7 +97,7 @@ def unresolved_attempts(connection, *, excluding=()):
         and_(SubmissionAttempt.state == 'rejected', or_(~failed_order, fills)))))))
 
 
-def snapshot(connection, state, positions, bindings, *, uncertain_order_id=None):
+def snapshot(connection, state, positions, bindings, *, uncertain_ids=()):
     if state.get('config_type') != 'mm-session' or not state.get('config_file_path'):
         return None
     with Session(bind=connection) as session:
@@ -113,11 +113,11 @@ def snapshot(connection, state, positions, bindings, *, uncertain_order_id=None)
         anchor = reviewed_anchor(connection, state, checkpoint)
         if anchor is None or not 0 <= anchor['journal_watermark'] <= checkpoint.watermark:
             return None
-        uncertain = None
-        if uncertain_order_id is not None:
-            from hummingbot.model.recovery_uncertain import candidate
-            uncertain = candidate(connection, state, bindings, checkpoint.payload, anchor, uncertain_order_id)
-            terminal_orders, excluded = [], [uncertain_order_id]
+        uncertain = []
+        if uncertain_ids:
+            from hummingbot.model.recovery_uncertain import candidates
+            uncertain = candidates(connection, state, bindings, checkpoint.payload, anchor, uncertain_ids)
+            terminal_orders, excluded = [], uncertain_ids
         else:
             from hummingbot.model.recovery_terminal import candidates
             terminal_orders = candidates(connection, state, bindings, checkpoint.payload)
@@ -128,7 +128,7 @@ def snapshot(connection, state, positions, bindings, *, uncertain_order_id=None)
             return None
         from hummingbot.model.recovery_pending_fills import candidates as pending_candidates
         pending = pending_candidates(connection, state, positions, bindings, checkpoint, anchor)
-        if pending is None or uncertain is not None and pending[0]:
+        if pending is None or uncertain and pending[0]:
             return None
         unjournaled = connection.scalar(select(func.count()).select_from(TradeFill).where(
             ~exists(select(RuntimeJournal.id).where(fill_identity()))))
@@ -144,8 +144,10 @@ def snapshot(connection, state, positions, bindings, *, uncertain_order_id=None)
                      expected_fills=expected, prefix_unjournaled_fills=unjournaled)
     result = dict(mode=MODE, state=state, positions=positions, bindings=bindings, orders=[], fills=[], truncated=False,
                   checkpoint=value, ledger_hash=ledger_hash(connection), terminal_orders=terminal_orders)
-    if uncertain is not None:
-        result['uncertain_order'] = uncertain
+    if len(uncertain) == 1:
+        result['uncertain_order'] = uncertain[0]  # Preserve existing single-order receipts and fingerprints.
+    elif uncertain:
+        result['uncertain_orders'] = uncertain
     if pending[0]:
         result['pending_fill_transfers'], result['pending_fill_plan'] = pending
     return result

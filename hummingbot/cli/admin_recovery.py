@@ -1,14 +1,19 @@
 """Admin-only review/confirm recovery handlers on the existing API worker."""
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from aiohttp import web
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from hummingbot.cli.admin_errors import request_id
 from hummingbot.cli.admin_models import APIModel, HaltCause, UTCDateTime
 from hummingbot.cli.api_documentation import api_operation
 from hummingbot.core.halt_diagnostics import halt_cause
-from hummingbot.core.recovery import recovery_blockers
+from hummingbot.core.recovery import (
+    CLIENT_ORDER_ID_PATTERN,
+    MAX_UNCERTAIN_REVIEW_ORDERS,
+    recovery_blockers,
+    uncertain_order_ids,
+)
 from hummingbot.core.recovery_messages import RECOVERY_MESSAGES
 from hummingbot.model.bot_state_store import ControlConflict
 from hummingbot.model.recovery_store import RecoveryStore
@@ -19,21 +24,46 @@ HARD_BLOCKERS = frozenset({'recovery_stop_required', 'recovery_stop_incomplete',
                            'owner_unavailable', 'recovery_operation_in_progress'})
 
 
-class RecoveryQuery(APIModel):
-    uncertain_order_id: Optional[str] = Field(
-        default_factory=lambda: None, pattern=r'^[a-zA-Z0-9]{1,32}$',
+ClientOrderId = Annotated[str, Field(pattern=CLIENT_ORDER_ID_PATTERN)]
+
+
+class RecoveryScope(APIModel):
+    uncertain_order_id: Optional[ClientOrderId] = Field(
+        default_factory=lambda: None,
         description='Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.')
 
 
-class RecoveryCheckRequest(RecoveryQuery):
+class RecoveryQuery(RecoveryScope):
+    uncertain_order_ids: Optional[str] = Field(default_factory=lambda: None, max_length=33 * MAX_UNCERTAIN_REVIEW_ORDERS - 1,
+                                               description='Comma-separated client order IDs for reviewing the complete outstanding batch.')
+
+    @model_validator(mode='after')
+    def validate_scope(self):
+        self.order_ids()
+        return self
+
+    def order_ids(self):
+        batch = self.uncertain_order_ids.split(',') if self.uncertain_order_ids is not None else None
+        return uncertain_order_ids(dict(uncertain_order_id=self.uncertain_order_id, uncertain_order_ids=batch))
+
+
+class RecoveryCheckRequest(RecoveryScope):
     expected_version: int = Field(ge=0, strict=True)
+    uncertain_order_ids: Optional[List[ClientOrderId]] = Field(
+        default_factory=lambda: None, min_length=2, max_length=MAX_UNCERTAIN_REVIEW_ORDERS,
+        description='Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.')
+
+    @model_validator(mode='after')
+    def validate_scope(self):
+        uncertain_order_ids(self.model_dump())
+        return self
 
 
 class RecoveryResetRequest(RecoveryCheckRequest):
     check_id: str = Field(min_length=1, max_length=128, strict=True)
     confirmation_token: str = Field(pattern=r'^[a-f0-9]{32}$', strict=True)
     confirm_order_changes: bool = Field(default=False, strict=True,
-                                        description='True after reviewing proposed_order_changes, proposed_uncertain_order or pending fill application.')
+                                        description='True after reviewing proposed_order_changes, proposed_uncertain_order, proposed_uncertain_orders or pending fill application.')
 
 
 class RecoveryBlocker(APIModel):
@@ -111,6 +141,8 @@ class RecoveryOperation(APIModel):
     repaired_orders: List[RecoveryOrderRepair] = Field(default_factory=list)
     proposed_uncertain_order: Optional[RecoveryUncertainOrderRepair] = Field(default_factory=lambda: None)
     repaired_uncertain_order: Optional[RecoveryUncertainOrderRepair] = Field(default_factory=lambda: None)
+    proposed_uncertain_orders: List[RecoveryUncertainOrderRepair] = Field(default_factory=list)
+    repaired_uncertain_orders: List[RecoveryUncertainOrderRepair] = Field(default_factory=list)
     confirmation_token: Optional[str] = None
     expires_at: Optional[UTCDateTime] = None
     verification: Dict[str, Any] = Field(default_factory=dict)
@@ -153,6 +185,8 @@ def operation_response(row):
                              proposed_order_changes=report.get('proposed_order_changes', []), repaired_orders=report.get('repaired_orders', []),
                              proposed_uncertain_order=report.get('proposed_uncertain_order'),
                              repaired_uncertain_order=report.get('repaired_uncertain_order'),
+                             proposed_uncertain_orders=report.get('proposed_uncertain_orders', []),
+                             repaired_uncertain_orders=report.get('repaired_uncertain_orders', []),
                              confirmation_token=report.get('confirmation_token'), expires_at=report.get('expires_at'),
                              verification=report.get('verification', {}), created_at=row['created_at'], updated_at=row['updated_at'])
 
@@ -171,21 +205,22 @@ class AdminRecoveryAPI:
         state = await self.run_database(store.state.read)
         if state is None:
             raise ControlConflict('owner_unavailable', code='owner_unavailable')
-        codes = recovery_blockers(state, uncertain_order=query.uncertain_order_id is not None)
-        if query.uncertain_order_id and not await self.run_database(store.uncertain_order_pending, query.uncertain_order_id):
+        identities = query.order_ids()
+        codes = recovery_blockers(state, uncertain_order=bool(identities))
+        if identities and not await self.run_database(store.uncertain_orders_pending, identities):
             codes.append('recovery_uncertain_order_scope')
         age = state.get('heartbeat_age_s')
         if not state.get('owner_uuid') or age is None or not 0 <= float(age) <= 5:
             codes.append('owner_unavailable')
         if (state['recovery_state'] or {}).get('recovery_operation'):
             codes.append('recovery_operation_in_progress')
-        row = await self.run_database(store.latest, uncertain_order_id=query.uncertain_order_id)
+        row = await self.run_database(store.latest, uncertain_ids=identities)
         operation = operation_response(row) if row else None
         reset = bool(operation and operation.can_recover and operation.expires_at is not None
                      and operation.expires_at.timestamp() > float(state['database_now'])
                      and row['expected_version'] == state['control_version']
                      and store._same_owner(state, row['result']['_private']) and not codes)
-        check_allowed = not codes if query.uncertain_order_id else not any(code in HARD_BLOCKERS for code in codes)
+        check_allowed = not codes if identities else not any(code in HARD_BLOCKERS for code in codes)
         model = RecoveryOverview(halted=bool((state['recovery_state'] or {}).get('halt')),
                                  cause=halt_cause(state['recovery_state'] or {}),
                                  control_version=state['control_version'], check_available=check_allowed, reset_available=reset,

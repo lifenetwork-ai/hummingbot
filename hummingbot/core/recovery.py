@@ -1,6 +1,7 @@
 """Conservative recovery proofs over immutable fills; no exchange or DB writes."""
 import hashlib
 import json
+import re
 from collections import defaultdict
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
@@ -10,6 +11,8 @@ MAX_FILLS = 2000
 MAX_ORDERS = 5000
 PROOF_TTL_SECONDS = 300
 RECOVERY_TIMEOUT_SECONDS = 120
+MAX_UNCERTAIN_REVIEW_ORDERS = 8
+CLIENT_ORDER_ID_PATTERN = r'^[a-zA-Z0-9]{1,32}$'
 TECHNICAL_HALTS = frozenset({
     'A required runtime task failed; inspect service availability status.',
     'Trading/recorder health requires reconciliation.',
@@ -29,6 +32,18 @@ class RecoveryBlocked(RuntimeError):
     def __init__(self, code):
         self.code = code
         super().__init__(code)
+
+
+def uncertain_order_ids(payload):
+    single = payload.get('uncertain_order_id')
+    batch = payload.get('uncertain_order_ids')
+    if batch is None:
+        return (single,) if single is not None else ()
+    if (single is not None or not isinstance(batch, (list, tuple)) or not 2 <= len(batch) <= MAX_UNCERTAIN_REVIEW_ORDERS
+            or any(not isinstance(identity, str) or not re.fullmatch(CLIENT_ORDER_ID_PATTERN, identity) for identity in batch)
+            or len(set(batch)) != len(batch)):
+        raise ValueError('Review either one client order ID or a complete batch of distinct client order IDs.')
+    return tuple(sorted(batch))
 
 
 def decimal(value):
@@ -113,7 +128,7 @@ def recovery_blockers(state, *, uncertain_order=False):
 def fingerprint(snapshot):
     data = {key: snapshot.get(key, []) for key in ('orders', 'fills', 'positions', 'bindings')}
     state = snapshot['state']
-    for key in ('mode', 'checkpoint', 'ledger_hash', 'pending_intents', 'terminal_orders', 'uncertain_order',
+    for key in ('mode', 'checkpoint', 'ledger_hash', 'pending_intents', 'terminal_orders', 'uncertain_order', 'uncertain_orders',
                 'pending_fill_transfers', 'pending_fill_plan'):
         if key in snapshot:
             data[key] = snapshot[key]

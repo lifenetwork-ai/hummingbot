@@ -42,11 +42,10 @@ async def test_expired_order_requires_two_exact_reads_and_complete_history(monke
         return dict(code='0', data=page if 'after' not in params or fault == 'duplicate' else [])
 
     readers = {'okx': SimpleNamespace(connector=connector, _api_get=get)}
-    snapshot = dict(uncertain_order=order)
     if code:
         with pytest.raises(RecoveryBlocked, match=code):
-            await verify_uncertain_order(snapshot, readers)
+            await verify_uncertain_order(order, readers)
     else:
-        assert await verify_uncertain_order(snapshot, readers) == change_for(order)
+        assert await verify_uncertain_order(order, readers) == change_for(order)
         assert calls[2][1]['after'] == '100'
         assert calls[0] == calls[-1]

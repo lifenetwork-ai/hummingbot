@@ -1548,7 +1548,7 @@ After Stop, a generic HALT Check returns `recovery_pending_intents` before
 position replay or credential loading when a pending send exists. An admin can
 request a review for a specific uncertain Spot BUY using the flow below.
 
-### Review one uncertain Spot BUY
+### Review uncertain Spot BUYs
 
 Wait for Stop to be acknowledged. Use the exact client order ID from
 `automatic_recovery.order_id` or Orders. Read
@@ -1578,6 +1578,17 @@ the exchange order history and the exact order ID. Existing or conflicting
 evidence, incomplete pages, different credentials, active runtime work and
 risk stops block the operation. Operators can use Swagger to review and
 confirm this scope.
+
+If several such BUYs are unresolved, Check and Reset accept
+`uncertain_order_ids` with 2–8 distinct client order IDs. The batch must
+include every pending local order and live tracker in the scope. Use
+`GET /recovery?uncertain_order_ids=<id1>,<id2>` to check availability, then
+review `proposed_uncertain_orders` before Reset. Reset rechecks every ID,
+reports `repaired_uncertain_orders` and applies the whole batch atomically.
+A venue record or missing proof for one ID blocks the entire reset. The
+single-order field and receipt remain supported. An earlier random step of
+the same session can qualify when the original send deadline falls within
+that step and the rest of the proof still agrees.
 
 ### Automatic order reconciliation
 

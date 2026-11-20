@@ -9851,6 +9851,24 @@
             ],
             "description": "Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.",
             "title": "Uncertain Order Id"
+          },
+          "uncertain_order_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[a-zA-Z0-9]{1,32}$",
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "minItems": 2,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.",
+            "title": "Uncertain Order Ids"
           }
         },
         "required": [
@@ -9947,6 +9965,13 @@
               }
             ]
           },
+          "proposed_uncertain_orders": {
+            "items": {
+              "$ref": "#/components/schemas/RecoveryUncertainOrderRepairOutput"
+            },
+            "title": "Proposed Uncertain Orders",
+            "type": "array"
+          },
           "repaired_orders": {
             "items": {
               "$ref": "#/components/schemas/RecoveryOrderRepairOutput"
@@ -9970,6 +9995,13 @@
                 "type": "null"
               }
             ]
+          },
+          "repaired_uncertain_orders": {
+            "items": {
+              "$ref": "#/components/schemas/RecoveryUncertainOrderRepairOutput"
+            },
+            "title": "Repaired Uncertain Orders",
+            "type": "array"
           },
           "stage": {
             "title": "Stage",
@@ -10297,7 +10329,7 @@
           },
           "confirm_order_changes": {
             "default": false,
-            "description": "True after reviewing proposed_order_changes, proposed_uncertain_order or pending fill application.",
+            "description": "True after reviewing proposed_order_changes, proposed_uncertain_order, proposed_uncertain_orders or pending fill application.",
             "title": "Confirm Order Changes",
             "type": "boolean"
           },
@@ -10323,6 +10355,24 @@
             ],
             "description": "Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.",
             "title": "Uncertain Order Id"
+          },
+          "uncertain_order_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[a-zA-Z0-9]{1,32}$",
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "minItems": 2,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.",
+            "title": "Uncertain Order Ids"
           }
         },
         "required": [
@@ -20693,6 +20743,24 @@
               ],
               "description": "Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.",
               "title": "Uncertain Order Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "uncertain_order_ids",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 263,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated client order IDs for reviewing the complete outstanding batch.",
+              "title": "Uncertain Order Ids"
             }
           }
         ],

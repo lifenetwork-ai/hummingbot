@@ -10,8 +10,7 @@ PAGE_SIZE = 100
 MAX_PAGES = 20
 
 
-async def verify_uncertain_order(snapshot, readers):
-    candidate = snapshot['uncertain_order']
+async def verify_uncertain_order(candidate, readers):
     reader = readers['okx']
     if credential_fingerprint(reader.connector) != candidate['credential_fingerprint']:
         raise RecoveryBlocked('exchange_account_mismatch')
