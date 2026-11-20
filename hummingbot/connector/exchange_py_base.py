@@ -461,7 +461,9 @@ class ExchangePyBase(ExchangeBase, ABC):
                                      f" for the pair {trading_pair}. The order will not be created."))
             return
         try:
-            from hummingbot.core.order_submission_guard import before_order
+            from hummingbot.core.order_submission_guard import SUPPORTED_CONNECTORS, before_order, postgres_requested
+            if self.name in SUPPORTED_CONNECTORS and postgres_requested():
+                order._local_submission_in_progress = True
             await before_order(self, order)
             await self._place_order_and_process_update(order=order, **kwargs,)
 
@@ -499,6 +501,9 @@ class ExchangePyBase(ExchangeBase, ABC):
                 # Keep the exact managed create task alive until its local
                 # failure and any required recorder changes are visible.
                 await failure_update
+        finally:
+            if getattr(order, "_local_submission_in_progress", False):
+                del order._local_submission_in_progress
 
     @trace_runtime('order.place', order_parameter='order')
     async def _place_order_and_process_update(self, order: InFlightOrder, **kwargs) -> str:
@@ -1117,9 +1122,19 @@ class ExchangePyBase(ExchangeBase, ABC):
                 await error_handler(order, request_error)
 
     async def _update_orders(self):
-        orders_to_update = self.in_flight_orders.copy()
+        from hummingbot.core.order_submission_guard import unresolved_submission
+
+        # The local tracker registers new orders before admission. OKX cannot
+        # recognize them until they cross the durable send gate. Keep querying
+        # possible sends without an ACK and orders restored after a restart.
+        orders_to_update = [
+            order for order in self.in_flight_orders.values()
+            if (not getattr(order, "_local_submission_in_progress", False)
+                or order.exchange_order_id
+                or unresolved_submission(order.client_order_id))
+        ]
         await self._update_orders_with_error_handler(
-            orders=list(orders_to_update.values()), error_handler=self._handle_update_error_for_active_order
+            orders=orders_to_update, error_handler=self._handle_update_error_for_active_order
         )
 
     async def _update_lost_orders(self):
