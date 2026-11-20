@@ -311,7 +311,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         data = exchange_order_id["data"][0]
         if data["sCode"] != "0":
-            if str(data["sCode"]) in ("50036", "50037"):
+            if str(data["sCode"]) in ("50036", "50037", "51006"):
                 check_order_submission(exchange_order_id, order_id)
             raise IOError(f"Error submitting order {order_id}: {data['sMsg']}")
         return str(data["ordId"]), self.current_timestamp

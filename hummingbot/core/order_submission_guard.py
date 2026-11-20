@@ -76,6 +76,8 @@ def submission_block_log_context(error_type, error_message=None):
     """Classify the existing failure-event type; unknown failures stay errors."""
     if error_type == "SpotOutflowPending" and error_message == "spot_outflow_reconciling":
         return logging.WARNING, "spot_outflow_reconciling"
+    if error_type == "QuoteRefreshRequired" and error_message == "exchange_price_limit":
+        return logging.WARNING, "exchange_price_limit"
     return {
         "SessionSubmissionBlocked": (logging.INFO, "session_submission_closed"),
         "MarketReadinessBlocked": (logging.WARNING, "market_not_ready"),

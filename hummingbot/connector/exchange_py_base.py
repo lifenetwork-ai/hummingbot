@@ -470,7 +470,9 @@ class ExchangePyBase(ExchangeBase, ABC):
             await resolve_order_failure(self, order)
             raise
         except Exception as ex:
-            from hummingbot.core.order_submission_guard import resolve_order_failure
+            from hummingbot.connector.markets_recorder import MarketsRecorder
+            from hummingbot.connector.okx_order_status import OKXPriceLimitOrderRejection
+            from hummingbot.core.order_submission_guard import QuoteRefreshRequired, resolve_order_failure
             if await resolve_order_failure(self, order, ex):
                 self.logger().error(
                     "Order submission outcome unknown on %s: order_id=%s; reconciliation required, no automatic resubmission.",
@@ -479,6 +481,10 @@ class ExchangePyBase(ExchangeBase, ABC):
                            "error_type": type(ex).__name__},
                 )
                 return
+            recorder = MarketsRecorder.service_recorder_for(self)
+            if (recorder is not None and order.order_type == OrderType.LIMIT_MAKER
+                    and isinstance(ex, OKXPriceLimitOrderRejection)):
+                ex = QuoteRefreshRequired(ex.reason_code)
             failure_update = self._on_order_failure(
                 order_id=order_id,
                 trading_pair=trading_pair,
@@ -489,8 +495,7 @@ class ExchangePyBase(ExchangeBase, ABC):
                 exception=ex,
                 **kwargs,
             )
-            from hummingbot.connector.markets_recorder import MarketsRecorder
-            if failure_update is not None and MarketsRecorder.service_recorder_for(self) is not None:
+            if failure_update is not None and recorder is not None:
                 # Keep the exact managed create task alive until its local
                 # failure and any required recorder changes are visible.
                 await failure_update

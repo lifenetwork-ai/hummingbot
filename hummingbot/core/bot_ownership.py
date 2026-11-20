@@ -107,7 +107,7 @@ class BotOwnership:
         # Proof follows the actual rejected order object, including references
         # captured by shutdown, without retaining retired IDs indefinitely.
         self.unsent_rejections = weakref.WeakValueDictionary()
-        self.expired_rejections = weakref.WeakValueDictionary()
+        self.exchange_rejections = weakref.WeakValueDictionary()
         self.submission_tasks = set()
         self._submission_order_tasks = {}
         self.submission_admission = SubmissionAdmission()
@@ -529,17 +529,19 @@ class BotOwnership:
         return recorder
 
     def order_failed(self, connector, order, exception=None):
-        from hummingbot.connector.okx_order_status import OKXExpiredOrderRejection
-        if (isinstance(exception, OKXExpiredOrderRejection)
+        from hummingbot.connector.okx_order_status import OKXOrderRejection, OKXPriceLimitOrderRejection
+        if (isinstance(exception, OKXOrderRejection)
                 and exception.client_order_id == order.client_order_id
                 and connector is not None and connector.name in SUPPORTED_CONNECTORS
-                and order.client_order_id in self.sent_intents and not order.exchange_order_id):
+                and order.client_order_id in self.sent_intents and not order.exchange_order_id
+                and not order.executed_amount_base and not order.order_fills):
             try:
                 self.check_owner()
                 from hummingbot.connector.markets_recorder import MarketsRecorder
                 recorder = MarketsRecorder._shared_instance
-                recorder.reject_unsent_order(connector, order.client_order_id, require_existing=True)
-                self.expired_rejections[order.client_order_id] = order
+                reason = exception.reason_code if isinstance(exception, OKXPriceLimitOrderRejection) else None
+                recorder.reject_unsent_order(connector, order.client_order_id, require_existing=True, rejection_reason=reason)
+                self.exchange_rejections[order.client_order_id] = order
                 self.sent_intents.discard(order.client_order_id)
                 self._release_unsent_admission(order.client_order_id)
             except Exception:
@@ -634,7 +636,7 @@ class BotOwnership:
             receipt['code'] = str(body.get('code', ''))[:32]
             rows = body.get('data')
             if isinstance(rows, list) and len(rows) == 1 and isinstance(rows[0], dict):
-                receipt['order'] = {key: str(rows[0].get(key, ''))[:128] for key in ('clOrdId', 'ordId', 'sCode')}
+                receipt['order'] = {key: str(rows[0][key])[:128] for key in ('clOrdId', 'ordId', 'sCode') if key in rows[0]}
         async with self.order_write_scope():
             self.check_owner()
             with self.connection.begin():
@@ -1383,7 +1385,7 @@ class BotOwnership:
 
         def local_rejection(order):
             return (order.is_done and (self.unsent_rejections.get(order.client_order_id) is order
-                                       or self.expired_rejections.get(order.client_order_id) is order)
+                                       or self.exchange_rejections.get(order.client_order_id) is order)
                     and not order.exchange_order_id and order.client_order_id not in self.sent_intents)
 
         async def wait_for_local_rejection(order):

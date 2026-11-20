@@ -12,7 +12,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select, update
 
-from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, is_expired_rejection_receipt, order_status_data
+from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, order_rejection_reason, order_status_data
 from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
 from hummingbot.core.order_submission_guard import MarketReadinessBlocked, SessionSubmissionBlocked, SubmissionBlocked
 from hummingbot.model.order import Order
@@ -391,9 +391,9 @@ class AutomaticOrderRecovery:
             order._cash_sell_reserved_base = Decimal(cost)
         return order
 
-    async def _reject_saved_expiry(self, core, connector, attempt, order):
+    async def _reject_saved_submission(self, core, connector, attempt, order):
         receipt = attempt.get('receipt')
-        if not is_expired_rejection_receipt(receipt, attempt['order_id']):
+        if not order_rejection_reason(receipt, attempt['order_id']):
             return False
         self.owner.check_owner()
         context = attempt['context']
@@ -409,7 +409,7 @@ class AutomaticOrderRecovery:
             if order.exchange_order_id or order.executed_amount_base or order.order_fills:
                 raise SubmissionBlocked('recovery_order_identity_mismatch')
             core.markets_recorder.reject_unsent_order(connector, order.client_order_id,
-                                                      require_existing=True, expiry_receipt=receipt)
+                                                      require_existing=True, rejection_receipt=receipt)
         await connector._order_tracker.process_order_update(OrderUpdate(
             order.trading_pair, time.time(), OrderState.FAILED, order.client_order_id))
         self.owner.sent_intents.discard(order.client_order_id)
@@ -581,7 +581,7 @@ class AutomaticOrderRecovery:
                     order.trading_pair, time.time(), OrderState.FAILED, order.client_order_id))
                 self.owner.sent_intents.discard(order.client_order_id)
                 continue
-            if await self._reject_saved_expiry(core, connector, attempt, order):
+            if await self._reject_saved_submission(core, connector, attempt, order):
                 continue
             if self.isolated and attempt['order_id'] in self.quarantined:
                 continue  # Restore its reservation now; the existing GET worker resolves it in background.
@@ -767,7 +767,7 @@ class AutomaticOrderRecovery:
                 if self.isolated and not force and time.monotonic() < self.attempt_retry.get(attempt['order_id'], (0, 0))[0]:
                     continue
                 try:
-                    if not await self._reject_saved_expiry(core, connector, attempt, order):
+                    if not await self._reject_saved_submission(core, connector, attempt, order):
                         await asyncio.wait_for(self._merge(core, connector, attempt, order), timeout=10)
                 except (IOError, asyncio.TimeoutError) as error:
                     if not self.isolated:

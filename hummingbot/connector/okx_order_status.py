@@ -6,23 +6,44 @@ class OKXOrderNotFoundError(IOError):
     """An explicit 51603 response, not a transport failure or missing payload."""
 
 
-class OKXExpiredOrderRejection(IOError):
-    """A correlated OKX response proving this request expired before admission."""
+class OKXOrderRejection(IOError):
+    """An explicitly correlated order rejection without venue admission."""
 
-    def __init__(self, client_order_id, code="50036"):
-        super().__init__(f"OKX rejected the expired order request ({code}).")
+    def __init__(self, client_order_id, message):
+        super().__init__(message)
         self.client_order_id = client_order_id
 
 
+class OKXExpiredOrderRejection(OKXOrderRejection):
+    """A correlated OKX response proving this request expired before admission."""
+
+    reason_code = "exchange_expired_request"
+
+    def __init__(self, client_order_id, code="50036"):
+        super().__init__(client_order_id, f"OKX rejected the expired order request ({code}).")
+
+
+class OKXPriceLimitOrderRejection(OKXOrderRejection):
+    """OKX explicitly rejected the requested price before accepting the order."""
+
+    reason_code = "exchange_price_limit"
+
+    def __init__(self, client_order_id):
+        super().__init__(client_order_id, "OKX rejected the order price (51006).")
+
+
 def check_order_submission(response, client_order_id):
-    """Classify only an unambiguous, explicitly correlated expiry response."""
+    """Classify only reviewed rejection codes with unambiguous order identity."""
     if isinstance(response, dict) and str(response.get("code")) in ("0", "1"):
         rows = response.get("data")
         if isinstance(rows, list) and len(rows) == 1 and isinstance(rows[0], dict):
             row = rows[0]
-            if (str(row.get("sCode")) in ("50036", "50037") and row.get("clOrdId") == client_order_id
-                    and row.get("ordId") == ""):
-                raise OKXExpiredOrderRejection(client_order_id, str(row["sCode"]))
+            if row.get("clOrdId") == client_order_id and row.get("ordId") == "":
+                code = str(row.get("sCode"))
+                if code in ("50036", "50037"):
+                    raise OKXExpiredOrderRejection(client_order_id, code)
+                if code == "51006":
+                    raise OKXPriceLimitOrderRejection(client_order_id)
     raise IOError("OKX order submission failed or returned an ambiguous response.")
 
 
@@ -41,13 +62,13 @@ def order_status_data(response):
     return rows[0]
 
 
-def is_expired_rejection_receipt(receipt, client_order_id):
+def order_rejection_reason(receipt, client_order_id):
     """Only a persisted HTTP 200 receipt with exact venue rejection is proof."""
     if not isinstance(receipt, dict) or type(receipt.get('http_status')) is not int or receipt['http_status'] != 200:
-        return False
+        return None
     try:
         check_order_submission({'code': receipt.get('code'), 'data': [receipt.get('order')]}, client_order_id)
-    except OKXExpiredOrderRejection:
-        return True
+    except OKXOrderRejection as rejection:
+        return rejection.reason_code
     except IOError:
-        return False
+        return None

@@ -49,3 +49,29 @@ async def test_connectors_propagate_only_correlated_expiry(market, rejection):
         else:
             await OkxPerpetualDerivative._place_order(source, 'a', 'BTC-USDT', Decimal('1'), TradeType.BUY,
                                                       OrderType.LIMIT_MAKER, Decimal('100'), PositionAction.OPEN)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('row, expected', [
+    ({'clOrdId': 'a', 'ordId': '', 'sCode': '51006'}, True),
+    ({'clOrdId': 'other', 'ordId': '', 'sCode': '51006'}, False),
+    ({'clOrdId': 'a', 'ordId': '42', 'sCode': '51006'}, False),
+    ({'clOrdId': 'a', 'sCode': '51006'}, False),
+    ({'clOrdId': 'a', 'ordId': '', 'sCode': '50013'}, False),
+])
+async def test_perpetual_price_limit_only_proves_rejection_for_exact_native_response(row, expected):
+    from decimal import Decimal
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
+    from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, TradeType
+
+    response = {'code': '1', 'data': [dict(row, sMsg='Order price is not within the price limit')]}
+    source = SimpleNamespace(exchange_symbol_associated_to_pair=AsyncMock(return_value='BTC-USDT-SWAP'),
+                             _api_post=AsyncMock(return_value=response), position_mode=PositionMode.HEDGE,
+                             _format_amount_to_size=lambda pair, amount: amount)
+    with pytest.raises(IOError) as exc:
+        await OkxPerpetualDerivative._place_order(source, 'a', 'BTC-USDT', Decimal('1'), TradeType.BUY,
+                                                  OrderType.LIMIT_MAKER, Decimal('100'), PositionAction.OPEN)
+    assert (getattr(exc.value, 'reason_code', None) == 'exchange_price_limit') is expected

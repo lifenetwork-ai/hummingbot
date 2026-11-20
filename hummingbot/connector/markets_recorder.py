@@ -876,25 +876,26 @@ class MarketsRecorder:
         raise ValueError("Order identity conflicts with its recorded configuration")
 
     def reject_unsent_order(self, market: ConnectorBase, order_id: str, *, require_existing: bool = False,
-                            expiry_receipt=None) -> None:
-        from hummingbot.connector.okx_order_status import is_expired_rejection_receipt
+                            rejection_receipt=None, rejection_reason=None) -> None:
+        from hummingbot.connector.okx_order_status import order_rejection_reason
         from hummingbot.model.runtime_journal import SubmissionAttempt
         with self._sql_manager.get_new_session() as session, session.begin():
             order = session.get(Order, order_id, with_for_update=True)
             attempt = None
-            if expiry_receipt is not None:
+            if rejection_receipt is not None or rejection_reason is not None:
                 from hummingbot.core.order_submission_guard import active_guard
                 guard = active_guard()
                 if guard is None or guard.engine is not self.sql_manager.engine:
-                    raise ValueError("Expired rejection requires the current trading owner.")
+                    raise ValueError("Exchange rejection requires the current trading owner.")
                 guard.check_owner()
                 attempt = session.get(SubmissionAttempt, order_id, with_for_update=True)
-                if (not is_expired_rejection_receipt(expiry_receipt, order_id) or attempt is None
-                        or attempt.receipt != expiry_receipt
+                reason = order_rejection_reason(attempt.receipt, order_id) if attempt is not None else None
+                if (not reason or (rejection_receipt is not None and attempt.receipt != rejection_receipt)
+                        or (rejection_reason is not None and reason != rejection_reason)
                         or attempt.state not in ('possibly_sent', 'uncertain', 'rejected')
                         or session.query(TradeFill.order_id).filter_by(order_id=order_id).first() is not None):
-                    raise ValueError("Expired rejection conflicts with durable submission evidence.")
-            if order is None and (require_existing or expiry_receipt is not None):
+                    raise ValueError("Exchange rejection conflicts with durable submission evidence.")
+            if order is None and (require_existing or attempt is not None):
                 raise ValueError("Rejected order has no durable submission intent.")
             if order is not None:
                 already_rejected = (attempt is not None and attempt.state == 'rejected'
@@ -912,7 +913,7 @@ class MarketsRecorder:
                             session.connection(), actor=Principal('owner:' + guard.owner_uuid, 'runtime', 'write'),
                             action='automatic_recovery_order_rejected', outcome='succeeded',
                             request_id='automatic:' + order_id, target_id=order_id,
-                            reason_code='exchange_expired_request', details={'order_id': order_id})
+                            reason_code=reason, details={'order_id': order_id})
                     attempt.state = 'rejected'
                 else:
                     self._attempt_observation(session, order_id, 'rejected')

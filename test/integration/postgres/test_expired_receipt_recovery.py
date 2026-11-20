@@ -23,8 +23,8 @@ def receipt(identity='auto-order', code='50037'):
     return dict(http_status=200, code='1', order=dict(clOrdId=identity, ordId='', sCode=code))
 
 
-@pytest.mark.parametrize('code', ['50036', '50037'])
-def test_cold_recovery_consumes_only_correlated_expired_receipt_atomically(managed_native, code):
+@pytest.mark.parametrize('code', ['50036', '50037', '51006'])
+def test_cold_recovery_consumes_only_correlated_rejection_receipt_atomically(managed_native, code):
     context, exchange, recorder, transport = managed_native
     proof = receipt(code=code)
     with context.engine.begin() as db:
@@ -69,7 +69,7 @@ def test_recorder_rejects_insufficient_or_stale_expiry_receipts_without_mutation
     if change == 'changed':
         supplied['code'] = '0'
     with pytest.raises(ValueError):
-        recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, expiry_receipt=supplied)
+        recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, rejection_receipt=supplied)
     with context.manager.get_new_session() as db:
         assert db.get(Order, 'auto-order').creation_pending
         assert db.get(SubmissionAttempt, 'auto-order').state == 'uncertain'
@@ -112,7 +112,7 @@ def test_expired_rejection_commit_failure_rolls_back_intent_tracker_and_audit(ma
         raise OSError('transaction interrupted')
 
     with patch.object(AdminAccessStore, 'audit', fail_after_insert), pytest.raises(OSError):
-        recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, expiry_receipt=proof)
+        recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, rejection_receipt=proof)
     with context.manager.get_new_session() as db:
         assert db.get(Order, 'auto-order').creation_pending
         assert db.get(SubmissionAttempt, 'auto-order').state == 'uncertain'
@@ -127,41 +127,46 @@ def test_expired_rejection_is_idempotent_before_tracker_callback(managed_native)
     proof = receipt()
     with context.engine.begin() as db:
         db.execute(update(SubmissionAttempt).values(receipt=proof))
-    recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, expiry_receipt=proof)
-    recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, expiry_receipt=proof)
+    recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, rejection_receipt=proof)
+    recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, rejection_receipt=proof)
     with context.manager.get_new_session() as db:
         assert not db.get(Order, 'auto-order').creation_pending
         assert db.get(SubmissionAttempt, 'auto-order').state == 'rejected'
         assert db.query(AdminAuditEvent).filter_by(action='automatic_recovery_order_rejected').count() == 1
 
 
-def test_successor_replays_expiry_receipt_without_second_send_or_financial_change(managed_native):
+@pytest.mark.parametrize('code', ['50037', '51006'])
+def test_successor_replays_rejection_receipt_without_second_send_or_financial_change(owned, code):
     from hummingbot.core.bot_ownership import BotOwnership
     from hummingbot.core.order_submission_guard import install_guard
     from hummingbot.model.runtime_journal import RuntimeCheckpoint, financial_hash
-    context, exchange, recorder, transport = managed_native
-    with context.engine.begin() as db:
-        db.execute(update(SubmissionAttempt).values(receipt=receipt()))
-    with context.manager.get_new_session() as db:
-        before = financial_hash(db), db.get(RuntimeCheckpoint, 'test.yml').payload
-    context.owner.release()
-    successor = BotOwnership(context.engine, 'hummingbot')
-    assert successor.try_acquire()
+    fixture = managed_native_fixture.__wrapped__(owned, perpetual=code == '51006')
+    context, exchange, recorder, transport = next(fixture)
     try:
-        install_guard(successor)
-        successor.prepare(1, 'test.yml')
-        successor.connectors = {'okx': exchange}
-        with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=AssertionError('No REST needed'))):
-            context.loop.run_until_complete(successor.automatic_recovery.restore(
-                SimpleNamespace(markets_recorder=recorder, trade_fill_db=context.manager)))
-        assert not context.store.read()['recovery_state'].get('halt')
+        with context.engine.begin() as db:
+            db.execute(update(SubmissionAttempt).values(receipt=receipt(code=code)))
         with context.manager.get_new_session() as db:
-            assert (financial_hash(db), db.get(RuntimeCheckpoint, 'test.yml').payload) == before
-            assert not db.get(Order, 'auto-order').creation_pending
-        assert transport.call.await_count == 1
+            before = financial_hash(db), db.get(RuntimeCheckpoint, 'test.yml').payload
+        context.owner.release()
+        successor = BotOwnership(context.engine, 'hummingbot')
+        assert successor.try_acquire()
+        try:
+            install_guard(successor)
+            successor.prepare(1, 'test.yml')
+            successor.connectors = {exchange.name: exchange}
+            with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=AssertionError('No REST needed'))):
+                context.loop.run_until_complete(successor.automatic_recovery.restore(
+                    SimpleNamespace(markets_recorder=recorder, trade_fill_db=context.manager)))
+            assert not context.store.read()['recovery_state'].get('halt')
+            with context.manager.get_new_session() as db:
+                assert (financial_hash(db), db.get(RuntimeCheckpoint, 'test.yml').payload) == before
+                assert not db.get(Order, 'auto-order').creation_pending
+            assert transport.call.await_count == 1
+        finally:
+            successor.release()
+            install_guard(context.owner)
     finally:
-        successor.release()
-        install_guard(context.owner)
+        fixture.close()
 
 
 @pytest.mark.parametrize('conflict', ['acknowledged', 'fill'])
@@ -182,7 +187,7 @@ def test_positive_expiry_cannot_override_conflicting_durable_financial_evidence(
                 trade_type='BUY', order_type='LIMIT_MAKER', price=Decimal('100'), amount=Decimal('.01'),
                 trade_fee={}, exchange_trade_id='fill', position='NIL'))
     with pytest.raises(ValueError):
-        recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, expiry_receipt=proof)
+        recorder.reject_unsent_order(exchange, 'auto-order', require_existing=True, rejection_receipt=proof)
     with context.manager.get_new_session() as db:
         assert db.get(Order, 'auto-order').creation_pending
         assert db.get(SubmissionAttempt, 'auto-order').state == 'uncertain'
@@ -203,6 +208,32 @@ def test_native_transport_expiry_never_enters_unknown_outcome_recovery(owned, co
             assert not db.get(Order, 'auto-order').creation_pending
             saved = db.get(SubmissionAttempt, 'auto-order')
             assert saved.state == 'terminal' and saved.receipt == receipt(code=code)
+        assert transport.call.await_count == 1
+    finally:
+        fixture.close()
+
+
+def test_native_perpetual_price_rejection_settles_without_pausing_trading(owned):
+    from hummingbot.model.admin_access import AdminAuditEvent
+    from hummingbot.model.trade_fill import TradeFill
+
+    fixture = managed_native_fixture.__wrapped__(owned, expiry_code='51006', perpetual=True)
+    context, exchange, _, transport = next(fixture)
+    try:
+        assert context.owner.allow_new_orders
+        assert not context.owner.automatic_recovery.active
+        assert not context.store.read()['recovery_state'].get('halt')
+        assert 'auto-order' not in exchange.in_flight_orders
+        assert 'auto-order' not in context.owner.sent_intents
+        with context.manager.get_new_session() as db:
+            order = db.get(Order, 'auto-order')
+            assert order.market == 'okx_perpetual' and order.last_status == 'OrderFailure'
+            assert not order.creation_pending and order.exchange_order_id is None
+            saved = db.get(SubmissionAttempt, 'auto-order')
+            assert saved.state == 'terminal' and saved.receipt == receipt(code='51006')
+            assert db.query(TradeFill).count() == 0
+            audit = db.query(AdminAuditEvent).filter_by(action='automatic_recovery_order_rejected').one()
+            assert audit.reason_code == 'exchange_price_limit'
         assert transport.call.await_count == 1
     finally:
         fixture.close()
