@@ -1,4 +1,5 @@
 """Optional spreads reuse fee conversion, NATR and the existing controller."""
+import json
 from collections import deque
 from decimal import Decimal
 from test.hummingbot.strategy_v2.controllers.test_life_mm import configuration, make_controller
@@ -8,8 +9,10 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
+from hummingbot.core import engine_diagnostics, order_submission_guard
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig
 
 
@@ -221,6 +224,51 @@ async def test_sell_tick_rounding_cannot_narrow_the_composed_spread():
     assert executor.entry_price == Decimal('.1003')
     assert executor.entry_price * executor.amount <= price * amount
     assert controller.spread_quote_valid(TradeType.SELL, executor.entry_price, executor.amount)
+
+
+@pytest.mark.asyncio
+async def test_spot_sell_proposal_correlates_before_orchestrator_sets_config_controller_id(monkeypatch):
+    controller, _ = make_controller(configuration(
+        runtime_config_managed=True, mm_session_id='session', mm_generation=2, spread_policy={'fee_floor': True},
+    ))
+    connector = controller.market_data_provider.get_connector_with_fallback.return_value
+    connector.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.001'))
+    connector.quantize_order_price.side_effect = lambda pair, value: value
+    connector.quantize_order_amount.side_effect = lambda pair, value: value
+    connector.trading_rules['LIFE-USDT'] = SimpleNamespace(min_order_size=Decimal('.001'), min_notional_size=Decimal('0'))
+    await controller.update_processed_data()
+    controller.admit_session('session', 2)
+    price, amount = controller.get_price_and_amount('sell_0')
+    previous = controller.get_executor_config('sell_0', price, amount).model_copy(
+        update={'controller_id': controller.config.id},
+    )
+
+    clock = [1_000_000_000]
+    tracer = engine_diagnostics.EngineDiagnostics(clock=lambda: clock[0])
+    monkeypatch.setattr(engine_diagnostics, '_ACTIVE', tracer)
+    engine_diagnostics.observe_spot_sell_fill(
+        SimpleNamespace(config=previous, _completed_entry_fill_timestamp=lambda: 1), 'filled',
+    )
+    clock[0] += 40_000_000
+    action, = (action for action in controller.create_actions_proposal() if action.executor_config.side == TradeType.SELL)
+    assert action.executor_config.controller_id == 'main'
+    dispatch_config = action.executor_config.model_copy(update={'controller_id': action.controller_id})
+    request = SimpleNamespace(
+        throttler_limit_id='/api/v5/trade/order', method=RESTMethod.POST, is_auth_required=True,
+        data=json.dumps({'clOrdId': 'replacement', 'side': 'sell', 'ordType': 'post_only'}),
+    )
+    clock[0] += 20_000_000
+    with order_submission_guard.session_order_scope('session', 2, executor=dispatch_config.model_dump()):
+        engine_diagnostics.observe_spot_sell_dispatch(request)
+    clock[0] += 10_000_000
+    engine_diagnostics.observe_spot_sell_open(
+        SimpleNamespace(name='okx'),
+        SimpleNamespace(client_order_id='replacement', exchange_order_id='native',
+                        amount=dispatch_config.amount, executed_amount_base=Decimal('0')),
+    )
+    opened = tracer.snapshot()['submission_recent'][-1]
+    assert opened['operation'] == 'quote.sell_open'
+    assert opened['first_proposal_at_ns'] == 1_040_000_000
 
 
 @pytest.mark.asyncio

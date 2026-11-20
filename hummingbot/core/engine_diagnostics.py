@@ -140,13 +140,14 @@ def _identity(value):
     return None
 
 
-def _spot_sell_lane(config):
+def _spot_sell_lane(config, *, controller_id=None):
     read = config.get if isinstance(config, dict) else lambda key: getattr(config, key, None)
     if (read('type') != 'position_executor' or read('connector_name') != 'okx'
             or read('use_configured_entry_price') is not True):
         return None
     generation = read('mm_generation')
-    identifiers = tuple(read(key) for key in ('mm_session_id', 'controller_id', 'trading_pair', 'level_id'))
+    identifiers = (read('mm_session_id'), read('controller_id') if controller_id is None else controller_id,
+                   read('trading_pair'), read('level_id'))
     if (type(generation) is not int or generation < 0
             or any(not isinstance(value, str) or not 0 < len(value) <= 128 for value in identifiers)
             or not identifiers[-1].startswith('sell_')):
@@ -166,11 +167,11 @@ def observe_spot_sell_fill(executor, order_id):
             pass
 
 
-def observe_spot_sell_handoff(config, field, order_id=None):
+def observe_spot_sell_handoff(config, field, order_id=None, *, controller_id=None):
     tracer = _ACTIVE
     if tracer is not None:
         try:
-            lane = _spot_sell_lane(config)
+            lane = _spot_sell_lane(config, controller_id=controller_id)
             if lane:
                 tracer.record_quote_handoff(lane, field, _identity(order_id))
         except Exception:
