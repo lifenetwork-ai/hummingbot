@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { transferableAbortController } from 'node:util'
 import type { PropsWithChildren } from 'react'
@@ -58,6 +59,45 @@ function installReads() {
 afterEach(() => { canManage = true; staleRuntime = false; recoveryActive = false })
 
 describe('Connections controller', () => {
+  it.each(['succeeded', 'failed', 'applying'])('does not announce a historical %s Set operation on entry', async (status) => {
+    installReads()
+    const receipt = { ...credentialReceipt, id: 'historical-set', action: 'credentials_set', status,
+      result: { ...credentialReceipt.result, stage: 'loaded' } }
+    server.use(
+      http.get(`${baseUrl}/credentials/okx`, () => HttpResponse.json({ ...statusData, slots: [{ ...credentialSlot, operation_id: receipt.id }] })),
+      http.get(`${baseUrl}/credentials/operations/historical-set`, () => HttpResponse.json(receipt)),
+    )
+    const { result } = renderHook(() => ({ ...useConnectionsController(), client: useQueryClient() }), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.slots[0]?.slot?.operation_id).toBe(receipt.id))
+    await waitFor(() => expect(result.current.client.getQueryCache().getAll().some((query) => (query.state.data as { id?: string } | undefined)?.id === receipt.id)).toBe(true))
+    expect(result.current.slots[0]?.setOutcome).toBeNull()
+  })
+
+  it.each([
+    ['succeeded', 'loaded', 'loaded'],
+    ['failed', 'loading', 'failed'],
+    ['succeeded', 'loading', 'incomplete'],
+    ['applying', 'loading', 'loading'],
+  ])('announces a submitted Set operation: %s / %s', async (status, stage, expected) => {
+    installReads()
+    let operationId: string | null = null
+    server.use(
+      http.get(`${baseUrl}/credentials/okx`, () => HttpResponse.json({ ...statusData, slots: [{ ...credentialSlot, operation_id: operationId }] })),
+      http.post(`${baseUrl}/credentials/okx/spot`, () => {
+        operationId = 'current-set'
+        return HttpResponse.json({ id: operationId, status: 'accepted', action: 'credentials_set' }, { status: 202 })
+      }),
+      http.get(`${baseUrl}/credentials/operations/current-set`, () => HttpResponse.json({ ...credentialReceipt,
+        id: 'current-set', action: 'credentials_set', status, result: { ...credentialReceipt.result, stage } })),
+    )
+    const { result } = renderHook(() => useConnectionsController(), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.slots[0]?.decisions.set.allowed).toBe(true))
+    await act(async () => { await result.current.set({ exchange: 'okx', connector: 'spot',
+      values: { api_key: 'secret', secret_key: 'secret', passphrase: 'secret' }, idempotencyKey: 'current-set' }) })
+    await waitFor(() => expect(result.current.slots[0]?.setOutcome?.state).toBe(expected))
+  })
+
+
   it.each(['catalogue', 'status'] as const)('never posts retry or repair when %s is deployment-managed', async (source) => {
     installReads()
     server.use(source === 'catalogue'

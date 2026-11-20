@@ -53,6 +53,15 @@ describe('ManagedCredentialsView', () => {
   })
 
   it.each([
+    ['loaded', 'Credentials loaded and verified.'],
+    ['failed', 'Credentials were not loaded.'],
+    ['incomplete', 'The operation ended without confirming that credentials loaded.'],
+  ] as const)('presents Set completion state %s accurately', (state, message) => {
+    renderView([{ ...sampleSlot, setOutcome: { state, detail: null } }])
+    expect(screen.getByText(message)).toBeInTheDocument()
+  })
+
+  it.each([
     ['not_configured', 'Not configured'],
     ['checking', 'Checking connection'],
     ['unknown', 'Checking connection'],

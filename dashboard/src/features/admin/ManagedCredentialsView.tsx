@@ -172,6 +172,12 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
               <div><dt className="text-app-muted">Observation</dt><dd className="font-mono text-app-text">{slot.slot?.observed_at ?? '—'}</dd></div>
             </dl>
             {slot.slot?.detail && <p className="mt-3 text-xs text-app-muted">{slot.slot.detail}</p>}
+            {slot.setOutcome && <p role={slot.setOutcome.state === 'failed' ? 'alert' : 'status'} aria-live="polite" className={`mt-3 text-xs ${slot.setOutcome.state === 'failed' ? 'text-app-danger' : slot.setOutcome.state === 'loaded' ? 'text-app-success' : 'text-app-muted'}`}>
+              {slot.setOutcome.state === 'loaded' ? 'Credentials loaded and verified.'
+                : slot.setOutcome.state === 'failed' ? `Credentials were not loaded.${slot.setOutcome.detail ? ` ${slot.setOutcome.detail}` : ''}`
+                  : slot.setOutcome.state === 'incomplete' ? `The operation ended without confirming that credentials loaded.${slot.setOutcome.detail ? ` ${slot.setOutcome.detail}` : ''}`
+                    : 'Credentials are being applied and checked by the trading service.'}
+            </p>}
 
             {slot.cleanup && <div className="mt-4 rounded-card border border-app-border bg-app-surface-muted/40 p-3 text-xs">
               <p className="font-semibold text-app-text flex items-center gap-1.5 flex-wrap">

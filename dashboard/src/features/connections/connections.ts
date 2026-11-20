@@ -7,6 +7,7 @@ export type Identity = ResponseBody<'getAdminIdentity'>
 export type Slot = CredentialStatus['slots'][number]
 export type CredentialAction = 'configure' | 'disconnect' | 'retry_cleanup' | 'repair_cleanup_key'
 export type Decision = { allowed: boolean; reasonCode: string | null; detail: string }
+export type CredentialSetOutcome = { state: 'loading' | 'loaded' | 'failed' | 'incomplete'; detail: string | null }
 export type Source<T> = { phase: 'loading' | 'ready' | 'error'; data?: T; error: Error | null; refreshing: boolean; updatedAt?: number }
 
 function denied(reasonCode: string, detail: string): Decision {
@@ -84,6 +85,16 @@ export function deriveCredentialSlot(identity: Identity | null, catalogue: Sourc
     // Disconnection success also requires all four verified cleanup proofs from the root receipt.
     disconnectedProof: false,
   }
+}
+
+/** A Set receipt confirms success only when this slot's operation reached loaded. */
+export function credentialSetOutcome(receipt: ResponseBody<'getCredentialOperation'> | undefined, operationId: string | null | undefined): CredentialSetOutcome | null {
+  if (!receipt || !operationId || receipt.id !== operationId || receipt.action !== 'credentials_set') return null
+  if (receipt.status === 'failed') return { state: 'failed', detail: receipt.error || receipt.result.reason_code }
+  if (receipt.status === 'succeeded') return receipt.result.stage === 'loaded'
+    ? { state: 'loaded', detail: null }
+    : { state: 'incomplete', detail: receipt.result.reason_code }
+  return { state: 'loading', detail: null }
 }
 
 export function cleanupProofs(receipt: ResponseBody<'getCredentialOperation'> | undefined) {

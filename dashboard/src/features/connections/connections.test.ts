@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cleanupComplete, cleanupProofs, deriveCredentialSlot, validateCredentialBundle, type Catalogue, type CredentialStatus, type Identity, type RuntimeStatus, type Source } from './connections'
+import { cleanupComplete, cleanupProofs, credentialSetOutcome, deriveCredentialSlot, validateCredentialBundle, type Catalogue, type CredentialStatus, type Identity, type RuntimeStatus, type Source } from './connections'
 
 const identity = { id: 'admin-1', email: null, kind: 'google', role: 'write', role_label: 'Operator', permissions: { manage_credentials: true } } as Identity
 const catalogue = { phase: 'ready', error: null, refreshing: false, data: { source: 'postgres_kms', exchanges: [{ exchange: 'okx', environment: 'demo', cleanup_mode: 'managed', connectors: ['spot'], disconnect_available: true, site: null, fields: [{ name: 'api_key', label: 'Key', secret: true, required: true }] }] } } as Source<Catalogue>
@@ -37,6 +37,14 @@ describe('Connections workflow logic', () => {
     expect(deriveCredentialSlot(identity, catalogue, status, runtime({ acknowledged_version: 7 }), 'okx', 'spot').decisions.set.reasonCode).toBe('stop_not_acknowledged')
     expect(deriveCredentialSlot(identity, catalogue, status, runtime(), 'missing', 'spot').decisions.set.reasonCode).toBe('availability_unknown')
     expect(deriveCredentialSlot(identity, { ...catalogue, data: { ...catalogue.data!, source: 'environment' } }, status, runtime(), 'okx', 'spot').decisions.set.reasonCode).toBe('managed_source_required')
+  })
+
+  it('reports credential load only from the matching successful loaded receipt', () => {
+    const receipt = { id: 'set-1', action: 'credentials_set', status: 'succeeded', error: null, result: { stage: 'loaded', reason_code: null } } as unknown as import('../../core/api/admin').ReadResponse<'getCredentialOperation'>
+    expect(credentialSetOutcome(receipt, 'set-1')).toMatchObject({ state: 'loaded' })
+    expect(credentialSetOutcome({ ...receipt, id: 'old' }, 'set-1')).toBeNull()
+    expect(credentialSetOutcome({ ...receipt, result: { ...receipt.result, stage: 'checking' } }, 'set-1')).toMatchObject({ state: 'incomplete' })
+    expect(credentialSetOutcome({ ...receipt, status: 'failed', error: 'credential_load_failed' }, 'set-1')).toMatchObject({ state: 'failed', detail: 'credential_load_failed' })
   })
 
   it('fails closed for stale status and does not infer disconnected from absent configuration', () => {

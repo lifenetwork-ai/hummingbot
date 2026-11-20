@@ -9,7 +9,7 @@ import { useApiSessionScope } from '../../core/api/ApiSessionContext'
 import { deriveFormFeedback } from '../../core/api/operation-feedback'
 import { ApiError } from '../../core/api/client'
 import { useOperationalContext } from '../operational-context/useOperationalContext'
-import { cleanupComplete, deriveCleanupProgress, deriveCredentialSlot, validateCredentialBundle, type CredentialFormValues } from './connections'
+import { cleanupComplete, credentialSetOutcome, deriveCleanupProgress, deriveCredentialSlot, validateCredentialBundle, type CredentialFormValues } from './connections'
 
 type LockedAction = 'set' | 'disconnect' | 'retry' | 'repair'
 type DecisionLock = { key: string; scopeToken: string; action: LockedAction; exchange: string; connector: string; credentialVersion: number; controlVersion: number; operationVersion: number | null; idempotencyKey: string; retryReviewed: boolean; state: 'pending' | 'accepted' | 'unknown'; receiptId: string | null; retryAt?: number }
@@ -35,9 +35,11 @@ export function useConnectionsController() {
   const disconnectMutation = useAdminMutation('disconnectExchangeCredentials')
   const retryMutation = useAdminMutation('retryCredentialCleanup')
   const repairMutation = useAdminMutation('repairCleanupCredentials')
+  const submittedSetIdsRef = useRef(new Map<string, string>())
   const locksRef = useRef(new Map<string, DecisionLock>())
   const [locks, setLocks] = useState<DecisionLock[]>([])
   useEffect(() => {
+    submittedSetIdsRef.current.clear()
     for (const [key, lock] of locksRef.current) if (lock.scopeToken !== scopeToken) locksRef.current.delete(key)
     setLocks([...locksRef.current.values()])
   }, [scopeToken])
@@ -69,8 +71,10 @@ export function useConnectionsController() {
     const model = deriveCredentialSlot(operational.identity, source(catalogue), source(statuses[index]), runtime, exchange.exchange, slot.connector)
     const rootId = model.cleanup?.rootReceiptId ?? slot.operation_id
     const rootReceipt = rootIds.includes(rootId ?? '') ? receiptQueries[rootIds.indexOf(rootId ?? '')]?.data : undefined
+    const setReceipt = slot.operation_id ? receiptQueries[rootIds.indexOf(slot.operation_id)]?.data : undefined
     const decisions = operational.recoveryLock?.active ? { set: { allowed: false, reasonCode: 'recovery_in_progress', detail: operational.recoveryLock.detail }, disconnect: { allowed: false, reasonCode: 'recovery_in_progress', detail: operational.recoveryLock.detail }, retry: { allowed: false, reasonCode: 'recovery_in_progress', detail: operational.recoveryLock.detail }, repair: { allowed: false, reasonCode: 'recovery_in_progress', detail: operational.recoveryLock.detail } } : model.decisions
-    return { ...model, decisions, disconnectedProof: model.connectionState === 'disconnected' && cleanupComplete(rootReceipt), cleanup: model.cleanup && rootReceipt ? {
+    return { ...model, decisions, setOutcome: submittedSetIdsRef.current.get(JSON.stringify([exchange.exchange, slot.connector])) === slot.operation_id
+      ? credentialSetOutcome(setReceipt, slot.operation_id) : null, disconnectedProof: model.connectionState === 'disconnected' && cleanupComplete(rootReceipt), cleanup: model.cleanup && rootReceipt ? {
       ...model.cleanup,
       ...deriveCleanupProgress(rootReceipt),
     } : model.cleanup }
@@ -107,12 +111,14 @@ export function useConnectionsController() {
       credentialVersion: model.slot!.version, controlVersion: runtime.data!.control_version,
       operationVersion, idempotencyKey, retryReviewed: false, state: 'pending', receiptId: null,
     }
+    if (action === 'set') submittedSetIdsRef.current.delete(JSON.stringify([model.exchange, model.connector]))
     locksRef.current.set(key, lock)
     setLocks([...locksRef.current.values()])
     try {
       const response = await request()
       if (scopeRef.current !== requestScope) return response
       const accepted: DecisionLock = { ...lock, state: response.id ? 'accepted' : 'unknown', receiptId: response.id ?? null }
+      if (action === 'set' && response.id) submittedSetIdsRef.current.set(JSON.stringify([model.exchange, model.connector]), response.id)
       locksRef.current.set(key, accepted)
       setLocks([...locksRef.current.values()])
       return response
