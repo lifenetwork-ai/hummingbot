@@ -225,18 +225,15 @@ class ServiceHost:
                 self.mm_readiness_reason = getattr(controller, '_reduction_rejection', None) or 'reduction_quote_rejected'
                 self.owner.mm_order_readiness_reason = self.mm_readiness_reason
                 return False
-            ready = self.mm_runtime_ready()
-        else:
-            ready = self.mm_runtime_ready(opening=True)
-        if not ready:
-            self.owner.mm_order_readiness_reason = self.mm_readiness_reason
-        return ready
+        return self.mm_runtime_ready(opening=order.position != PositionAction.CLOSE)
 
     def mm_runtime_ready(self, *, allow_bootstrap_start=False, opening=False):
         self.mm_readiness_reason = None
 
         def waiting(reason):
             self.mm_readiness_reason = reason
+            if self.owner is not None:
+                self.owner.mm_order_readiness_reason = reason
             return False
 
         try:

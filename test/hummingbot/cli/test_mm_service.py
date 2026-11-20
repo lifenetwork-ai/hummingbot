@@ -178,6 +178,9 @@ async def test_position_checkpoint_pauses_order_admission_without_drawdown_polic
     strategy.controller_reports_error = reason
     assert not host.mm_runtime_order_ready(connector, order)
     assert host.owner.mm_order_readiness_reason == reason
+    host.owner.mm_order_readiness_reason = None
+    assert not host.mm_runtime_ready()
+    assert host.owner.mm_order_readiness_reason == reason
     host.owner.require_recovery.assert_not_called()
 
     strategy.controller_reports_error = None

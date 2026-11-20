@@ -31,17 +31,18 @@ class FIFOAdmission(asyncio.Lock):
 def test_fresh_twelve_order_enqueue_to_acceptance(native, trial, fifo):
     if fifo:
         native.owner.submission_admission = FIFOAdmission()
-    original_record, original_reply = native.recorder.record_order_intent, native.transport.call.side_effect
+    original_record, original_reply = native.recorder.persist_order_intent, native.transport.call.side_effect
     accepted, admissions, probes = [], [], []
     origin = [0.0]
 
-    def record(*args):
-        original_record(*args)
-        admissions.append(args[1].client_order_id)
+    async def record(connector, order):
+        cancelled = await original_record(connector, order)
+        admissions.append(order.client_order_id)
         if len(admissions) == 1:
             queued = time.perf_counter()
             asyncio.get_running_loop().call_soon(
                 lambda: probes.append(dict(admissions=len(admissions), wait_ms=(time.perf_counter() - queued) * 1000)))
+        return cancelled
 
     async def venue(request):
         accepted.append(dict(order=json.loads(request.data)['clOrdId'],
@@ -62,7 +63,7 @@ def test_fresh_twelve_order_enqueue_to_acceptance(native, trial, fifo):
 
     event.listen(native.engine, 'after_cursor_execute', roundtrip)
     try:
-        with patch.object(native.recorder, 'record_order_intent', side_effect=record), \
+        with patch.object(native.recorder, 'persist_order_intent', side_effect=record), \
                 patch.object(native.transport.call, 'side_effect', venue), queries(native.engine) as statements:
             native.loop.run_until_complete(burst())
     finally:

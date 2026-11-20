@@ -56,6 +56,10 @@ class MarketReadinessBlocked(SubmissionBlocked):
     """Required market/data/exposure readiness currently prevents submission."""
 
 
+class PositionCheckpointOrderWait(MarketReadinessBlocked):
+    """An unsent Spot maker SELL is waiting for a fresh position checkpoint."""
+
+
 class IntentAdmissionBusy(MarketReadinessBlocked):
     """Initial ownership fence contended, with a confirmed unsent rollback."""
 
@@ -85,6 +89,7 @@ def submission_block_log_context(error_type, error_message=None):
     return {
         "SessionSubmissionBlocked": (logging.INFO, "session_submission_closed"),
         "MarketReadinessBlocked": (logging.WARNING, "market_not_ready"),
+        "PositionCheckpointOrderWait": (logging.WARNING, "position_checkpoint_order_wait"),
         "IntentAdmissionBusy": (logging.WARNING, "intent_admission_busy"),
         "SpotOutflowBlocked": (logging.WARNING, "spot_outflow_limit"),
         "SpotOutflowPending": (logging.WARNING, "spot_outflow_projection_catching_up"),

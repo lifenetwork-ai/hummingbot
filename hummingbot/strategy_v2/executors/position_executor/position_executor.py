@@ -836,17 +836,18 @@ class PositionExecutor(ExecutorBase):
             # only the controller may build a replacement from current policy.
             reprice = (event.error_type == "QuoteRefreshRequired" and self.config.use_configured_entry_price
                        and self.status == RunnableStatus.RUNNING)
+            checkpoint_wait = event.error_type == 'PositionCheckpointOrderWait'
             outflow_wait = (event.error_type in ("SpotOutflowBlocked", "SpotOutflowPending") and self.config.mm_session_id is not None
                             and self.config.connector_name == 'okx' and self.config.side == TradeType.BUY
                             and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
-            if reprice or (outflow_wait or session_closed) and self.status == RunnableStatus.RUNNING:
+            if reprice or (outflow_wait or session_closed or checkpoint_wait) and self.status == RunnableStatus.RUNNING:
                 # An unchanged cap or retired session cannot be repaired with a
                 # new local identity. Drain/hold native effects normally; only
                 # fresh controller/session admission can authorize a replacement.
                 self.early_stop(keep_position=True)
-            self._log_order_failure("Open", event, reprice=reprice, outflow_wait=outflow_wait,
+            self._log_order_failure("Open", event, reprice=reprice or checkpoint_wait, outflow_wait=outflow_wait,
                                     session_closed=session_closed)
-            if not (outflow_wait or session_closed):
+            if not (outflow_wait or session_closed or checkpoint_wait):
                 self._current_retries += 1
         elif self._close_order and event.order_id == self._close_order.order_id:
             self._retain_managed_terminal_order(self._close_order)

@@ -15,6 +15,7 @@ from psycopg2 import Error as PostgreSQLError
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import DBAPIError, OperationalError
 
+from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.engine_diagnostics import (
     active_shutdown_stages,
     submission_timing,
@@ -26,6 +27,7 @@ from hummingbot.core.order_submission_guard import (
     SUPPORTED_CONNECTORS,
     IntentAdmissionBusy,
     MarketReadinessBlocked,
+    PositionCheckpointOrderWait,
     SessionSubmissionBlocked,
     SubmissionBlocked,
 )
@@ -40,6 +42,8 @@ ORDER_PATH = "/api/v5/trade/order"
 CANCEL_PATHS = {"/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"}
 ACCOUNT_PATHS = {"/api/v5/account/set-leverage", "/api/v5/account/set-position-mode"}
 INTENT_ADMISSION_RETRY_DELAYS = (.1, .15, .25, .5)
+POSITION_CHECKPOINT_ORDER_WAIT_SECONDS = 1.0
+POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS = .1
 
 
 @contextmanager
@@ -424,6 +428,17 @@ class BotOwnership:
             return recorder.order_writes
         return nullcontext()
 
+    @staticmethod
+    async def _wait_for_position_checkpoint(deadline, error):
+        now = time.monotonic()
+        if deadline is None:
+            deadline = now + POSITION_CHECKPOINT_ORDER_WAIT_SECONDS
+        remaining = deadline - now
+        if remaining <= 0:
+            raise error from None
+        await asyncio.sleep(min(remaining, POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS))
+        return deadline
+
     @trace_runtime('order.admission', order_parameter='order')
     async def admit_order(self, connector, order):
         """Serialize native intent writes and yield while waiting for durable admission."""
@@ -431,6 +446,7 @@ class BotOwnership:
 
         # Shutdown must also drain tasks waiting before any durable intent exists.
         self._track_submission_task(order)
+        checkpoint_deadline = None
         while True:
             # Wait on the existing native identity before any durable intent or
             # send exists. Release the shared slot: final-send fences and health/
@@ -439,15 +455,15 @@ class BotOwnership:
             if delay > 0:
                 with submission_timing('ownership_backoff_ms'):
                     await asyncio.sleep(delay)
-            async with timed_submission_lock(self.submission_admission, 'admission_slot_wait_ms'):
-                # Even uncontended admissions yield before fresh authority and
-                # price/risk checks. Another waiter may have renewed cooldown.
-                await asyncio.sleep(0)
-                if active_guard() is not self:
-                    raise SubmissionBlocked("Trading owner changed before order admission.")
-                if time.monotonic() < self._intent_admission_retry_at:
-                    continue
-                try:
+            try:
+                async with timed_submission_lock(self.submission_admission, 'admission_slot_wait_ms'):
+                    # Even uncontended admissions yield before fresh authority and
+                    # price/risk checks. Another waiter may have renewed cooldown.
+                    await asyncio.sleep(0)
+                    if active_guard() is not self:
+                        raise SubmissionBlocked("Trading owner changed before order admission.")
+                    if time.monotonic() < self._intent_admission_retry_at:
+                        continue
                     from hummingbot.connector.markets_recorder import MarketsRecorder
                     recorder = MarketsRecorder.service_recorder_for(connector)
                     if recorder is None:
@@ -467,21 +483,25 @@ class BotOwnership:
                             self._intent_admission_retry_index = 0
                             if cancelled is not None:
                                 raise cancelled
-                except IntentAdmissionBusy:
-                    # Only the confirmed prewrite rollback takes this path.
-                    # Unknown writes/COMMIT/transport outcomes still propagate.
-                    emit, summary = self._intent_admission_warnings.observe('ownership_row')
-                    if emit:
-                        logging.getLogger(__name__).warning(
-                            'Intent admission waiting for ownership row; no order sent summary=%s', summary,
-                            extra={'event': 'intent_admission_waiting', 'reason_code': 'intent_admission_busy'})
-                    continue
-                summary = self._intent_admission_warnings.recover('ownership_row')
-                if summary is not None:
-                    logging.getLogger(__name__).info(
-                        'Intent admission resumed after ownership contention summary=%s', summary,
-                        extra={'event': 'intent_admission_recovered', 'reason_code': 'intent_admission_ready'})
-                return
+            except IntentAdmissionBusy:
+                # Only the confirmed prewrite rollback takes this path.
+                # Unknown writes/COMMIT/transport outcomes still propagate.
+                emit, summary = self._intent_admission_warnings.observe('ownership_row')
+                if emit:
+                    logging.getLogger(__name__).warning(
+                        'Intent admission waiting for ownership row; no order sent summary=%s', summary,
+                        extra={'event': 'intent_admission_waiting', 'reason_code': 'intent_admission_busy'})
+                continue
+            except PositionCheckpointOrderWait as error:
+                # A new order still has no durable intent. Wait outside both locks.
+                checkpoint_deadline = await self._wait_for_position_checkpoint(checkpoint_deadline, error)
+                continue
+            summary = self._intent_admission_warnings.recover('ownership_row')
+            if summary is not None:
+                logging.getLogger(__name__).info(
+                    'Intent admission resumed after ownership contention summary=%s', summary,
+                    extra={'event': 'intent_admission_recovered', 'reason_code': 'intent_admission_ready'})
+            return
 
     def before_order(self, connector, order):
         recorder = self._prepare_order_intent(connector, order)
@@ -777,13 +797,21 @@ class BotOwnership:
         temporary = task is not None and task not in self.submission_tasks
         if temporary:
             self.submission_tasks.add(task)
+        checkpoint_deadline = None
         try:
-            async with self.submission_admission.final_send():
-                await asyncio.sleep(0)
-                async with self.order_write_scope():
-                    if active_guard() is not self:
-                        raise SubmissionBlocked('Trading owner changed before final send authorization.')
-                    return await self._authorize_rest(request)
+            while True:
+                try:
+                    async with self.submission_admission.final_send():
+                        await asyncio.sleep(0)
+                        async with self.order_write_scope():
+                            if active_guard() is not self:
+                                raise SubmissionBlocked('Trading owner changed before final send authorization.')
+                            if checkpoint_deadline is not None:
+                                return await self._authorize_rest(request, after_checkpoint_wait=True)
+                            return await self._authorize_rest(request)
+                except PositionCheckpointOrderWait as error:
+                    # There is a prepared intent, but no durable send yet.
+                    checkpoint_deadline = await self._wait_for_position_checkpoint(checkpoint_deadline, error)
         finally:
             # Native create tasks retain their original lifetime tracking. A
             # direct REST caller may be the long-lived service loop; retain it
@@ -791,7 +819,7 @@ class BotOwnership:
             if temporary:
                 self.submission_tasks.discard(task)
 
-    async def _authorize_rest(self, request):
+    async def _authorize_rest(self, request, *, after_checkpoint_wait=False):
         path = urlparse(request.url).path
         try:
             data = json.loads(getattr(request, "data", None) or "{}") if path == ORDER_PATH else {}
@@ -856,7 +884,6 @@ class BotOwnership:
             if self.spot_outflow is not None:
                 self.spot_outflow.authorize(data, row)
             if self.mm_quote_check is not None:
-                from hummingbot.core.data_type.common import OrderType
                 connector, order = next(((connector, connector.in_flight_orders[client_id])
                                          for connector in self.connectors.values() if client_id in connector.in_flight_orders), (None, None))
                 if order is None:
@@ -888,6 +915,8 @@ class BotOwnership:
                             expiry = min(expiry, int(deadline * 1000))
             except (ValueError, TypeError):
                 raise SubmissionBlocked("Order request expiration header is invalid.") from None
+            if after_checkpoint_wait and expiry <= int(float(row["database_now"]) * 1000):
+                raise PositionCheckpointOrderWait("The unsent quote expired while waiting for its position checkpoint.")
             headers["expTime"] = str(expiry)
             request.headers = headers
             self._record_send_attempt(client_id, data, expiry, headers)
@@ -930,12 +959,17 @@ class BotOwnership:
         if reduction and (self.mm_order_ready_check is None or self.mm_quote_check is None
                           or submission and (connector is None or order is None)):
             raise SubmissionBlocked('Close-first order authority is unavailable')
-        if self.mm_order_ready_check is None or connector is None or order is None:
-            self.mm_order_readiness_reason = None
+        self.mm_order_readiness_reason = None
         ready = (self.mm_order_ready_check(connector, order) if self.mm_order_ready_check is not None
                  and connector is not None and order is not None else self.mm_ready_check())
         if not ready:
             reason = getattr(self, 'mm_order_readiness_reason', None)
+            if (submission and reason in ('position_checkpoint_pending', 'position_checkpoint_waiting')
+                    and getattr(connector, 'name', None) == 'okx' and order is not None
+                    and order.order_type == OrderType.LIMIT_MAKER and order.trade_type == TradeType.SELL
+                    and order.is_pending_create and not order.exchange_order_id
+                    and order.client_order_id not in self.sent_intents):
+                raise PositionCheckpointOrderWait(reason)
             detail = (' reason=' + reason if isinstance(reason, str) and 0 < len(reason) <= 80
                       and reason.isascii() and all(c.islower() or c.isdigit() or c == '_' for c in reason) else '')
             raise MarketReadinessBlocked("MM markets/data/exposure are not jointly ready." + detail)

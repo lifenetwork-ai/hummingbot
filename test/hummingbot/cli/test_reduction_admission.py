@@ -24,6 +24,7 @@ def closing_host():
         ExecutorQuoteState(config, RunnableStatus.RUNNING, False, ('close',), (order,)),), True)
     host = object.__new__(ServiceHost)
     host.owner = SimpleNamespace(volatility_checkpoints=None)
+    host.hb = SimpleNamespace(trading_core=SimpleNamespace(strategy=None))
     host.mm_session = SimpleNamespace(id='session', generation=0, catalogue=SimpleNamespace(drawdown_policy=lambda: None))
     host._mm_controllers = lambda: [controller]
     return host, controller, connector, state, config, order
