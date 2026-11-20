@@ -45,6 +45,36 @@ async def test_report_wakes_managed_loop_and_bursts_do_not_spin():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("report_ready", [True, False])
+async def test_readmission_wakes_managed_loop_with_existing_report(report_ready):
+    controller = controlled_loop(maker('1', '1')[0])
+    controller.revoke_session()
+    cycled, proposed = asyncio.Event(), asyncio.Event()
+    controller.update_processed_data = AsyncMock(side_effect=cycled.set)
+    controller.determine_executor_actions.side_effect = lambda: proposed.set() or []
+    controller.start()
+    try:
+        await asyncio.wait_for(cycled.wait(), .5)
+        if not report_ready:
+            controller.executors_update_event.clear()
+        controller.admit_session('session', 0)
+        if not report_ready:
+            await asyncio.sleep(.02)
+            assert not controller.executors_update_event.is_set()
+            assert not proposed.is_set()
+            controller.executors_update_event.set()
+        await asyncio.wait_for(proposed.wait(), .25)
+        assert controller.determine_executor_actions.call_count == 1
+        for _ in range(20):
+            controller.admit_session('session', 0)
+        await asyncio.sleep(.02)
+        assert controller.determine_executor_actions.call_count == 1
+    finally:
+        controller.stop()
+        await controller.wait_closed()
+
+
+@pytest.mark.asyncio
 async def test_publication_during_control_work_is_retained_without_concurrent_cycles():
     controller = controlled_loop(maker('1', '1')[0])
     started, release, following = asyncio.Event(), asyncio.Event(), asyncio.Event()

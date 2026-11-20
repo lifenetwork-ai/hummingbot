@@ -421,6 +421,9 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
     def admit_session(self, session_id, generation):
         if (session_id, generation) != (self.config.mm_session_id, self.config.mm_generation):
             raise ValueError("Session admission identity changed")
+        if (not self._session_admitted and self._executor_progress is not None
+                and self.executors_update_event.is_set()):
+            self._executor_progress.set()
         self._session_admitted = True
 
     @property

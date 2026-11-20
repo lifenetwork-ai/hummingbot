@@ -120,6 +120,15 @@ class V2WithControllers(StrategyV2Base):
         if config.mm_drawdown_scope:
             self.mm_valuation_task = asyncio.create_task(self.initialize_mm_valuations())
 
+    def update_executors_info(self):
+        checkpoint_blocked = self.controller_reports_error in ("position_checkpoint_pending", "position_checkpoint_waiting")
+        super().update_executors_info()
+        if (checkpoint_blocked and self.controller_reports_error is None
+                and self.config.mm_drawdown_scope and not self._is_stop_triggered):
+            # A committed hold publishes a fresh report between clock ticks.
+            # Evaluate its risk before the service can use that report to readmit.
+            self._control_mm_drawdown()
+
     def on_tick(self):
         super().on_tick()
         if not self._is_stop_triggered:

@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
+from hummingbot.core.operational_warnings import PositionCheckpointBusy, PositionCheckpointPending
+from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.models.executors_info import PerformanceReport
 from scripts.v2_with_controllers import V2WithControllers, V2WithControllersConfig
@@ -14,25 +16,29 @@ SCOPE = {"life_spot": {"connector_name": "okx", "trading_pair": "LIFE-USDT"},
          "life_perpetual": {"connector_name": "okx_perpetual", "trading_pair": "LIFE-USDT"}}
 
 
-def runner(global_limit="10", controller_limit=None, spot="0", perpetual="0"):
+def runner(global_limit="10", controller_limit=None, spot="0", perpetual="0", *, item=None):
     config = V2WithControllersConfig(max_global_drawdown_quote=global_limit,
                                      max_controller_drawdown_quote=controller_limit, mm_drawdown_scope=SCOPE)
     controller = SimpleNamespace(config=SimpleNamespace(manual_kill_switch=False), status=RunnableStatus.RUNNING,
                                  _session_admitted=True, stop=MagicMock(), start=MagicMock())
     controller.revoke_session = lambda: setattr(controller, "_session_admitted", False)
-    item = SimpleNamespace(config=config, controllers={"life_spot": controller},
-                           max_global_pnl=Decimal("0"), max_pnl_by_controller={}, drawdown_exited_controllers=[],
-                           _is_stop_triggered=False, controller_reports_timestamp=1000, controller_reports_error=None,
-                           market_data_provider=SimpleNamespace(time=lambda: 1000),
-                           executor_orchestrator=SimpleNamespace(mm_valuation_ready=lambda: True,
-                                                                 execute_actions=MagicMock()),
-                           controller_reports={key: {"performance": PerformanceReport(global_pnl_quote=Decimal(value))}
-                                               for key, value in (("life_spot", spot), ("life_perpetual", perpetual))},
-                           mm_drawdown_checkpoint_callback=MagicMock(), _mm_drawdown_last_checkpoint=None,
-                           _mm_drawdown_state=None, _mm_drawdown_breach=None, _mm_drawdown_bound=False)
-    for name in ("control_max_drawdown", "_control_mm_drawdown", "mm_drawdown_policy", "mm_drawdown_checkpoint",
-                 "mm_drawdown_status", "mm_drawdown_ready", "_mm_report_values", "_halt_mm_drawdown", "check_manual_kill_switch"):
-        setattr(item, name, MethodType(getattr(V2WithControllers, name), item))
+    if item is None:
+        item = SimpleNamespace()
+        for name in ("control_max_drawdown", "_control_mm_drawdown", "mm_drawdown_policy", "mm_drawdown_checkpoint",
+                     "mm_drawdown_status", "mm_drawdown_ready", "_mm_report_values", "_halt_mm_drawdown", "check_manual_kill_switch"):
+            setattr(item, name, MethodType(getattr(V2WithControllers, name), item))
+    vars(item).update(
+        config=config, controllers={"life_spot": controller},
+        max_global_pnl=Decimal("0"), max_pnl_by_controller={}, drawdown_exited_controllers=[],
+        _is_stop_triggered=False, controller_reports_timestamp=1000, controller_reports_error=None,
+        _managed_report_handle=None, _managed_report_pending={},
+        market_data_provider=SimpleNamespace(time=lambda: 1000),
+        executor_orchestrator=SimpleNamespace(mm_valuation_ready=lambda: True, execute_actions=MagicMock()),
+        controller_reports={key: {"performance": PerformanceReport(global_pnl_quote=Decimal(value))}
+                            for key, value in (("life_spot", spot), ("life_perpetual", perpetual))},
+        mm_drawdown_checkpoint_callback=MagicMock(), _mm_drawdown_last_checkpoint=None,
+        _mm_drawdown_state=None, _mm_drawdown_breach=None, _mm_drawdown_bound=False,
+    )
     return item
 
 
@@ -142,6 +148,47 @@ def test_new_report_cache_activity_cannot_certify_an_old_drawdown_decision():
     assert item.mm_drawdown_status()["stale"]
     item.control_max_drawdown()
     assert item.mm_drawdown_ready()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("blocked", [PositionCheckpointPending, PositionCheckpointBusy])
+@pytest.mark.parametrize("outcome", ["ready", "breach", "valuation_missing"])
+async def test_checkpoint_report_rechecks_drawdown_before_the_next_tick(blocked, outcome):
+    item = runner(item=V2WithControllers.__new__(V2WithControllers))
+    controller = item.controllers["life_spot"]
+    controller.executors_update_event = asyncio.Event()
+    runtime = item.executor_orchestrator
+    runtime.strategy = item
+    runtime._executor_archive_stopping = False
+    runtime._position_checkpoint_task = asyncio.get_running_loop().create_future()
+    recovered = {key: value.copy() for key, value in item.controller_reports.items()}
+    recovered["life_spot"]["performance"] = PerformanceReport(
+        global_pnl_quote=Decimal("-11" if outcome == "breach" else "-1"),
+    )
+    runtime.get_all_reports = MagicMock(side_effect=[blocked(), recovered, recovered])
+    item.control_max_drawdown()
+
+    item.update_executors_info()
+    assert not controller.executors_update_event.is_set()
+    assert not item.mm_drawdown_ready()
+    item.control_max_drawdown()
+    runtime.mm_valuation_ready = lambda: outcome != "valuation_missing"
+    runtime._position_checkpoint_task.set_result(None)
+    with patch("time.time", return_value=1000), patch("scripts.v2_with_controllers.HummingbotApplication.main_application") as app:
+        ExecutorOrchestrator._position_checkpoint_done(runtime, runtime._position_checkpoint_task)
+    assert item.controller_reports_error is None
+    assert item.mm_drawdown_ready() is (outcome == "ready")
+    if outcome == "breach":
+        app.return_value.stop.assert_called_once_with(mm_drawdown_reason="drawdown_global_limit")
+        assert item._is_stop_triggered and not controller._session_admitted
+    else:
+        app.return_value.stop.assert_not_called()
+        status = item.mm_drawdown_status()
+        assert status["reason_code"] == (None if outcome == "ready" else "drawdown_valuation_unavailable")
+
+    with patch("time.time", return_value=1000), patch.object(item, "_control_mm_drawdown") as recheck:
+        item.update_executors_info()
+        recheck.assert_not_called()
 
 
 @pytest.mark.asyncio
