@@ -96,11 +96,71 @@ async def test_real_loop_stall_has_stage_and_sanitized_stack_then_tears_down():
     assert stalls and stalls[0]['heartbeat_gap_ms'] >= 250
     assert any(s['operation'] == 'owner.read' for s in stalls[0]['active'])
     assert any(s['stack'] for s in stalls[0]['stacks'])
-    assert any(r['event'] == 'engine_loop_recovered' for r in records)
+    stall_timer = stalls[0]['heartbeat_timer']
+    assert stalls[0]['heartbeat_ns'] < stall_timer['due_ns'] < stalls[0]['at_ns']
+    assert stall_timer['overdue_ms'] >= 200
+    recovered = next(r for r in records if r['event'] == 'engine_loop_recovered')
+    recovered_timer = recovered['heartbeat_timer']
+    assert recovered_timer['due_ns'] == stall_timer['due_ns']
+    assert stalls[0]['at_ns'] < recovered_timer['callback_ns'] <= recovered['heartbeat_ns']
+    assert recovered_timer['overdue_ms'] >= stall_timer['overdue_ms']
+    assert not any(r['event'] == 'engine_heartbeat_late' for r in records)
     assert private_value not in json.dumps(records)
     assert not tracer.worker.is_alive()
     assert tracer.heartbeat_task.done()
     assert not tracer.snapshot()['active']
+
+
+@pytest.mark.asyncio
+async def test_completed_late_timer_is_visible_when_watchdog_also_missed_the_stall(monkeypatch):
+    records = []
+    tracer = EngineDiagnostics(emit=records.append)
+    watch_once = tracer.watch_once
+    run_watchdog = threading.Event()
+
+    def watch_after_stall():
+        if run_watchdog.is_set():
+            watch_once()
+
+    monkeypatch.setattr(tracer, 'watch_once', watch_after_stall)
+    await tracer.start()
+    try:
+        await asyncio.sleep(.06)
+        time.sleep(.36)
+        await asyncio.sleep(.12)
+        run_watchdog.set()
+        await asyncio.sleep(.14)
+    finally:
+        await tracer.close()
+    late, = [r for r in records if r['event'] == 'engine_heartbeat_late']
+    assert late['heartbeat_timer']['overdue_ms'] >= 250
+    assert late['heartbeat_timer']['due_ns'] < late['heartbeat_timer']['callback_ns'] <= late['at_ns']
+    assert not any(r['event'] == 'engine_loop_stall' for r in records)
+
+
+@pytest.mark.asyncio
+async def test_scheduler_samples_are_bounded_and_read_on_watchdog(monkeypatch):
+    records, read_threads = [], []
+    tracer = EngineDiagnostics(emit=records.append)
+
+    def read_scheduler():
+        read_threads.append(threading.get_ident())
+        return {'cgroup_cpu': {'nr_throttled': len(read_threads)}}
+
+    monkeypatch.setattr(tracer, '_read_scheduler', read_scheduler, raising=False)
+    await tracer.start()
+    try:
+        await asyncio.sleep(.22)
+        time.sleep(.4)
+        await asyncio.sleep(.1)
+    finally:
+        await tracer.close()
+    assert set(read_threads) == {tracer.worker.ident}
+    recovered = next(r for r in records if r['event'] == 'engine_loop_recovered')
+    samples = recovered['scheduler_samples']
+    assert 2 <= len(samples) <= 4
+    assert samples[0]['at_ns'] < recovered['heartbeat_timer']['due_ns']
+    assert samples[-1]['cgroup_cpu']['nr_throttled'] > samples[0]['cgroup_cpu']['nr_throttled']
 
 
 @pytest.mark.asyncio

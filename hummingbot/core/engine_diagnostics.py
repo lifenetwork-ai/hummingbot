@@ -41,6 +41,9 @@ SLOW_MS = {
 SUBMISSION_OPERATIONS = frozenset({'order.submit', 'order.admission', 'order.intent', 'order.place', 'order.created'})
 _QUOTE_LIMIT = 64
 _QUOTE_LINK_TTL_NS = 120_000_000_000
+_HEARTBEAT_INTERVAL_S = .05
+_HEARTBEAT_INTERVAL_NS = 50_000_000
+_CPU_STAT_FIELDS = frozenset({'usage_usec', 'nr_periods', 'nr_throttled', 'throttled_usec'})
 _ACTIVE = None
 _PARENT = ContextVar('engine_diagnostic_parent', default=None)
 
@@ -232,6 +235,14 @@ class EngineDiagnostics:
         self.loop_thread_id = self.worker = self.heartbeat_task = None
         self._started = self._closed = False
         self._beat_ns = 0
+        self._heartbeat_due_ns = None
+        self._late_heartbeat_timer = None
+        self._observed_late_timer_due_ns = None
+        self._last_missed_timer_emitted_ns = -5_000_000_000
+        self._loop_native_tid = None
+        self._scheduler_samples = deque(maxlen=4)
+        self._scheduler_baseline = None
+        self._last_scheduler_sample_ns = -200_000_000
         self._last_emitted_ns = -30_000_000_000
         self._last_slow_emitted_ns = -30_000_000_000
         self._slow, self._slow_dirty = deque(maxlen=8), False
@@ -435,10 +446,83 @@ class EngineDiagnostics:
             with self.lock:
                 self._submission_published = last
 
+    def _read_scheduler(self):
+        if self._loop_native_tid is None:
+            return {}
+        sample = {}
+        try:
+            with open('/sys/fs/cgroup/cpu.stat') as source:
+                counters = {}
+                for line in source:
+                    key, value = line.split()
+                    if key in _CPU_STAT_FIELDS:
+                        counters[key] = int(value)
+                if counters:
+                    sample['cgroup_cpu'] = counters
+        except (OSError, ValueError):
+            pass
+        try:
+            with open(f'/proc/self/task/{self._loop_native_tid}/schedstat') as source:
+                running_ns, runqueue_wait_ns, slices = map(int, source.read().split())
+                sample['loop_thread'] = dict(running_ns=running_ns, runqueue_wait_ns=runqueue_wait_ns, slices=slices)
+        except (OSError, ValueError):
+            pass
+        return sample
+
+    def _sample_scheduler(self, now):
+        if now - self._last_scheduler_sample_ns >= 200_000_000:
+            self._last_scheduler_sample_ns = now
+            sample = self._read_scheduler()
+            if sample:
+                self._scheduler_samples.append(dict(at_ns=now, **sample))
+
+    def _loop_recovery_evidence(self, detected_at):
+        evidence = {}
+        late_timer = self._late_heartbeat_timer
+        if late_timer is not None:
+            due, callback = late_timer
+            if due <= detected_at <= callback:
+                self._observed_late_timer_due_ns = due
+                evidence['heartbeat_timer'] = dict(due_ns=due, callback_ns=callback,
+                                                   overdue_ms=round((callback - due) / 1e6, 3))
+        samples = list(self._scheduler_samples)
+        if self._scheduler_baseline is not None:
+            samples = [self._scheduler_baseline] + [sample for sample in samples[-3:]
+                                                    if sample['at_ns'] > self._scheduler_baseline['at_ns']]
+        if samples:
+            evidence['scheduler_samples'] = samples
+        self._scheduler_baseline = None
+        return evidence
+
+    def _publish_missed_heartbeat(self, now):
+        late_timer = self._late_heartbeat_timer
+        if late_timer is None:
+            return
+        due, callback = late_timer
+        if due == self._observed_late_timer_due_ns or callback > now:
+            return
+        self._observed_late_timer_due_ns = due
+        if callback - due < 250_000_000 or now - self._last_missed_timer_emitted_ns < 5_000_000_000:
+            return
+        # The watchdog may also have been delayed. Preserve the actual timer
+        # delay without attributing it to an unrelated stack after recovery.
+        self._last_missed_timer_emitted_ns = now
+        self._deliver(dict(event='engine_heartbeat_late', at_ns=now, wall_time_ns=time.time_ns(),
+                           process_id=os.getpid(), scheduler_samples=list(self._scheduler_samples),
+                           heartbeat_timer=dict(due_ns=due, callback_ns=callback,
+                                                overdue_ms=round((callback - due) / 1e6, 3))))
+
     def _capture_loop(self, now, beat, gap_ms, event):
         self._last_stack_sample_ns, self._sampled_heartbeat = now, beat
         payload = dict(event=event, at_ns=now, heartbeat_ns=beat, wall_time_ns=time.time_ns(),
                        heartbeat_gap_ms=gap_ms, process_id=os.getpid(), **self.snapshot())
+        due = self._heartbeat_due_ns
+        if due is not None and beat < due <= now:
+            payload['heartbeat_timer'] = dict(due_ns=due, overdue_ms=round((now - due) / 1e6, 3))
+        if self._scheduler_samples:
+            payload['scheduler_samples'] = list(self._scheduler_samples)
+            self._scheduler_baseline = next(
+                (row for row in reversed(self._scheduler_samples) if row['at_ns'] <= (due or beat)), None)
         payload['stacks'] = self._stacks(payload['active'])
         payload['stack_sampled_at_ns'] = self.clock()
         payload['heartbeat_advanced_during_capture'] = self._beat_ns != beat
@@ -448,6 +532,7 @@ class EngineDiagnostics:
         if not self._started or self._closed:
             return
         beat, now = self._beat_ns, self.clock()
+        self._sample_scheduler(now)
         self._publish_submissions(now)
         if beat != self._beat_ns:
             return  # The loop advanced while this diagnostic thread was descheduled.
@@ -458,13 +543,15 @@ class EngineDiagnostics:
                     slow = list(self._slow)
                 self._deliver(dict(event='engine_loop_recovered', at_ns=now, heartbeat_ns=beat,
                                    wall_time_ns=time.time_ns(), detected_at_ns=self._episode, process_id=os.getpid(),
-                                   slow=slow, **self.snapshot()))
+                                   slow=slow, **self.snapshot(), **self._loop_recovery_evidence(self._episode)))
                 self._episode = None
             if self._sample_episode is not None:
                 self._deliver(dict(event='engine_loop_sample_recovered', at_ns=now, heartbeat_ns=beat,
                                    wall_time_ns=time.time_ns(), detected_at_ns=self._sample_episode,
-                                   process_id=os.getpid(), **self.snapshot()))
+                                   process_id=os.getpid(), **self.snapshot(),
+                                   **self._loop_recovery_evidence(self._sample_episode)))
                 self._sample_episode = None
+            self._publish_missed_heartbeat(now)
             if now - self._last_slow_emitted_ns >= 30_000_000_000:
                 with self.lock:
                     slow = list(self._slow) if self._slow_dirty else []
@@ -490,12 +577,30 @@ class EngineDiagnostics:
         if self._started or self._closed or _ACTIVE is not None:
             return False
         self.loop_thread_id, self._beat_ns = threading.get_ident(), self.clock()
+        if sys.platform == 'linux':
+            self._loop_native_tid = threading.get_native_id()
         self._started, _ACTIVE = True, self
+        loop = asyncio.get_running_loop()
+
+        def heartbeat_callback(due, ready):
+            now = self.clock()
+            if now - due >= 100_000_000:
+                self._late_heartbeat_timer = (due, now)
+            self._beat_ns = now
+            if not ready.done():
+                ready.set_result(None)
 
         async def heartbeat():
             while True:
-                await asyncio.sleep(.05)
-                self._beat_ns = self.clock()
+                ready = loop.create_future()
+                deadline = loop.time() + _HEARTBEAT_INTERVAL_S
+                due = self.clock() + _HEARTBEAT_INTERVAL_NS
+                self._heartbeat_due_ns = due
+                timer = loop.call_at(deadline, heartbeat_callback, due, ready)
+                try:
+                    await ready
+                finally:
+                    timer.cancel()
 
         def watch():
             while not self.stopping.wait(.05):
