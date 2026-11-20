@@ -349,15 +349,23 @@ class MarketsRecorder:
         if self._market_data_collection_task is not None:
             self._market_data_collection_task.cancel()
 
+    @trace_runtime('executor.archive')
     def store_or_update_executor(self, executor):
-        self.store_or_update_executors([executor])
+        self.store_or_update_executors([executor], defer_ownership_contention=self.durable_position_checkpoints)
 
-    def store_or_update_executors(self, executors):
+    def store_or_update_executors(self, executors, *, defer_ownership_contention=False):
         """Persist a shutdown group with one lookup and fenced transaction."""
+        from hummingbot.core.operational_warnings import ExecutorArchiveBusy
+        from hummingbot.model.intent_admission import deferred_recorder_transaction
+
         values = [(executor.config.id, json.loads(executor.executor_info.model_dump_json())) for executor in executors]
         if not values:
             return
-        with self._sql_manager.get_new_session() as session:
+        manager = self._sql_manager
+        with manager.get_new_session() as session, (
+            deferred_recorder_transaction(manager, session, ExecutorArchiveBusy, 'Executor archive waits for the ownership row.')
+            if defer_ownership_contention else session.begin()
+        ):
             existing = {row.id: row for row in session.query(Executors).filter(
                 Executors.id.in_([identity for identity, _ in values])).all()}
             for identity, data in values:
@@ -369,7 +377,6 @@ class MarketsRecorder:
                 else:
                     for attr, value in data.items():
                         setattr(row, attr, value)
-            session.commit()
 
     def store_position(self, position: Position):
         with self._sql_manager.get_new_session() as session:
@@ -536,8 +543,7 @@ class MarketsRecorder:
         it never means that a terminal executor can be applied a second time.
         """
         from hummingbot.core.operational_warnings import PositionCheckpointBusy
-        from hummingbot.core.order_submission_guard import active_guard
-        from hummingbot.model.intent_admission import prewrite_transaction
+        from hummingbot.model.intent_admission import deferred_recorder_transaction
         from hummingbot.model.runtime_journal import (
             RuntimeCheckpoint,
             RuntimeJournal,
@@ -547,15 +553,10 @@ class MarketsRecorder:
         )
         manager = self._sql_manager
         manager.assert_persistence_healthy()
-        owner = active_guard() if defer_ownership_contention else None
         with manager.get_new_session() as session, (
-            prewrite_transaction(manager, session, PositionCheckpointBusy, 'Position checkpoint waits for the ownership row.')
-            if owner is not None else session.begin()
+            deferred_recorder_transaction(manager, session, PositionCheckpointBusy, 'Position checkpoint waits for the ownership row.')
+            if defer_ownership_contention else session.begin()
         ):
-            if owner is not None:
-                if owner.engine is not manager.engine:
-                    raise RuntimeError('Position checkpoint does not belong to the trading owner.')
-                session.info['checkpoint_prewrite_owner'] = owner
             if applied_executors(session, [info.id for info in infos]):
                 raise ValueError('Position application changed; reload its durable checkpoint')
             checkpoint = session.get(RuntimeCheckpoint, self._config_file_path)

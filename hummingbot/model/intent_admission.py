@@ -68,6 +68,20 @@ def prewrite_transaction(manager, session, busy_error, busy_message):
 
 
 @contextmanager
+def deferred_recorder_transaction(manager, session, busy_error, busy_message):
+    """Acquire the current owner row on the first write, without waiting."""
+    from hummingbot.core.order_submission_guard import active_guard
+
+    owner = active_guard()
+    with prewrite_transaction(manager, session, busy_error, busy_message) if owner is not None else session.begin():
+        if owner is not None:
+            if owner.engine is not manager.engine:
+                raise RuntimeError('Recorder transaction does not belong to the trading owner.')
+            session.info['recorder_prewrite_owner'] = owner
+        yield
+
+
+@contextmanager
 def order_intent_transaction(manager, order_id):
     """Fence eagerly/NOWAIT before staging even the first Order INSERT."""
     from hummingbot.core.order_submission_guard import IntentAdmissionBusy, active_guard

@@ -23,7 +23,7 @@ OPERATIONS = frozenset({
     'strategy.tick', 'strategy.reports', 'controller.cycle', 'controller.indicator', 'order.submit', 'order.admission', 'order.place',
     'controller.reference', 'controller.proposals', 'controller.actions', 'controller.policy',
     'order.cancel', 'order.terminal', 'order.intent', 'order.created', 'position.checkpoint', 'owner.read',
-    'db.sql', 'db.commit', 'db.ping', 'service.observe', 'executor.terminal', 'order.proof',
+    'db.sql', 'db.commit', 'db.ping', 'service.observe', 'executor.terminal', 'executor.archive', 'order.proof',
     'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
     'shutdown.cancel', 'shutdown.proof_before', 'shutdown.proof_after',
 })
@@ -32,7 +32,7 @@ SLOW_MS = {
     'controller.reference': 250, 'controller.proposals': 250, 'controller.actions': 250, 'controller.policy': 100,
     'order.submit': 1000, 'order.admission': 1000, 'order.place': 1000,
     'order.intent': 100, 'order.created': 100, 'order.cancel': 1000, 'order.proof': 1000,
-    'order.terminal': 250, 'executor.terminal': 250, 'position.checkpoint': 250,
+    'order.terminal': 250, 'executor.terminal': 250, 'executor.archive': 100, 'position.checkpoint': 250,
     'owner.read': 100, 'db.sql': 100, 'db.commit': 100, 'db.ping': 100, 'service.observe': 1000,
     'shutdown.total': 1000, 'shutdown.core': 1000, 'shutdown.strategy': 1000,
     'shutdown.hold': 1000, 'shutdown.cancel': 1000,

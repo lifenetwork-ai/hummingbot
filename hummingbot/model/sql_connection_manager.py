@@ -167,14 +167,14 @@ class SQLConnectionManager(TransactionBase):
     def _fence_write(self, session):
         from hummingbot.core.order_submission_guard import fence_session
         self.assert_persistence_healthy()
-        checkpoint_owner = session.info.pop("checkpoint_prewrite_owner", None)
-        if checkpoint_owner is not None:
+        deferred_owner = session.info.pop("recorder_prewrite_owner", None)
+        if deferred_owner is not None:
             from hummingbot.model.intent_admission import capture_prewrite_lock_failure
 
             # The first flush or bulk write asks for the original fence
             # without making the reporting loop wait for a conflicting row.
             with capture_prewrite_lock_failure(session):
-                checkpoint_owner.fence_session(session, nowait=True)
+                deferred_owner.fence_session(session, nowait=True)
             return
         recorder_owner = session.info.get("worker_order_owner")
         if recorder_owner is None:

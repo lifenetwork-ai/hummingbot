@@ -38,6 +38,10 @@ class PositionCheckpointBusy(RuntimeError):
     """The ownership row was busy and the checkpoint rolled back before any writes."""
 
 
+class ExecutorArchiveBusy(RuntimeError):
+    """The executor archive rolled back before any writes while acquiring ownership."""
+
+
 class DrawdownValuationUnavailable(ValueError):
     def __init__(self, connector, pair, reason, age=None):
         self.connector, self.pair, self.reason, self.age = connector, pair, reason, age

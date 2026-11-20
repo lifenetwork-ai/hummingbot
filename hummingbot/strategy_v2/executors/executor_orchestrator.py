@@ -15,7 +15,7 @@ from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.data_type.common import PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.engine_diagnostics import trace_runtime
-from hummingbot.core.operational_warnings import PositionCheckpointBusy
+from hummingbot.core.operational_warnings import ExecutorArchiveBusy, PositionCheckpointBusy
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.executors import Executors
 from hummingbot.model.position import Position
@@ -305,6 +305,7 @@ class ExecutorOrchestrator:
         self._initial_positions_initialized = False
         self._checkpoint_candidates = []
         self._position_checkpoint_busy_since = None
+        self._executor_archive_retry_at = 0.0
         self._initialize_cached_performance(startup_performance)
 
     def reduction_runtime(self, controller_id):
@@ -1114,6 +1115,9 @@ class ExecutorOrchestrator:
         """
         Store executor data based on the action details and update cached performance.
         """
+        retry_at = getattr(self, '_executor_archive_retry_at', 0.0)
+        if time.monotonic() < retry_at:
+            return  # The clock will propose the retained records again.
         controller_id = action.controller_id
         executor_id = action.executor_id
 
@@ -1129,6 +1133,14 @@ class ExecutorOrchestrator:
         try:
             MarketsRecorder.get_instance().store_or_update_executor(executor)
             self._update_cached_performance(controller_id, executor.executor_info)
+            self._executor_archive_retry_at = 0.0
+        except ExecutorArchiveBusy:
+            if not retry_at:
+                self.logger().warning(
+                    'Executor archive waiting for the ownership row',
+                    extra={'event': 'executor_archive_waiting', 'reason_code': 'executor_archive_busy'})
+            self._executor_archive_retry_at = time.monotonic() + .1
+            return
         except Exception as e:
             self.logger().error(f"Error storing executor id {executor_id}: {str(e)}.")
             self.logger().error(f"Executor info: {executor.executor_info} | Config: {executor.config}")
