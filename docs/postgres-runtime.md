@@ -460,9 +460,10 @@ with technical HALT removal. Receipts/context, financial fills/positions/costs,
 credentials, risk limits and peaks remain unchanged; success stays stopped.
 The generic terminal-metadata route requires a venue order ID and positive
 cancellation evidence. For a stopped, non-halted session, an admin may review
-one exact expired Spot BUY with `uncertain_order_id` on Check and Reset. The
-bound order intent, original OKX deadline and 50013 receipt must agree with the
-current tracker and account. The reviewed checkpoint must precede the send.
+one exact expired Spot order with `uncertain_order_id` on Check and Reset. The
+bound order intent, original OKX deadline and any 50013 receipt must agree with
+the current tracker and account. A SELL can also qualify when the durable send
+has no receipt. The reviewed checkpoint must precede the send.
 Two full checkpoint fill scans plus open-order and position checks cover
 exchange effects. Exact-order and bounded order-history reads are repeated
 around the final proof. Any order record or conflicting financial evidence
@@ -476,7 +477,15 @@ retained. The engine keeps its ownership lock and the session remains stopped.
 For two to eight outstanding orders, supply the complete set of client IDs as
 `uncertain_order_ids`. The same proofs apply to every order and all rows
 and per-order audit entries commit together. Any missing or conflicting
-evidence blocks the batch. See the [scoped API flow](fe-integration.md#review-uncertain-spot-buys).
+evidence blocks the batch. See the [scoped API flow](fe-integration.md#review-uncertain-spot-orders).
+
+With scoped recovery enabled, a managed runtime can drain at a profile change
+or Stop while a journaled Spot SELL still has an uncertain outcome. This
+requires verified checkpoint and account binding, matching pending order and
+tracker state, and zero recorded fills for the deferred orders. The durable
+intent and its reservation survive the drain. All order admission remains
+paused while startup reconciliation verifies the prior SELL. Credential
+disconnect keeps its existing cleanup requirements.
 
 Migration021 adds immutable submission attempts, a fill/application journal and
 verified runtime checkpoints, plus `orders.position_applied`. Apply it through

@@ -13,7 +13,7 @@ from decimal import Decimal
 from sqlalchemy import func, select, update
 
 from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, order_rejection_reason, order_status_data
-from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
 from hummingbot.core.order_submission_guard import MarketReadinessBlocked, SessionSubmissionBlocked, SubmissionBlocked
 from hummingbot.model.order import Order
 from hummingbot.model.runtime_journal import SubmissionAttempt, credential_fingerprint, digest, environment_identity
@@ -205,6 +205,26 @@ class AutomaticOrderRecovery:
         return bool(getattr(self.owner, 'scoped_recovery_enabled', False) is True and self.active and self.quarantined
                     and self.status.get('cold_recovery_supported') is True)
 
+    def _bound_attempts(self, pending, row, *, retiring=False):
+        if (not 0 < len(pending) <= MAX_ATTEMPTS or self.owner.scoped_recovery_enabled is not True
+                or self.status.get('cold_recovery_supported') is not True):
+            return None
+        bindings = self._bindings(retiring=retiring)
+        if bindings is None:
+            return None
+        current = sorted(bindings, key=digest)
+        path = row['config_file_path'] if retiring else self.owner.config_file_path
+        environment = environment_identity()
+        for attempt in pending:
+            context = attempt['context']
+            if (not eligible(context) or context['bot_id'] != self.owner.store.bot_id
+                    or context['environment'] != environment or context['config_file_path'] != path
+                    or sorted(context['bindings'], key=digest) != current
+                    or context['credential_fingerprint'] != credential_fingerprint(
+                        self.owner.connectors[context['executor']['connector_name']])):
+                return None
+        return current
+
     def _isolate(self, pending, *, retiring=False):
         """Opt-in eligibility is never proof of an order's terminal outcome."""
         self.quarantined = {}
@@ -215,16 +235,10 @@ class AutomaticOrderRecovery:
         from hummingbot.core.uncertain_order_reservations import cohort
         row = self.owner.check_owner()
         maximum = (((row.get('recovery_state') or {}).get('spot_outflow') or {}).get('policy') or {}).get('max_net_outflow_quote')
-        bindings = self._bindings(retiring=retiring)
-        if bindings is None:
-            return False
-        current = sorted(bindings, key=digest)
         try:
-            for attempt in pending:
-                if (attempt['context'].get('bot_id') != self.owner.store.bot_id or not eligible(attempt['context'])
-                        or attempt['context']['credential_fingerprint'] != credential_fingerprint(
-                            self.owner.connectors[attempt['context']['executor']['connector_name']])):
-                    return False
+            current = self._bound_attempts(pending, row, retiring=retiring)
+            if current is None:
+                return False
             normalized = deepcopy(pending)
             for attempt in normalized:
                 attempt['context']['bindings'] = sorted(attempt['context']['bindings'], key=digest)
@@ -433,7 +447,8 @@ class AutomaticOrderRecovery:
         self.owner._mutate_recovery(settled)
 
     async def _merge(self, core, connector, attempt, order):
-        spot_history = self.isolated and attempt['state'] == 'uncertain'
+        spot_history = (attempt['state'] == 'uncertain' and connector.name == 'okx'
+                        and (self.isolated or (self.owner.scoped_recovery_enabled is True and order.trade_type.name == 'SELL')))
         status, trades = await asyncio.wait_for(read_order_proof(connector, order, spot_history=spot_history), timeout=10)
         self.owner.check_owner()
         if (attempt['context'].get('environment') != environment_identity()
@@ -704,9 +719,15 @@ class AutomaticOrderRecovery:
 
     def defer_shutdown(self, core, *, retiring=False):
         """Detach only journal-owned uncertain entries, never fabricate an order terminal."""
-        if not self.active or not self._isolate(self._pending(), retiring=retiring):
+        if not self.active:
             return set()
-        records = self.quarantined
+        pending = self._pending()
+        if self._isolate(pending, retiring=retiring):
+            records = self.quarantined
+        elif not retiring and self._can_defer_paused_spot(core, pending):
+            records = {attempt['order_id']: attempt for attempt in pending}
+        else:
+            return set()
         configs = {row['context']['executor']['id'] for row in records.values()}
         if core.markets_recorder.applied_position_executors(configs):
             return set()
@@ -732,6 +753,43 @@ class AutomaticOrderRecovery:
                 executor.stop()  # Stop its loop/callbacks; the native order and durable work stay unresolved.
         self.status.update(phase='settled_stopped', reason_code='uncertain_effects_retained')
         return set(records)
+
+    def _can_defer_paused_spot(self, core, pending):
+        from hummingbot.model.trade_fill import TradeFill
+
+        # An unresolved SELL is outside the funded-SELL admission cohort. It
+        # can still survive a drain under the verified journal and closed gate.
+        if self.owner.allow_new_orders:
+            return False
+        try:
+            if self._bound_attempts(pending, self.owner.check_owner()) is None:
+                return False
+            directions = {}
+            for attempt in pending:
+                context = attempt['context']
+                if attempt['state'] != 'uncertain' or context['executor']['connector_name'] != 'okx':
+                    return False
+                identity = attempt['order_id']
+                original = InFlightOrder.from_json(context['order'])
+                order = self.owner.connectors['okx']._order_tracker.fetch_order(identity)
+                if (order is None or identity != original.client_order_id or order.exchange_order_id is not None
+                        or order.current_state not in (OrderState.PENDING_CREATE, OrderState.PENDING_CANCEL)
+                        or order.trading_pair != original.trading_pair or order.trade_type != original.trade_type
+                        or order.order_type != original.order_type or order.position != original.position
+                        or order.price != original.price or order.amount != original.amount
+                        or order.executed_amount_base or order.executed_amount_quote or order.order_fills):
+                    return False
+                directions[identity] = order.trade_type.name
+        except (KeyError, ValueError, ArithmeticError, TypeError, AttributeError):
+            return False
+        if 'SELL' not in directions.values():
+            return False
+        with core.trade_fill_db.get_new_session() as session:
+            saved = dict(session.execute(select(Order.id, Order.last_status).where(
+                Order.id.in_(directions), Order.creation_pending.is_(True), Order.market == 'okx',
+                Order.exchange_order_id.is_(None), Order.position_applied.is_(False),
+                ~select(TradeFill.order_id).where(TradeFill.order_id == Order.id).exists())).all())
+        return saved == {identity: f'Pending{side.title()}' for identity, side in directions.items()}
 
     async def _write_recovery_state(self, change, **options):
         async with self.owner.order_write_scope():

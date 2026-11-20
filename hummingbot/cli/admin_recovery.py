@@ -30,7 +30,7 @@ ClientOrderId = Annotated[str, Field(pattern=CLIENT_ORDER_ID_PATTERN)]
 class RecoveryScope(APIModel):
     uncertain_order_id: Optional[ClientOrderId] = Field(
         default_factory=lambda: None,
-        description='Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.')
+        description='Exact client order ID for reviewing one expired uncertain OKX Spot order on a stopped session.')
 
 
 class RecoveryQuery(RecoveryScope):
@@ -51,7 +51,7 @@ class RecoveryCheckRequest(RecoveryScope):
     expected_version: int = Field(ge=0, strict=True)
     uncertain_order_ids: Optional[List[ClientOrderId]] = Field(
         default_factory=lambda: None, min_length=2, max_length=MAX_UNCERTAIN_REVIEW_ORDERS,
-        description='Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.')
+        description='Complete batch of distinct expired uncertain OKX Spot client order IDs on a stopped session.')
 
     @model_validator(mode='after')
     def validate_scope(self):
@@ -117,11 +117,11 @@ class RecoveryUncertainOrderRepair(APIModel):
     id: str
     connector: Literal['okx']
     pair: str
-    side: Literal['BUY']
+    side: Literal['BUY', 'SELL']
     amount: str
     price: str
     deadline_ms: int = Field(ge=0, description='Original authenticated request deadline in epoch milliseconds.')
-    before: Literal['PendingBuy']
+    before: Literal['PendingBuy', 'PendingSell']
     after: Literal['OrderFailure']
     evidence: Literal['expired_submission_and_reconciled_exchange']
 

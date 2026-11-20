@@ -1,6 +1,7 @@
 """Shipping API, supervisor and engine against disposable PG/local KMS/fake venue."""
 import base64
 import json
+import time
 from test.integration.postgres.test_managed_service import call
 from test.integration.postgres.test_service import eventually, health, start_service, terminate
 
@@ -10,11 +11,12 @@ from sqlalchemy import text
 from hummingbot.model.bot_state_store import BotStateStore
 
 
-@pytest.mark.parametrize('checkpoint_history,terminal_metadata,uncertain_count,pending_fills', [
-    (False, False, 0, False), (True, False, 0, False), (True, True, 0, False),
-    (True, False, 1, False), (True, True, 0, True), (True, False, 2, False)])
+@pytest.mark.parametrize('checkpoint_history,terminal_metadata,uncertain_count,pending_fills,sell_last', [
+    (False, False, 0, False, False), (True, False, 0, False, False), (True, True, 0, False, False),
+    (True, False, 1, False, False), (True, True, 0, True, False), (True, False, 2, False, False),
+    (True, False, 1, False, True), (True, False, 2, False, True)])
 def test_supervised_review_confirm_retry_and_restart_stay_stopped(
-        pg_engine, tmp_path, monkeypatch, checkpoint_history, terminal_metadata, uncertain_count, pending_fills):
+        pg_engine, tmp_path, monkeypatch, checkpoint_history, terminal_metadata, uncertain_count, pending_fills, sell_last):
     uncertain = bool(uncertain_count)
     batch = uncertain_count > 1
     monkeypatch.setenv('EXCHANGE_CREDENTIALS_SOURCE', 'postgres_kms')
@@ -28,7 +30,7 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
         orders_path = tmp_path / 'native-terminal-orders.json'
         orders_path.write_text('{}')
         monkeypatch.setenv('HBOT_OFFLINE_RECOVERY_ORDERS', str(orders_path))
-    if pending_fills:
+    if pending_fills or sell_last:
         fills_path = tmp_path / 'native-fills.json'
         fills_path.write_text('[]')
         monkeypatch.setenv('HBOT_OFFLINE_RECOVERY_FILLS', str(fills_path))
@@ -56,7 +58,8 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             from hummingbot.model.recovery_store import RecoveryStore
             if uncertain:
                 from test.integration.postgres.test_recovery_uncertain import seed_uncertain
-                seeded = seed_uncertain(RecoveryStore(state), existing_binding=True, api_key='RECOVERY-CANARY-API', count=uncertain_count)
+                seeded = seed_uncertain(RecoveryStore(state), existing_binding=True, api_key='RECOVERY-CANARY-API',
+                                        count=uncertain_count, sell_last=sell_last, lost_receipt=sell_last and not batch)
                 reviewed_ids = seeded if batch else [seeded]
             elif terminal_metadata:
                 from test.integration.postgres.test_recovery_pending_fills import pending_native_fills, seed_pending
@@ -108,7 +111,9 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
         if uncertain:
             preview = check['proposed_uncertain_orders'] if batch else [check['proposed_uncertain_order']]
             assert [item['id'] for item in preview] == reviewed_ids
-            assert all(item['before'] == 'PendingBuy' for item in preview)
+            expected_statuses = ['PendingBuy'] * (uncertain_count - int(sell_last)) + ['PendingSell'] * int(sell_last)
+            assert [item['before'] for item in preview] == expected_statuses
+            assert [item['side'] for item in preview] == [value.removeprefix('Pending').upper() for value in expected_statuses]
             assert check['verification']['orders_checked'] == uncertain_count
             assert call(port, path)[1]['reset_available']
             assert all(call(port, '/orders/' + identity)[1]['order']['creation_pending'] for identity in reviewed_ids)
@@ -132,6 +137,16 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             assert late['blockers'][0]['code'] == 'recovery_uncertain_order_found'
             assert all(call(port, '/orders/' + identity)[1]['order']['creation_pending'] for identity in reviewed_ids)
             orders_path.write_text('{}')
+            if sell_last:
+                fill = dict(billId='1', tradeId='2', ordId='3', clOrdId=identity, instId='BTC-USDT',
+                            side='sell', ts=str(int(time.time() * 1000) - 1000))
+                fills_path.write_text(json.dumps([fill]))
+                code, late_fill = call(port, '/recovery/reset', key='late-fill', body=payload)
+                assert code == 202, late_fill
+                late_fill = eventually(lambda: (item if (item := call(port, '/recovery/operations/' + late_fill['id'])[1]).get('status') == 'failed' else None))
+                assert late_fill['blockers'][0]['code'] == 'recovery_unrecorded_or_duplicate_venue_fill'
+                assert all(call(port, '/orders/' + identity)[1]['order']['creation_pending'] for identity in reviewed_ids)
+                fills_path.write_text('[]')
         if pending_fills:
             changed = identities[-1]
             orders_path.write_text(json.dumps({**native_orders, changed: {**native_orders[changed], 'state': 'live'}}))

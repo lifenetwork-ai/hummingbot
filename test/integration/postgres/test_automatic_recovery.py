@@ -101,7 +101,7 @@ def test_attempt_is_durable_before_transport_and_contains_no_auth_headers(owned)
 
 
 @pytest.fixture
-def managed_native(owned, expiry_code=None, *, perpetual=False):
+def managed_native(owned, expiry_code=None, *, perpetual=False, side=TradeType.BUY):
     from test.integration.postgres.test_ownership import assistant
 
     from bidict import bidict
@@ -136,7 +136,7 @@ def managed_native(owned, expiry_code=None, *, perpetual=False):
     recorder.start()
     owned.owner.connectors = {exchange.name: exchange}
     assert recorder.ensure_runtime_checkpoint()
-    config = executor_info('auto').config.model_copy(
+    config = executor_info('auto', side=side.name).config.model_copy(
         update={'mm_session_id': 'mm-auto', 'mm_generation': 0, 'connector_name': exchange.name})
     rest, transport = assistant()
     response = transport.call.return_value
@@ -150,7 +150,7 @@ def managed_native(owned, expiry_code=None, *, perpetual=False):
     async def create():
         extra = {'position_action': PositionAction.OPEN} if perpetual else {}
         with session_order_scope('mm-auto', 0, executor=config.model_dump(mode='json')):
-            await exchange._create_order(TradeType.BUY, 'auto-order', 'BTC-USDT', Decimal('.1'),
+            await exchange._create_order(side, 'auto-order', 'BTC-USDT', Decimal('.1'),
                                          OrderType.LIMIT_MAKER, Decimal('100'), **extra)
         await asyncio.sleep(0)
 

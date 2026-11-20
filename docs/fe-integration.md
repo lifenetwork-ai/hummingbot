@@ -1561,9 +1561,9 @@ keeps its owner/control API alive without constructing a new strategy: startup
 and live may be200 while ready remains503. This does not mean trading resumed.
 After Stop, a generic HALT Check returns `recovery_pending_intents` before
 position replay or credential loading when a pending send exists. An admin can
-request a review for a specific uncertain Spot BUY using the flow below.
+request a review for an uncertain Spot order using the flow below.
 
-### Review uncertain Spot BUYs
+### Review uncertain Spot orders
 
 Wait for Stop to be acknowledged. Use the exact client order ID from
 `automatic_recovery.order_id` or Orders. Read
@@ -1575,7 +1575,7 @@ same `uncertain_order_id` to Check and Reset.
    `{"expected_version":16,"uncertain_order_id":"<client-order-id>"}`.
 2. Poll `GET /recovery/operations/{id}`. When `stage=review_required` and
    `can_recover=true`, show `proposed_uncertain_order` to the admin. The preview
-   describes a local `PendingBuy` to `OrderFailure` transition based on the
+   describes a local `PendingBuy` or `PendingSell` to `OrderFailure` transition based on the
    expired submission and reconciled exchange history.
 3. After explicit review, send `POST /recovery/reset` with a new key and the
    original control version, the same order ID, the Check operation
@@ -1584,8 +1584,10 @@ same `uncertain_order_id` to Check and Reset.
 4. Poll for `status=succeeded` and `stage=recovered`. Verify the exact ID in
    `repaired_uncertain_order`. Start is a separate operation.
 
-This scope is for one managed OKX cash post-only BUY with an expired
-authenticated request deadline and a durable 50013 response. The service
+This scope covers managed OKX cash post-only BUY and SELL orders with an expired
+authenticated request deadline and a durable 50013 response without an order
+acknowledgment. A SELL with a durable send attempt and no transport receipt can
+also be reviewed under the same evidence requirements. The service
 requires a reviewed financial checkpoint predating the send, waits through a
 60-second settlement grace period, and limits the attempt age to less than
 six days. Check and Reset each verify open orders, journaled fills, exposure,
@@ -1594,7 +1596,7 @@ evidence, incomplete pages, different credentials, active runtime work and
 risk stops block the operation. Operators can use Swagger to review and
 confirm this scope.
 
-If several such BUYs are unresolved, Check and Reset accept
+If several such orders are unresolved, Check and Reset accept
 `uncertain_order_ids` with 2–8 distinct client order IDs. The batch must
 include every pending local order and live tracker in the scope. Use
 `GET /recovery?uncertain_order_ids=<id1>,<id2>` to check availability, then
@@ -1602,8 +1604,8 @@ review `proposed_uncertain_orders` before Reset. Reset rechecks every ID,
 reports `repaired_uncertain_orders` and applies the whole batch atomically.
 A venue record or missing proof for one ID blocks the entire reset. The
 single-order field and receipt remain supported. After Stop advances the
-generation, a random order can qualify when its original window is verified
-against the recorded activation of that generation in the same session.
+generation, an order can qualify when its original window is verified against
+the recorded activation of that generation in the same session.
 
 ### Automatic order reconciliation
 

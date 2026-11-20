@@ -145,13 +145,15 @@ class RecoveryStore:
             return dict(row) if row else None
 
     def uncertain_orders_pending(self, identities):
+        from hummingbot.model.recovery_uncertain import PENDING_STATUS
         from hummingbot.model.runtime_journal import SubmissionAttempt
         with self.engine.connect() as connection:
             rows = connection.execute(select(Order.id, Order.market, Order.last_status, Order.exchange_order_id,
                                              SubmissionAttempt.state).outerjoin(SubmissionAttempt, SubmissionAttempt.order_id == Order.id)
                                       .where(Order.creation_pending.is_(True)).limit(len(identities) + 1)).all()
         return {row.id for row in rows} == set(identities) and all(
-            row[1:] == ('okx', 'PendingBuy', None, 'uncertain') for row in rows)
+            row.market == 'okx' and row.last_status in PENDING_STATUS.values()
+            and row.exchange_order_id is None and row.state == 'uncertain' for row in rows)
 
     @staticmethod
     def _same_owner(state, private):

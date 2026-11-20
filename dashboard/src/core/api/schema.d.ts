@@ -4495,12 +4495,12 @@ export interface components {
             expected_version: number;
             /**
              * Uncertain Order Id
-             * @description Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.
+             * @description Exact client order ID for reviewing one expired uncertain OKX Spot order on a stopped session.
              */
             uncertain_order_id?: string | null;
             /**
              * Uncertain Order Ids
-             * @description Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.
+             * @description Complete batch of distinct expired uncertain OKX Spot client order IDs on a stopped session.
              */
             uncertain_order_ids?: string[] | null;
         };
@@ -4702,12 +4702,12 @@ export interface components {
             expected_version: number;
             /**
              * Uncertain Order Id
-             * @description Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.
+             * @description Exact client order ID for reviewing one expired uncertain OKX Spot order on a stopped session.
              */
             uncertain_order_id?: string | null;
             /**
              * Uncertain Order Ids
-             * @description Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.
+             * @description Complete batch of distinct expired uncertain OKX Spot client order IDs on a stopped session.
              */
             uncertain_order_ids?: string[] | null;
         };
@@ -4753,9 +4753,9 @@ export interface components {
             amount: string;
             /**
              * Before
-             * @constant
+             * @enum {string}
              */
-            before: "PendingBuy";
+            before: "PendingBuy" | "PendingSell";
             /**
              * Connector
              * @constant
@@ -4779,9 +4779,9 @@ export interface components {
             price: string;
             /**
              * Side
-             * @constant
+             * @enum {string}
              */
-            side: "BUY";
+            side: "BUY" | "SELL";
         };
         /** ReferenceAnchors */
         ReferenceAnchorsOutput: {

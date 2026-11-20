@@ -306,6 +306,124 @@ def test_clean_shutdown_keeps_durable_unknown_intent_without_a_false_halt(manage
         assert db.get(SubmissionAttempt, 'auto-order').state == 'uncertain'
 
 
+@pytest.fixture
+def rotation_order(base_owned, request, monkeypatch):
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    monkeypatch.setenv('OKX_SITE', 'www')
+    base_owned.owner.scoped_recovery_enabled = True
+    yield from managed_native_fixture.__wrapped__(base_owned, side=request.param)
+
+
+@pytest.mark.parametrize('rotation_order', [TradeType.BUY, TradeType.SELL], ids=['buy', 'sell'], indirect=True)
+def test_random_rotation_keeps_engine_up_when_an_uncertain_spot_order_is_not_found(rotation_order):
+    import asyncio
+    from random import Random
+    from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
+    from unittest.mock import Mock
+
+    from sqlalchemy import update
+
+    from hummingbot.cli.service import ServiceHost
+    from hummingbot.client.config.mm_profiles import MMProfilesConfig
+    from hummingbot.client.config.runtime_config import RuntimeSettings
+    from hummingbot.core.mm_session import MMSession, MMSessionRequest
+    from hummingbot.core.trading_core import TradingCore
+    from hummingbot.model.bot_state import BotState
+    from hummingbot.model.order import Order
+    from hummingbot.model.runtime_journal import SubmissionAttempt, can_bootstrap
+    from hummingbot.model.trade_fill import TradeFill
+
+    context, exchange, recorder, transport = rotation_order
+    owner = context.owner
+    order = exchange.in_flight_orders['auto-order']
+    owner.automatic_recovery.status['cold_recovery_supported'] = True
+    owner._mutate_recovery(lambda state: state.update(spot_outflow=dict(
+        policy=dict(trading_pair='BTC-USDT', max_net_outflow_quote='50', window_seconds=300, fee_allowance_rate='0.01'),
+        binding=dict(account_id='www:offline-account', environment='demo', trading_pair='BTC-USDT'),
+        coverage_start_ms=0)))
+    assert owner.automatic_recovery.pause(order.client_order_id)
+    assert owner.automatic_recovery.isolated is (order.trade_type == TradeType.BUY)
+
+    catalogue = context.loop.run_until_complete(MMProfilesConfig.load(CATALOGUE))
+    session = MMSession.create(catalogue, MMSessionRequest(market_mode='spot', selection='random', duration_seconds=600,
+                                                           step_duration_seconds=60), rng=Random(1), session_id='mm-auto')
+    now = float(context.store.read()['database_now'])
+    session.status = 'running'
+    session.started_at, session.step_expires_at, session.expires_at = now - 61, now - 1, now + 539
+    with context.engine.begin() as db:
+        db.execute(update(BotState).where(BotState.bot_id == context.store.bot_id).values(mm_session=session.model_dump(mode='json')))
+    initial = context.store.read()
+    with context.manager.get_new_session() as db:
+        assert can_bootstrap(db, initial)
+        assert db.get(SubmissionAttempt, order.client_order_id).receipt['code'] == '50013'
+    assert not initial['recovery_state'].get('halt')
+
+    core = TradingCore({}, enable_gateway_monitor=False)
+    core.connector_manager.connectors['okx'] = exchange
+    core.markets_recorder, core.trade_fill_db = recorder, context.manager
+    core.strategy = SimpleNamespace(controllers={})
+    host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
+                       asyncio.Event(), Mock())
+    host.owner, host.store, host.engine = owner, context.store, context.engine
+    host.hb = SimpleNamespace(trading_core=core)
+    host.running, host.phase, host.applied_version = True, 'reconciling_orders', 1
+    host.applied_mm_identity = (session.id, session.generation)
+    host.validate_selection = host.publish_status = host.poll_reconciliation = AsyncMock()
+    host.start_strategy = AsyncMock(return_value=True)
+    host.poll_funding = host.poll_outflow = host.capture_overview_observation = Mock()
+
+    # Use the real OKX status parser, shutdown and host logic. Keep the order
+    # live in the tracker to model a cancel without terminal evidence.
+    venue_status = AsyncMock(return_value={'code': '51603', 'msg': 'order absent', 'data': []})
+    with patch.object(exchange, '_request_order_update', venue_status), \
+            patch.object(exchange, 'cancel_all', AsyncMock(return_value=[])):
+        context.loop.run_until_complete(host.observe_once())
+    row = context.store.read()
+    assert row['mm_session']['step_index'] == row['mm_session']['generation'] == 1
+    assert row['owner_uuid'] == owner.owner_uuid and not owner.allow_new_orders
+    with context.manager.get_new_session() as db:
+        saved = db.get(Order, order.client_order_id)
+        assert saved.creation_pending and saved.exchange_order_id is None
+        assert saved.last_status == ('PendingBuy' if order.trade_type == TradeType.BUY else 'PendingSell')
+        assert db.get(SubmissionAttempt, order.client_order_id).state == 'uncertain'
+        assert db.query(TradeFill).count() == 0
+    assert transport.call.await_count == 1
+
+    venue_status.assert_not_awaited()
+    assert host.phase == 'starting' and not row['recovery_state'].get('shutdown_incomplete') and not row['recovery_state'].get('halt')
+    if order.trade_type == TradeType.SELL:
+        assert row['recovery_state']['automatic_recovery']['admission_mode'] == 'paused'
+
+
+@pytest.mark.parametrize('rotation_order', [TradeType.SELL], ids=['sell'], indirect=True)
+def test_late_spot_sell_fill_is_recorded_once_after_not_found(rotation_order):
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+    from hummingbot.model.trade_fill import TradeFill
+
+    context, exchange, recorder, transport = rotation_order
+    core = SimpleNamespace(markets_recorder=recorder, trade_fill_db=context.manager)
+    recovery = context.owner.automatic_recovery
+    order = exchange.in_flight_orders['auto-order']
+    stamp = str(int(order.creation_timestamp * 1000))
+    history = dict(clOrdId=order.client_order_id, ordId='late-sell', instId='BTC-USDT', side='sell', ordType='post_only',
+                   tdMode='cash', sz='.1', px='100', accFillSz='.1', cTime=stamp, uTime=stamp, state='filled')
+    fill = dict(tradeId='filled-once', ordId='late-sell', instId='BTC-USDT', side='sell', fillSz='.1', fillPx='100',
+                fee='-.01', feeCcy='USDT', ts=stamp)
+    with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=OKXOrderNotFoundError('51603'))), \
+            patch.object(exchange, '_request_recovery_order_history', AsyncMock(return_value={'code': '0', 'data': []})) as read_history, \
+            patch.object(exchange, '_request_order_fills', AsyncMock(return_value={'code': '0', 'data': [fill]})):
+        context.loop.run_until_complete(recovery.step(core, force=True))
+        assert recovery.status['reason_code'] == 'order_not_found_inconclusive' and not context.owner.allow_new_orders
+        read_history.return_value = {'code': '0', 'data': [history]}
+        context.loop.run_until_complete(recovery.step(core, force=True))
+        context.loop.run_until_complete(recovery.step(core, force=True))
+    with context.manager.get_new_session() as db:
+        assert db.get(SubmissionAttempt, order.client_order_id).state == 'terminal'
+        saved = db.query(TradeFill).one()
+        assert saved.order_id == order.client_order_id and saved.amount == Decimal('.1') and saved.trade_type == 'SELL'
+    assert transport.call.await_count == 1
+
+
 def test_restored_partial_cancel_waits_for_account_then_holds_original_fee_once(managed_native):
     from hummingbot.model.trade_fill import TradeFill
     context, exchange, recorder, transport = managed_native

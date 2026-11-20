@@ -9849,7 +9849,7 @@
                 "type": "null"
               }
             ],
-            "description": "Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.",
+            "description": "Exact client order ID for reviewing one expired uncertain OKX Spot order on a stopped session.",
             "title": "Uncertain Order Id"
           },
           "uncertain_order_ids": {
@@ -9867,7 +9867,7 @@
                 "type": "null"
               }
             ],
-            "description": "Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.",
+            "description": "Complete batch of distinct expired uncertain OKX Spot client order IDs on a stopped session.",
             "title": "Uncertain Order Ids"
           }
         },
@@ -10353,7 +10353,7 @@
                 "type": "null"
               }
             ],
-            "description": "Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.",
+            "description": "Exact client order ID for reviewing one expired uncertain OKX Spot order on a stopped session.",
             "title": "Uncertain Order Id"
           },
           "uncertain_order_ids": {
@@ -10371,7 +10371,7 @@
                 "type": "null"
               }
             ],
-            "description": "Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.",
+            "description": "Complete batch of distinct expired uncertain OKX Spot client order IDs on a stopped session.",
             "title": "Uncertain Order Ids"
           }
         },
@@ -10457,7 +10457,10 @@
             "type": "string"
           },
           "before": {
-            "const": "PendingBuy",
+            "enum": [
+              "PendingBuy",
+              "PendingSell"
+            ],
             "title": "Before",
             "type": "string"
           },
@@ -10490,7 +10493,10 @@
             "type": "string"
           },
           "side": {
-            "const": "BUY",
+            "enum": [
+              "BUY",
+              "SELL"
+            ],
             "title": "Side",
             "type": "string"
           }
@@ -20741,7 +20747,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.",
+              "description": "Exact client order ID for reviewing one expired uncertain OKX Spot order on a stopped session.",
               "title": "Uncertain Order Id"
             }
           },

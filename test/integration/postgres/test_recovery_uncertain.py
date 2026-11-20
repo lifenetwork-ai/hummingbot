@@ -6,7 +6,7 @@ from test.integration.postgres.test_recovery_store import ADMIN, recovering as _
 from test.integration.postgres.test_recovery_terminal_metadata import seed_terminal_work
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import null, select, update
 
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.core.admin_identity import AccessDenied, Principal
@@ -24,7 +24,7 @@ from hummingbot.model.runtime_journal import RuntimeCheckpoint, SubmissionAttemp
 recovering = _recovering
 
 
-def seed_uncertain(store, *, existing_binding=False, api_key='offline', count=1):
+def seed_uncertain(store, *, existing_binding=False, api_key='offline', count=1, sell_last=False, lost_receipt=False):
     identities = seed_terminal_work(store, count=count, existing_binding=existing_binding, api_key=api_key)
     catalogue = asyncio.run(MMProfilesConfig.load(CATALOGUE))
     session = MMSession.create(catalogue, MMSessionRequest(market_mode='spot', profile_id='follow_market',
@@ -39,14 +39,20 @@ def seed_uncertain(store, *, existing_binding=False, api_key='offline', count=1)
         tracker = db.scalar(select(MarketState.saved_state))
         for identity in identities:
             created = db.scalar(select(Order.creation_timestamp).where(Order.id == identity))
+            sell = sell_last and identity == identities[-1]
+            side, status = ('SELL', 'PendingSell') if sell else ('BUY', 'PendingBuy')
+            context = db.scalar(select(SubmissionAttempt.context).where(SubmissionAttempt.order_id == identity))
+            context['executor']['side'] = 2 if sell else 1
+            context['order']['trade_type'] = side
             db.execute(update(Order).where(Order.id == identity).values(
-                last_status='PendingBuy', creation_pending=True, exchange_order_id=None, position_applied=False))
-            db.execute(OrderStatus.__table__.insert().values(order_id=identity, timestamp=created, status='PendingBuy'))
+                last_status=status, creation_pending=True, exchange_order_id=None, position_applied=False))
+            db.execute(OrderStatus.__table__.insert().values(order_id=identity, timestamp=created, status=status))
             db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == identity).values(
-                state='uncertain', deadline_ms=created + 5000, receipt=dict(code='50013', http_status=429),
+                state='uncertain', context=context, deadline_ms=created + 5000,
+                receipt=null() if sell and lost_receipt else dict(code='50013', http_status=429),
                 payload_hash=digest(dict(clOrdId=identity, instId='BTC-USDT', tdMode='cash', ordType='post_only',
-                                         side='buy', sz='1', px='100'))))
-            tracker[identity].update(last_state=str(OrderState.PENDING_CANCEL.value), exchange_order_id=None)
+                                         side=side.lower(), sz='1', px='100'))))
+            tracker[identity].update(trade_type=side, last_state=str(OrderState.PENDING_CANCEL.value), exchange_order_id=None)
         db.execute(update(MarketState).values(saved_state=tracker))
     return identities[0] if count == 1 else identities
 
@@ -69,22 +75,23 @@ def test_uncertain_batch_requires_complete_exact_set(recovering, monkeypatch):
         store.operation_snapshot({'uncertain_order_ids': identities})
 
 
-@pytest.mark.parametrize('fault', [None, 'current_step', 'different_session', 'future_generation', 'expired_step', 'missing_step'])
+@pytest.mark.parametrize('fault', [None, 'current_step', 'different_session', 'future_generation', 'expired_step', 'missing_step', 'fixed_sell'])
 def test_uncertain_batch_from_earlier_random_step_requires_its_original_send_window(recovering, monkeypatch, fault):
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
     monkeypatch.setenv('OKX_SITE', 'www')
     store, owner = recovering
-    identities = seed_uncertain(store, count=2)
+    identities = seed_uncertain(store, count=2, sell_last=fault == 'fixed_sell')
     with store.engine.begin() as db:
         scope = db.scalar(select(BotState.mm_session))
         created = db.scalar(select(Order.creation_timestamp).where(Order.id == identities[0]))
         scope.update(started_at=created / 1000 - 1, status='running', anchors={})
-        scope['request'].update(selection='random', profile_id=None, step_duration_seconds=30,
-                                profile_ids=['follow_market', 'sideways'])
+        if fault != 'fixed_sell':
+            scope['request'].update(selection='random', profile_id=None, step_duration_seconds=30,
+                                    profile_ids=['follow_market', 'sideways'])
         original = {**scope, 'step_expires_at': scope['started_at'] + (4 if fault == 'expired_step' else 30)}
         if fault != 'missing_step':
             record_transition(db, store.bot_id, {**original, 'status': 'preparing'}, original, 0)
-        step = 0 if fault == 'current_step' else 2
+        step = 0 if fault in ('current_step', 'fixed_sell') else 2
         scope.update(generation=step, step_index=step, step_expires_at=scope['started_at'] + (step + 1) * 30)
         if fault == 'different_session':
             scope['id'] = 'unrelated-session'
@@ -98,7 +105,7 @@ def test_uncertain_batch_from_earlier_random_step_requires_its_original_send_win
     store.state.update_mm_session(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1,
                                   session_id=scope['id'], generation=stopped['generation'],
                                   change=lambda session, _: setattr(session, 'status', 'stopped'))
-    if fault not in (None, 'current_step'):
+    if fault not in (None, 'current_step', 'fixed_sell'):
         with pytest.raises(RecoveryBlocked, match='recovery_uncertain_order_scope'):
             store.operation_snapshot({'uncertain_order_ids': identities})
     else:

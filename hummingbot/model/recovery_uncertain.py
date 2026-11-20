@@ -1,4 +1,4 @@
-"""Local proof and atomic retirement of reviewed, expired OKX Spot BUYs."""
+"""Local proof and atomic retirement of reviewed, expired OKX Spot orders."""
 from sqlalchemy import select, update
 
 from hummingbot.core.automatic_recovery import eligible
@@ -13,6 +13,7 @@ from hummingbot.model.trade_fill import TradeFill
 
 ORDER_HISTORY_AGE_MS = 6 * 86_400_000
 SETTLEMENT_GRACE_MS = 60_000
+PENDING_STATUS = {'BUY': 'PendingBuy', 'SELL': 'PendingSell'}
 
 
 def _require(condition):
@@ -32,8 +33,7 @@ def _matches_stopped_session(db, state, original, created, deadline):
     request = scope.get('request') or {}
     seconds, last_step = request.get('step_duration_seconds'), scope.get('step_index')
     started = scope.get('started_at')
-    if (request.get('selection') != 'random' or type(seconds) is not int or seconds <= 0
-            or type(last_step) is not int or type(started) not in (int, float)):
+    if type(last_step) is not int or type(started) not in (int, float):
         return False
     # Stop advances the generation without changing the step. A restart can
     # also skip elapsed steps, so look up the original activated generation.
@@ -43,9 +43,15 @@ def _matches_stopped_session(db, state, original, created, deadline):
     if not step or step.get('status') != 'running' or step.get('started_at') != started:
         return False
     index, ended_at = step.get('step_index'), step.get('step_expires_at')
+    start_ms = decimal(started) * 1000
+    if request.get('selection') == 'fixed':
+        return (generation == 0 and last_step == index == 0 and created >= start_ms
+                and (ended_at is None or type(ended_at) in (int, float) and deadline <= decimal(ended_at) * 1000))
+    if request.get('selection') != 'random' or type(seconds) is not int or seconds <= 0:
+        return False
     if type(index) is not int or not 0 <= index <= last_step or type(ended_at) not in (int, float):
         return False
-    start_ms, step_ms = decimal(started) * 1000, seconds * 1000
+    step_ms = seconds * 1000
     return (start_ms + index * step_ms <= created
             and deadline <= min(decimal(ended_at) * 1000, start_ms + (index + 1) * step_ms))
 
@@ -72,9 +78,7 @@ def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, r
     order = db.execute(select(Order).where(Order.id == identity)).mappings().one_or_none()
     attempt = db.execute(select(SubmissionAttempt).where(SubmissionAttempt.order_id == identity)).mappings().one_or_none()
     _require(order is not None and attempt is not None and attempt['state'] == 'uncertain')
-    context, receipt = attempt['context'], attempt['receipt'] or {}
-    _require(receipt.get('code') == '50013' and receipt.get('http_status') in (429, 500, 503)
-             and not receipt.get('order'))
+    context, receipt = attempt['context'], attempt['receipt']
     _require(eligible(context) and context.get('bot_id') == state['bot_id']
              and context.get('config_file_path') == order['config_file_path'] == state['config_file_path']
              and context['environment'] == checkpoint['environment']
@@ -83,9 +87,14 @@ def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, r
               for row in bindings if row['state'] == 'active']
     _require(sorted(context['bindings'], key=digest) == sorted(active, key=digest)
              and context['credential_fingerprint'] == checkpoint['credential_fingerprints']['okx'])
-    _require(order['last_status'] == 'PendingBuy' and order['exchange_order_id'] is None
+    original = InFlightOrder.from_json(context['order'])
+    side = original.trade_type.name
+    _require(side in PENDING_STATUS and order['last_status'] == PENDING_STATUS[side] and order['exchange_order_id'] is None
              and order['order_type'] == 'LIMIT_MAKER' and order['position'] == 'NIL'
              and not order['position_applied'] and not order['cleanup_operation_id'])
+    statuses = (200, 429, 500, 503) if side == 'SELL' else (429, 500, 503)
+    _require((side == 'SELL' and receipt is None) or (isinstance(receipt, dict)
+             and receipt.get('code') == '50013' and receipt.get('http_status') in statuses and not receipt.get('order')))
     created, deadline = order['creation_timestamp'], attempt['deadline_ms']
     now = int(state['database_now'].timestamp() * 1000)
     # The authenticated journaled deadline caps when this POST can first be
@@ -98,33 +107,32 @@ def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, r
         raise RecoveryBlocked('recovery_uncertain_order_wait')
     if now - created >= ORDER_HISTORY_AGE_MS:
         raise RecoveryBlocked('recovery_history_window_exceeded')
-    original = InFlightOrder.from_json(context['order'])
     amount, price = decimal(order['amount']), decimal(order['price'])
     pair = order['symbol']
     _require(amount > 0 and price > 0 and pair == f"{order['base_asset']}-{order['quote_asset']}")
     _require(attempt['payload_hash'] == digest(dict(
-        clOrdId=identity, instId=pair, tdMode='cash', ordType='post_only', side='buy',
+        clOrdId=identity, instId=pair, tdMode='cash', ordType='post_only', side=side.lower(),
         sz=str(original.amount), px=f"{original.price:f}")))
     _require(tracker_row['config_file_path'] == state['config_file_path']
              and tracker_row['market'] == 'okx')
     for native in (original, InFlightOrder.from_json(raw)):
         _require(native.client_order_id == identity and native.exchange_order_id is None
-                 and native.trading_pair == pair and native.trade_type.name == 'BUY' and native.position.name == 'NIL'
+                 and native.trading_pair == pair and native.trade_type.name == side and native.position.name == 'NIL'
                  and native.order_type.name == 'LIMIT_MAKER'
                  and native.current_state in (OrderState.PENDING_CREATE, OrderState.PENDING_CANCEL)
                  and native.amount == amount and native.price == price
                  and not native.executed_amount_base and not native.executed_amount_quote and not native.order_fills)
     _require(not db.execute(select(TradeFill.order_id).where(TradeFill.order_id == identity).limit(1)).first())
     timeline = db.execute(select(OrderStatus.status).where(OrderStatus.order_id == identity).limit(2)).scalars().all()
-    _require(timeline == ['PendingBuy'])
-    return dict(id=identity, pair=pair, side='BUY', amount=str(amount), price=str(price), created_ms=created,
+    _require(timeline == [PENDING_STATUS[side]])
+    return dict(id=identity, pair=pair, side=side, amount=str(amount), price=str(price), created_ms=created,
                 deadline_ms=deadline, market_state_id=tracker_row['id'], tracker_digest=digest(raw),
                 credential_fingerprint=context['credential_fingerprint'])
 
 
 def change_for(candidate):
     return {**{key: candidate[key] for key in ('id', 'pair', 'side', 'amount', 'price', 'deadline_ms')},
-            'connector': 'okx', 'before': 'PendingBuy', 'after': 'OrderFailure',
+            'connector': 'okx', 'before': PENDING_STATUS[candidate['side']], 'after': 'OrderFailure',
             'evidence': 'expired_submission_and_reconciled_exchange'}
 
 
@@ -135,7 +143,7 @@ def apply_change(db, candidate, timestamp):
         raise RecoveryBlocked('recovery_state_changed')
     saved.pop(identity)
     order = db.execute(update(Order).where(Order.id == identity, Order.creation_pending.is_(True),
-                                           Order.last_status == 'PendingBuy', Order.exchange_order_id.is_(None))
+                                           Order.last_status == PENDING_STATUS[candidate['side']], Order.exchange_order_id.is_(None))
                        .values(creation_pending=False, last_status='OrderFailure', last_update_timestamp=timestamp))
     attempt = db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == identity,
                                                          SubmissionAttempt.state == 'uncertain').values(state='rejected'))
