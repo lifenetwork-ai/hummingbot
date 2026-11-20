@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { BarChart3, ChevronDown, LayoutList, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { ArrowUpRight, BarChart3, ChevronDown, LayoutList, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react'
 import type { ReadResponse } from '../../core/api/admin'
 import { Badge } from '../../shared/components/Badge'
 import { Dialog } from '../../shared/components/Dialog'
@@ -371,6 +372,18 @@ export function AccountBalancesPanel({ open, onClose, source, onRefresh }: Props
             </section>
           )
         })}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-app-border/80 pt-3 text-xs">
+          <span className="text-app-muted">Track historical balance changes &amp; PnL over time:</span>
+          <Link
+            to="/statistics"
+            onClick={onClose}
+            className="inline-flex items-center gap-1 font-semibold text-app-action hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-action rounded-xs"
+            aria-label="Open Daily Balances Chart in Statistics"
+          >
+            <span>Daily Balances Chart</span>
+            <ArrowUpRight size={12} />
+          </Link>
+        </div>
       </div>
     </Dialog>
   )

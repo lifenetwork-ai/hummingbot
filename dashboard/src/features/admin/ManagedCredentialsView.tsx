@@ -267,6 +267,7 @@ export function ManagedCredentialsView({ catalogue: _catalogue, slots, locks, ca
                       label={field.label}
                       type={field.secret ? 'password' : 'text'}
                       autoComplete="off"
+                      placeholder={'*********'}
                       required={field.required}
                       value={values[field.name] ?? ''}
                       onChange={(event) => updateValue(key, field.name, event.target.value)}

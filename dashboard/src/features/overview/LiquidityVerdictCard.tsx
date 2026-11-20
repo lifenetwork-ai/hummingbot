@@ -4,7 +4,7 @@ import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
 import { formatDuration, formatPrice, formatUsdt } from '../../shared/utils/formatters'
-import { formatUsdtForDisplay } from './formatNumbers'
+import { formatBpsForDisplay, formatUsdtForDisplay } from './formatNumbers'
 import { parseAmount } from './parseAmount'
 import type { LiquidityMarketView } from './supplement'
 
@@ -135,9 +135,9 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
             </span>
             <span
               className={cn('font-mono text-xs font-bold cursor-help', market.spreadActualBps === null ? 'text-app-muted' : spreadMet ? 'text-app-success' : 'text-app-danger')}
-              title={`Current spread: ${market.spreadActualBps ?? '—'} bps (1 bps = 0.01%)`}
+              title={`Current spread: ${formatBpsForDisplay(market.spreadActualBps)} bps (1 bps = 0.01%)`}
             >
-              {market.spreadActualBps !== null ? `${market.spreadActualBps}` : '—'}
+              {formatBpsForDisplay(market.spreadActualBps)}
             </span>
             <span
               className="text-[10px] text-app-muted cursor-help"
@@ -179,8 +179,8 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
         </div>
 
         <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-app-muted">
-          <span className="font-mono">{market.buyOrderCount ?? '—'} orders · {market.bidNotional ? formatUsdt(market.bidNotional) : '—'}</span>
-          <span className="font-mono">{market.sellOrderCount ?? '—'} orders · {market.askNotional ? formatUsdt(market.askNotional) : '—'}</span>
+          <span><span className="font-mono tabular-nums text-app-text">{market.buyOrderCount ?? '—'}</span> orders · <span className="font-mono tabular-nums text-app-text">{market.bidNotional ? formatUsdt(market.bidNotional) : '—'}</span></span>
+          <span><span className="font-mono tabular-nums text-app-text">{market.sellOrderCount ?? '—'}</span> orders · <span className="font-mono tabular-nums text-app-text">{market.askNotional ? formatUsdt(market.askNotional) : '—'}</span></span>
         </div>
 
         {/* Depth ladder từ supplement — hiển thị dạng gia số (Incremental / Delta) theo từng khoảng cự ly */}
@@ -351,7 +351,7 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
             </div>
 
             {/* Timeline Axis / Ruler */}
-            <div className="mt-1 flex items-center justify-between font-mono text-[9px] text-app-muted">
+            <div className="mt-1 flex items-center justify-between text-[9px] text-app-muted">
               <span>30m ago</span>
               <span className="text-[8px] uppercase tracking-wider text-app-muted/60">15m ago</span>
               <span>Now</span>

@@ -138,7 +138,7 @@ export interface NetPositionView {
 export interface CapitalRiskView {
   positions: CapitalPositionView[]
   netPosition: NetPositionView
-  accountEquity?: Observed<OverviewSupplementSchemas['OverviewAccountEquityOutput']>
+  accountEquity?: Observed<OverviewSupplementSchemas['OverviewAccountEquityOutput'] | { currency: 'USD'; source: string; total_usd: string }>
   portfolio: Observed<Portfolio>
   sessionDelta: Observed<SessionDelta>
   fees: Observed<SessionFees>

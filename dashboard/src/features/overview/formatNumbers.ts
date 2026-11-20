@@ -41,3 +41,13 @@ export function formatRiskValueForDisplay(value: string | null | undefined, unit
   const formatted = unit?.toUpperCase() === 'USDT' ? formatUsdtForDisplay(value) : formatQuantityForDisplay(value)
   return formatted ?? '—'
 }
+
+/**
+ * Định dạng giá trị bps cho hiển thị: làm tròn tối đa 2 chữ số thập phân.
+ */
+export function formatBpsForDisplay(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  const n = typeof value === 'number' ? value : parseAmount(value)
+  if (n === null || !Number.isFinite(n)) return '—'
+  return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+}

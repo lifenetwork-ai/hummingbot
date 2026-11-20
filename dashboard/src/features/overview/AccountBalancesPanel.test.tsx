@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, to, onClick, className, 'aria-label': ariaLabel }: { children?: React.ReactNode; to?: string; onClick?: () => void; className?: string; 'aria-label'?: string }) => (
+    <a href={to ?? '#'} onClick={onClick} className={className} aria-label={ariaLabel}>
+      {children}
+    </a>
+  ),
+}))
 import { AccountBalancesPanel } from './AccountBalancesPanel'
 import type { ReadResponse } from '../../core/api/admin'
 

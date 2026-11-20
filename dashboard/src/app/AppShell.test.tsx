@@ -87,7 +87,7 @@ describe('AppShell', () => {
     expect(logout).toHaveBeenCalledTimes(1)
   })
 
-  it('renders streamlined navigation items and toggles report dropdown', () => {
+  it('renders flattened navigation items with direct access to reports', () => {
     vi.spyOn(authContext, 'useAuth').mockReturnValue({
       status: 'authenticated',
       identity: {
@@ -113,30 +113,26 @@ describe('AppShell', () => {
     // Primary navigation links and active highlights
     const homeLink = screen.getByRole('link', { name: 'Overview' })
     const sessionLink = screen.getByRole('link', { name: 'Session' })
+    const ordersLink = screen.getByRole('link', { name: 'Orders' })
+    const statsLink = screen.getByRole('link', { name: 'Daily Statistics' })
+    const activityLink = screen.getByRole('link', { name: 'Activity' })
+    const adminLink = screen.getByRole('link', { name: 'Administration' })
+
     expect(homeLink).toBeInTheDocument()
     expect(sessionLink).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Orders' })).toBeInTheDocument()
+    expect(ordersLink).toBeInTheDocument()
+    expect(statsLink).toBeInTheDocument()
+    expect(activityLink).toBeInTheDocument()
+    expect(adminLink).toBeInTheDocument()
 
     // Active item has text-app-action and no text-app-muted, inactive item has text-app-muted
     expect(homeLink.className).toContain('text-app-action')
     expect(homeLink.className).not.toContain('text-app-muted')
     expect(sessionLink.className).toContain('text-app-muted')
     expect(sessionLink.className).not.toContain('text-app-action')
-
-    // Report dropdown trigger
-    const reportBtn = screen.getByRole('button', { name: 'Reports and analytics menu' })
-    expect(reportBtn).toBeInTheDocument()
-    expect(reportBtn).toHaveAttribute('aria-expanded', 'false')
-
-    // Open report dropdown
-    fireEvent.click(reportBtn)
-    expect(reportBtn).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('link', { name: /Daily Statistics/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Activity & Reconciliation/i })).toBeInTheDocument()
-
-    // Close on Escape
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(reportBtn).toHaveAttribute('aria-expanded', 'false')
+    expect(statsLink.className).toContain('text-app-muted')
+    expect(activityLink.className).toContain('text-app-muted')
+    expect(adminLink.className).toContain('text-app-muted')
   })
 
   it('renders categorized mobile navigation when opened', () => {

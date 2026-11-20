@@ -31,7 +31,7 @@ export function DisconnectConfirmationDialog({
       onClose={() => {
         if (!isSubmitting) onOpenChange(false)
       }}
-      title={`Disconnect exchange ${connector ? connector.toUpperCase() : 'OKX'}`}
+      title={`Disconnect exchange ${connector ? connector.toUpperCase() : 'connection'}`}
       description="Stop trading, cancel this bot's pending orders and close its managed perpetual positions at market price, then remove this saved connection."
       className="max-w-lg"
     >

@@ -1,4 +1,5 @@
-import { Activity, AlertTriangle, ArrowDownUp, ChevronDown, Database } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Activity, AlertTriangle, ArrowDownUp, ArrowUpRight, ChevronDown, Database } from 'lucide-react'
 import type { OperationalDiagnostics, DiagnosticObservation, deriveProcessDiagnostics } from './diagnostics'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
@@ -232,6 +233,20 @@ export function OperationalDiagnosticsCard({ diagnostics, processDiagnostics, cl
           </div>
         )}
       </section>
+
+      {/* Quick link to Activity & Reconciliation */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-app-border/60 pt-3 text-xs">
+        <span className="text-app-muted">Inspect bot execution logs or reconcile fills with the exchange:</span>
+        <Link
+          to="/activity"
+          search={{ tab: 'reconciliation' }}
+          className="inline-flex items-center gap-1 font-semibold text-app-action hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-action rounded-xs"
+          aria-label="Open Session Logs and Reconciliation"
+        >
+          <span>Activity &amp; Reconciliation</span>
+          <ArrowUpRight size={12} />
+        </Link>
+      </div>
       </details>
     </Surface>
   )

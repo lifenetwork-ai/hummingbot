@@ -1,10 +1,11 @@
+import { Link } from '@tanstack/react-router'
 import { Info } from 'lucide-react'
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
 import { formatAmount } from '../../shared/utils/formatters'
 
 import { BackendGapChip } from './BackendGapChip'
-import { formatQuantityForDisplay, formatUsdtForDisplay } from './formatNumbers'
+import { formatBpsForDisplay, formatQuantityForDisplay, formatUsdtForDisplay } from './formatNumbers'
 import { parseAmount } from './parseAmount'
 import type { OverviewModel } from './model'
 import type { CapitalRiskView, LiquidityMarketView } from './supplement'
@@ -40,6 +41,18 @@ function BigValue({ children, tone }: { children: React.ReactNode; tone?: 'defau
 
 function TargetLine({ children, met }: { children: React.ReactNode; met?: boolean }) {
   return <p className={cn('text-xs', met === undefined ? 'text-app-muted' : met ? 'text-app-success' : 'text-app-danger')}>{children}</p>
+}
+
+export function resolveVenueLabel(source?: string | null, connector?: string | null): string {
+  if (source?.startsWith('okx')) return 'OKX'
+  if (connector) return connector.toUpperCase()
+  if (source) {
+    const prefix = source.split('_')[0]
+    if (prefix && prefix !== 'account' && prefix !== 'balance') {
+      return prefix.toUpperCase()
+    }
+  }
+  return 'Exchange'
 }
 
 function MetricRow({
@@ -133,6 +146,7 @@ export function OverviewKpiStripV2({
   const baseTotal = baseBal?.cash_balance ?? (baseFallback ? baseFallback.free : null) ?? null
 
   const isStale = Boolean((usdtBal && (usdtBal.stale || usdtBal.observation === 'stale')) || (baseBal && (baseBal.stale || baseBal.observation === 'stale')))
+  const venueLabel = resolveVenueLabel(accountEquity?.source, allAccountBalances[0]?.connector)
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -151,7 +165,7 @@ export function OverviewKpiStripV2({
                 onClick={() => scrollToAndFlash(`market-card-${m.market}`)}
               >
                 <BigValue tone={met === undefined ? 'default' : met ? 'positive' : 'negative'}>
-                  {m.spreadActualBps ?? '—'}
+                  {formatBpsForDisplay(m.spreadActualBps)}
                 </BigValue>
                 <span className="text-[10px] font-normal text-app-muted cursor-help" title="Basis points (1 bps = 0.01% = 0.0001)">bps</span>
               </MetricRow>
@@ -206,11 +220,20 @@ export function OverviewKpiStripV2({
               {!net.observed || net.amount === '—' ? '—' : net.side === 'FLAT' ? 'FLAT' : `${net.side} ${net.amount}`}
             </BigValue>
           </MetricRow>
-          <div className="flex items-baseline gap-1.5 text-xs">
-            <span className="text-app-muted">PnL:</span>
-            <span className={cn('font-mono font-bold tabular-nums', (parseAmount(net.pnlUsdt) ?? 0) >= 0 ? 'text-app-success' : 'text-app-danger')}>
-              {net.pnlUsdt !== null ? `${net.pnlUsdt} USDT` : '—'}
-            </span>
+          <div className="flex items-baseline justify-between gap-1.5 text-xs">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-app-muted">PnL:</span>
+              <span className={cn('font-mono font-bold tabular-nums', (parseAmount(net.pnlUsdt) ?? 0) >= 0 ? 'text-app-success' : 'text-app-danger')}>
+                {net.pnlUsdt !== null ? `${net.pnlUsdt} USDT` : '—'}
+              </span>
+            </div>
+            <Link
+              to="/statistics"
+              className="text-[11px] font-medium text-app-action hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-action rounded-xs"
+              aria-label="View detailed statistics report"
+            >
+              View report →
+            </Link>
           </div>
           {!net.observed && <TargetLine>Net position unavailable — check individual positions</TargetLine>}
         </div>
@@ -231,18 +254,18 @@ export function OverviewKpiStripV2({
                   </span>
                 )}
               </div>
-              <div className="flex items-center justify-between gap-1 text-xs">
-                <TargetLine>OKX account equity · includes position PnL</TargetLine>
-                {onViewBalances && (
+              <TargetLine>{venueLabel} account equity · includes position PnL</TargetLine>
+              {onViewBalances && (
+                <div className="flex justify-end pt-0.5">
                   <button
                     type="button"
                     onClick={onViewBalances}
-                    className="min-h-11 rounded-button px-2 text-xs font-medium text-app-action hover:bg-app-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action"
+                    className="text-[11px] font-medium text-app-action hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-action rounded-xs"
                   >
                     View balances →
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -260,24 +283,24 @@ export function OverviewKpiStripV2({
               >
                 <BigValue>{formatQuantityForDisplay(baseAvail) ?? '—'}</BigValue>
               </MetricRow>
-              <div className="flex items-center justify-between gap-1 text-xs">
-                <TargetLine>
-                  {!portfolio
-                    ? 'Account valuation unavailable · check balances'
-                    : isStale
-                      ? 'Balances unverified / stale'
-                      : 'Spot & Perp shared balance'}
-                </TargetLine>
-                {onViewBalances && (
+              <TargetLine>
+                {!portfolio
+                  ? 'Account valuation unavailable · check balances'
+                  : isStale
+                    ? 'Balances unverified / stale'
+                    : 'Spot & Perp shared balance'}
+              </TargetLine>
+              {onViewBalances && (
+                <div className="flex justify-end pt-0.5">
                   <button
                     type="button"
                     onClick={onViewBalances}
-                    className="min-h-11 rounded-button px-2 text-xs font-medium text-app-action hover:bg-app-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action"
+                    className="text-[11px] font-medium text-app-action hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-action rounded-xs"
                   >
                     View balances →
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </>
           )}
         </div>

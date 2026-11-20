@@ -1,5 +1,13 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, to, className, 'aria-label': ariaLabel }: { children?: React.ReactNode; to?: string; className?: string; 'aria-label'?: string }) => (
+    <a href={to ?? '#'} className={className} aria-label={ariaLabel}>
+      {children}
+    </a>
+  ),
+}))
 import type { components } from '../../core/api/schema'
 import { completionOverview } from '../../test/mocks/completionFixtures'
 import { CapitalRiskCard } from './CapitalRiskCard'

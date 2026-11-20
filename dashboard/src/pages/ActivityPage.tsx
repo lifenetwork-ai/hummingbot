@@ -73,7 +73,7 @@ export function ActivityPage() {
               <span>Session Logs & Exchange Reconciliation (Activity & Diagnosis)</span>
             </h1>
             <p className="mt-2 text-sm text-app-muted">
-              Track session events, reconcile order fills with the OKX exchange, and look up control command history.
+              Track session events, reconcile order fills with the exchange, and look up control command history.
             </p>
           </div>
           {currentSessionId && (
@@ -97,7 +97,7 @@ export function ActivityPage() {
               }`}
             >
               <GitCompare size={14} />
-              <span>OKX Reconciliation</span>
+              <span>Exchange Reconciliation</span>
             </button>
 
             <button

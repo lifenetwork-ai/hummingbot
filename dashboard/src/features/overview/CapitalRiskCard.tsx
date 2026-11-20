@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { ArrowUpRight } from 'lucide-react'
 import { Badge } from '../../shared/components/Badge'
 import { Surface } from '../../shared/components/Surface'
@@ -128,7 +129,17 @@ export function CapitalRiskCard({ view, mode, onOpenRiskGuards }: { view: Capita
     <div id="capital-risk-card" className="grid scroll-mt-24 grid-cols-1 gap-3 lg:grid-cols-2">
       {/* Vị thế & tồn kho */}
       <Surface className="p-4">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-app-muted">Positions &amp; inventory</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-app-muted">Positions &amp; inventory</h3>
+          <Link
+            to="/statistics"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-app-action hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-action rounded-xs"
+            aria-label="Inspect controller performance in statistics report"
+          >
+            <span>Controller report</span>
+            <ArrowUpRight size={12} />
+          </Link>
+        </div>
         {c.positions.length === 0 && (
           <p className="mt-2 text-xs text-app-muted">No perpetual positions — spot only carries inventory, not positions.</p>
         )}
@@ -150,19 +161,19 @@ export function CapitalRiskCard({ view, mode, onOpenRiskGuards }: { view: Capita
             <div key={`${p.market}-${p.pair}-${p.side}`} className="mt-2 text-xs">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="font-semibold text-app-text">{p.market} · <span className={p.side === 'LONG' ? 'text-app-success' : 'text-app-danger'}>{p.side}</span></span>
-                <span className="font-mono text-base font-bold text-app-text">{amountDisplay ?? '—'} {p.pair.split('-')[0]}</span>
+                <span className="font-mono text-base font-bold text-app-text">{amountDisplay ?? '—'}</span>
               </div>
-              <div className="mt-1.5 space-y-0.5 font-mono text-[10px] text-app-muted">
+              <div className="mt-1.5 space-y-0.5 text-[11px] text-app-muted">
                 <p>
-                  entry {entryDisplay ?? '—'}
-                  {markNum !== null && <> → mark <span className="text-app-text">{markNum}</span></>}
+                  entry <span className="font-mono tabular-nums text-app-text">{entryDisplay ?? '—'}</span>
+                  {markNum !== null && <> → mark <span className="font-mono tabular-nums text-app-text">{markNum}</span></>}
                 </p>
                 <p>
-                  PnL <span className={cn('font-bold', (parseAmount(p.pnlUsdt) ?? 0) >= 0 ? 'text-app-success' : 'text-app-danger')}>{pnlDisplay ?? '—'}</span>
-                  {' '}· margin <span className="text-app-text">{marginDisplay ?? '—'}</span>
+                  PnL <span className={cn('font-mono font-bold tabular-nums', (parseAmount(p.pnlUsdt) ?? 0) >= 0 ? 'text-app-success' : 'text-app-danger')}>{pnlDisplay ?? '—'}</span>
+                  {' '}· margin <span className="font-mono tabular-nums text-app-text">{marginDisplay ?? '—'}</span>
                 </p>
                 <p>
-                  liquidation {liqDisplay !== null ? `~${liqDisplay}` : '—'}
+                  liquidation <span className="font-mono tabular-nums text-app-text">{liqDisplay !== null ? `~${liqDisplay}` : '—'}</span>
                   {liqDistPct !== null && <span className="text-app-warning"> ({liqDistPct.toFixed(1)}% from entry)</span>}
                 </p>
               </div>
@@ -188,6 +199,15 @@ export function CapitalRiskCard({ view, mode, onOpenRiskGuards }: { view: Capita
           )
         })}
         <div className="mt-3 space-y-1.5 border-t border-app-border/40 pt-2 text-[10px] text-app-muted">
+          {c.sessionDelta.available && c.sessionDelta.value?.usdt != null && (
+            <p className="flex items-center justify-between gap-1.5">
+              <span>Session equity delta</span>
+              <span className={cn('font-mono font-bold', (parseAmount(c.sessionDelta.value.usdt) ?? 0) >= 0 ? 'text-app-success' : 'text-app-danger')}>
+                {(parseAmount(c.sessionDelta.value.usdt) ?? 0) >= 0 ? '+' : ''}{formatUsdtForDisplay(c.sessionDelta.value.usdt)} USDT
+                {c.sessionDelta.value.pct != null && ` (${(parseAmount(c.sessionDelta.value.pct) ?? 0) >= 0 ? '+' : ''}${Number(c.sessionDelta.value.pct).toFixed(2)}%)`}
+              </span>
+            </p>
+          )}
           <p className="flex items-center justify-between gap-1.5">
             <span className="flex items-center gap-1.5">
               {c.fees.available
@@ -209,7 +229,9 @@ export function CapitalRiskCard({ view, mode, onOpenRiskGuards }: { view: Capita
           </Badge>
         </div>
         <p className="mt-2 text-xs leading-relaxed text-app-text">{c.guardsSummary.headline}</p>
-        <p className="mt-1 font-mono text-[10px] text-app-muted">{c.guardsSummary.violationCount}/{c.guardsSummary.totalCount} limits touched</p>
+        <p className="mt-1 text-[10px] text-app-muted">
+          <span className="font-mono font-semibold text-app-text">{c.guardsSummary.violationCount}/{c.guardsSummary.totalCount}</span> limits touched
+        </p>
         {onOpenRiskGuards && (
           <button
             type="button"

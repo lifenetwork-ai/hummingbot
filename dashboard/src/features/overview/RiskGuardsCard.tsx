@@ -188,7 +188,7 @@ export function RiskGuardsCard({
               )}
             >
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                <h3 id={`risk-rule-${rule.id}`} className="min-w-0 break-words font-heavy text-base font-bold text-app-text">
+                <h3 id={`risk-rule-${rule.id}`} className="min-w-0 break-words text-base font-bold text-app-text">
                   Rule {index + 1} · {rule.label}
                 </h3>
                 <span
@@ -268,7 +268,7 @@ export function RiskGuardsCard({
           )}
         >
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-            <h3 id="risk-drawdown-heading" className="font-heavy text-base font-bold text-app-text">
+            <h3 id="risk-drawdown-heading" className="text-base font-bold text-app-text">
               Rule {markets.length + 1} · Drawdown
             </h3>
             <span
@@ -344,7 +344,7 @@ export function RiskGuardsCard({
         >
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <h3 id="risk-outflow-heading" className="font-heavy text-base font-bold text-app-text">
+              <h3 id="risk-outflow-heading" className="text-base font-bold text-app-text">
                 Rule {markets.length + 2} · Spot Outflow
               </h3>
               {isOutflowWarn && (

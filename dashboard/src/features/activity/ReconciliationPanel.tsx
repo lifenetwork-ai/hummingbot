@@ -24,7 +24,7 @@ const STATE_CONFIG: Record<
   mismatch: {
     label: 'Discrepancy Detected',
     tone: 'danger',
-    description: 'Discrepancy detected between bot-recorded orders/positions and actual state on OKX exchange.',
+    description: 'Discrepancy detected between bot-recorded orders/positions and actual state on the exchange.',
   },
   incomplete: {
     label: 'Incomplete',
@@ -34,7 +34,7 @@ const STATE_CONFIG: Record<
   unavailable: {
     label: 'Unavailable',
     tone: 'neutral',
-    description: 'Unable to connect to OKX exchange for reconciliation at this time.',
+    description: 'Unable to connect to the exchange for reconciliation at this time.',
   },
   not_checked: {
     label: 'Not Checked',
@@ -44,7 +44,7 @@ const STATE_CONFIG: Record<
   checking: {
     label: 'Reconciling',
     tone: 'warning',
-    description: 'Submitting request and comparing reconciliation data with OKX exchange…',
+    description: 'Submitting request and comparing reconciliation data with the exchange…',
   },
 }
 
@@ -67,11 +67,11 @@ export function ReconciliationPanel({
           <div className="flex items-center gap-2">
             <GitCompare size={18} className="text-app-action" />
             <h3 className="font-heavy text-lg font-bold text-app-text">
-              OKX Data Reconciliation
+              Exchange Data Reconciliation
             </h3>
           </div>
           <p className="mt-1 text-xs text-app-muted">
-            Independent comparison between internal bot records and actual state on OKX exchange.
+            Independent comparison between internal bot records and actual state on the exchange.
           </p>
         </div>
 

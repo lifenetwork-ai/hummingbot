@@ -80,8 +80,47 @@ would only rename HTML or forward props without owning a contract. Avoid arbitra
 file-length limits, one component per tag, speculative generic frameworks and
 boolean-heavy components that combine unrelated responsibilities.
 
+### Self-contained responsibility units
+
+Organize frontend features around independently understandable responsibilities.
+A responsibility unit owns the data access, controller, local state, interactions,
+presentation and tests needed to fulfill its contract. Its public interface exposes
+inputs, outcomes and callbacks that callers need; callers should not coordinate its
+internal queries, dialogs, validation or mutation steps. This boundary supports
+independent implementation, testing and maintenance, even with a single caller.
+
+Choose boundaries by business responsibility and lifecycle. A tab, card or section
+may represent a unit, but visual layout alone does not determine ownership. A unit
+can contain several components and hooks. Presentational components remain explicit
+props-driven views; feature containers compose their controllers and views. Small
+visual primitives do not each need their own fetching or controller.
+
+Apply these ownership and lifecycle rules:
+
+- Pages and parent containers compose units and pass their public inputs. Keep
+  feature-specific orchestration inside the unit that owns the workflow.
+- Feature-specific queries start when the unit is needed, typically when its
+  container mounts. When content remains mounted while inactive, explicitly gate
+  its reads and polling. Rendering only its view conditionally does not gate hooks
+  already running in the parent. Load supporting data when the unit needs it,
+  including data used by its filters or actions.
+- Put coordinated state at the nearest common owner of the participating units.
+  Use a workspace provider for genuinely cross-page responsibilities. Shared query
+  keys and cache reuse do not require moving all feature controllers into a page
+  or introducing another global store.
+- Define operation lifetime separately from visibility. If an accepted operation
+  must remain tracked after its UI unmounts, place tracking at an owner with that
+  lifetime and let the feature reconnect to it. Preserve receipt, retry and
+  recovery behavior when changing component boundaries.
+- Test each unit through its public behavior, including query activation and
+  cleanup where relevant. Integration tests verify coordination between units.
+
 Composition review checks:
 
+- Can each responsibility unit be implemented and tested through its interface
+  without requiring its parent to understand internal workflow details?
+- Do query ownership and activation follow the unit's lifecycle, with explicit
+  owners for shared data and operations that outlive the visible UI?
 - Does the page assemble named feature blocks, or does it own detailed feature UI
   and interactions that deserve their own boundary?
 - Are repeated loading/error/empty/retry patterns using an existing primitive, or

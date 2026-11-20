@@ -46,6 +46,10 @@ Logic/hệ thống trong phân công này gồm lớp tích hợp frontend và c
 
 Người làm UI giữ state tương tác như mở dialog, tab và input chưa gửi. Người làm logic giữ state nghiệp vụ như operation đang chờ, version đã review và khả năng gửi lệnh. UI không suy quyền từ role, tự lên lịch retry hoặc tự kết luận bot đã dừng.
 
+Phân chia đầu việc theo [đơn vị trách nhiệm tự chủ](ARCHITECTURE.md#self-contained-responsibility-units): mỗi đơn vị đóng gói dữ liệu, controller, state, UI và test phục vụ contract của nó. UI và logic có thể do hai người triển khai bên trong cùng đơn vị; người tích hợp nối controller với View tại container của đơn vị. Page hoặc component cha compose qua interface công khai, không gom và điều phối nội bộ của mọi feature. Ranh giới dựa trên trách nhiệm nghiệp vụ và lifecycle, áp dụng cho toàn frontend, không chỉ tab hoặc card.
+
+Khi bàn giao, ghi rõ dữ liệu riêng/dùng chung, điều kiện kích hoạt query/polling, state cần phối hợp và operation cần tiếp tục được theo dõi sau khi UI unmount. State phối hợp thuộc owner chung gần nhất; trách nhiệm xuyên trang thuộc workspace provider. Các quyết định này phải được thể hiện trong interface và tiêu chí kiểm thử của đầu việc.
+
 ## Sở hữu file và điểm tích hợp
 
 | Khu vực | Người sửa chính | Quy ước |

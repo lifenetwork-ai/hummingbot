@@ -8,7 +8,16 @@ import { BrandLogo } from '../shared/components/BrandLogo'
 import { useTheme } from '../theme/useTheme'
 import { cn } from '../shared/utils/cn'
 
-const mainNavItems = [
+const desktopNavItems = [
+  { to: '/' as const, label: 'Overview' },
+  { to: '/session' as const, label: 'Session' },
+  { to: '/orders' as const, label: 'Orders' },
+  { to: '/statistics' as const, label: 'Daily Statistics' },
+  { to: '/activity' as const, label: 'Activity' },
+  { to: '/admin' as const, label: 'Administration' },
+]
+
+const operationsNavItems = [
   { to: '/' as const, label: 'Overview' },
   { to: '/session' as const, label: 'Session' },
   { to: '/orders' as const, label: 'Orders' },
@@ -37,14 +46,10 @@ export function AppShell() {
     if (to === '/') return pathname === '/'
     return pathname === to || pathname.startsWith(to + '/')
   }
-  const isReportActive = pathname === '/statistics' || pathname === '/activity' || pathname.startsWith('/statistics/') || pathname.startsWith('/activity/')
-
   const { theme, toggleTheme } = useTheme()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [reportMenuOpen, setReportMenuOpen] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
-  const reportMenuRef = useRef<HTMLDivElement>(null)
   const reducedMotion = useReducedMotion()
 
   useEffect(() => {
@@ -67,38 +72,8 @@ export function AppShell() {
     }
   }, [userMenuOpen])
 
-  useEffect(() => {
-    if (!reportMenuOpen) return
-    const handleClickOutside = (event: MouseEvent) => {
-      if (reportMenuRef.current && !reportMenuRef.current.contains(event.target as Node)) {
-        setReportMenuOpen(false)
-      }
-    }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setReportMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [reportMenuOpen])
-
-  const toggleReportMenu = () => {
-    setReportMenuOpen((open) => {
-      if (!open) setUserMenuOpen(false)
-      return !open
-    })
-  }
-
   const toggleUserMenu = () => {
-    setUserMenuOpen((open) => {
-      if (!open) setReportMenuOpen(false)
-      return !open
-    })
+    setUserMenuOpen((open) => !open)
   }
 
   return (
@@ -113,109 +88,25 @@ export function AppShell() {
           </Link>
 
           <nav hidden={auth.status !== 'authenticated'} className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
-            {auth.status === 'authenticated' && (
-              <>
-                {mainNavItems.map((item) => {
-                  const active = isItemActive(item.to)
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      activeOptions={{ exact: true }}
-                      className={cn(
-                        'rounded-button px-3 py-2 text-sm transition-colors',
-                        active
-                          ? 'bg-app-action/10 text-app-action font-semibold shadow-xs'
-                          : 'text-app-muted hover:bg-app-surface-muted/60 hover:text-app-text font-medium',
-                      )}
-                    >
-                      {item.label}
-                    </Link>
-                  )
-                })}
-
-                {/* Dropdown Reports */}
-                <div ref={reportMenuRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={toggleReportMenu}
-                    aria-expanded={reportMenuOpen}
-                    aria-haspopup="menu"
-                    aria-label="Reports and analytics menu"
+            {auth.status === 'authenticated' &&
+              desktopNavItems.map((item) => {
+                const active = isItemActive(item.to)
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    activeOptions={{ exact: true }}
                     className={cn(
-                      'flex items-center gap-1 rounded-button px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-action',
-                      isReportActive || reportMenuOpen
+                      'rounded-button px-3 py-2 text-sm transition-colors',
+                      active
                         ? 'bg-app-action/10 text-app-action font-semibold shadow-xs'
                         : 'text-app-muted hover:bg-app-surface-muted/60 hover:text-app-text font-medium',
                     )}
                   >
-                    <span>Reports</span>
-                    <ChevronDown
-                      size={14}
-                      className={cn('transition-transform duration-200', reportMenuOpen ? 'rotate-180' : '')}
-                    />
-                  </button>
-
-                  <AnimatePresence>
-                    {reportMenuOpen && (
-                      <motion.div
-                        role="menu"
-                        aria-label="Report options"
-                        initial={reducedMotion ? false : { opacity: 0, y: 6, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={reducedMotion ? undefined : { opacity: 0, y: 4, scale: 0.98 }}
-                        transition={{ duration: reducedMotion ? 0 : 0.15 }}
-                        className="absolute left-0 top-full mt-2 w-72 z-50 rounded-card border border-app-border bg-app-surface p-1.5 shadow-card"
-                      >
-                        <div className="grid gap-1">
-                          {reportNavItems.map((item) => {
-                            const Icon = item.icon
-                            const isActive = pathname === item.to || pathname.startsWith(item.to + '/')
-                            return (
-                              <Link
-                                key={item.to}
-                                to={item.to}
-                                onClick={() => setReportMenuOpen(false)}
-                                className={cn(
-                                  'flex items-start gap-2.5 rounded-button p-2.5 transition-colors',
-                                  isActive
-                                    ? 'bg-app-action/10 text-app-action font-semibold'
-                                    : 'text-app-text hover:bg-app-surface-muted/60',
-                                )}
-                              >
-                                <div
-                                  className={cn(
-                                    'mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg',
-                                    isActive
-                                      ? 'bg-app-action text-white'
-                                      : 'bg-app-action/10 text-app-action',
-                                  )}
-                                >
-                                  <Icon size={15} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-xs font-semibold flex items-center justify-between">
-                                    <span className={isActive ? 'text-app-action' : 'text-app-text'}>
-                                      {item.label}
-                                    </span>
-                                    {isActive && (
-                                      <span className="h-1.5 w-1.5 rounded-full bg-app-action" />
-                                    )}
-                                  </div>
-                                  <p className="mt-0.5 text-[11px] leading-tight text-app-muted font-normal">
-                                    {item.description}
-                                  </p>
-                                </div>
-                              </Link>
-                            )
-                          })}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </>
-            )}
+                    {item.label}
+                  </Link>
+                )
+              })}
           </nav>
 
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
@@ -474,7 +365,7 @@ export function AppShell() {
                     <div className="px-3 pt-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-app-muted">
                       Operations
                     </div>
-                    {mainNavItems.map((item) => {
+                    {operationsNavItems.map((item) => {
                       const active = isItemActive(item.to)
                       return (
                         <Link

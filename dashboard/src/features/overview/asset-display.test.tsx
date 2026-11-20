@@ -1,5 +1,13 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, to, className, 'aria-label': ariaLabel }: { children?: React.ReactNode; to?: string; className?: string; 'aria-label'?: string }) => (
+    <a href={to ?? '#'} className={className} aria-label={ariaLabel}>
+      {children}
+    </a>
+  ),
+}))
 import { completionOverview } from '../../test/mocks/completionFixtures'
 import type { OverviewSupplementSchemas } from './supplement-contract'
 import type { OverviewModel } from './model'
@@ -63,6 +71,12 @@ it('renders account equity as USD with an explicit source, never as USDT', () =>
   expect(screen.getByText('12,345.67 USD')).toBeInTheDocument()
   expect(screen.getByText('OKX account equity · includes position PnL')).toBeInTheDocument()
   expect(screen.queryByText('12,345.67 USDT')).not.toBeInTheDocument()
+})
+
+it('resolves venue label dynamically from connector or source for non-OKX venues', () => {
+  const capital = { ...deriveCapitalRisk(completionOverview, null), accountEquity: { available: true as const, observedAt: '2026-11-18T00:00:00Z', stale: false, value: { total_usd: '50000.00', currency: 'USD' as const, source: 'binance_account_balance_total_eq' as const } } }
+  render(<OverviewKpiStripV2 capital={capital} liquidity={[]} />)
+  expect(screen.getByText('BINANCE account equity · includes position PnL')).toBeInTheDocument()
 })
 
 it('uses the BE two-sided spread plan and does not round before comparison', () => {

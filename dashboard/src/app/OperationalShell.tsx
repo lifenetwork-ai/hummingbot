@@ -11,6 +11,7 @@ import { useReceiptInspection } from '../core/api/hooks'
 import { useSessionControl } from '../features/session-control/useSessionControl'
 import type { ReceiptReference } from '../core/api/receipt-tracking'
 import { StopConfirmationDialog } from '../features/session/StopConfirmationDialog'
+import { Banner } from '../shared/components/Banner'
 
 /** Persistent operational content shared by every authenticated child route. */
 export function OperationalShell() {
@@ -21,6 +22,7 @@ export function OperationalShell() {
   const [stopDialogOpen, setStopDialogOpen] = useState(false)
   const stopControl = useSessionControl({ includeProfiles: false, trackCommands: false })
   const [stopError, setStopError] = useState<string | null>(null)
+  const [dismissedStopReceiptId, setDismissedStopReceiptId] = useState<string | null>(null)
 
   useEffect(() => {
     if (selectedReceipt && !trackedReceipts.some((r) => r.kind === selectedReceipt.kind && r.id === selectedReceipt.id)) {
@@ -52,8 +54,57 @@ export function OperationalShell() {
   return (
     <>
       <AssetRibbon />
-      {stopControl.stopPendingRetry && <div className="mx-auto w-full max-w-[1536px] px-4 py-2 text-xs text-app-warning" role="status">Stop outcome unknown. <button type="button" disabled={stopControl.stopping} onClick={() => { void stopControl.retryStop().catch((error: unknown) => setStopError(error instanceof Error ? error.message : 'Retry Stop failed.')) }}>Retry Stop with same body/key</button>{stopError}</div>}
-      {stopControl.stopReceipt && <p role="status" className="mx-auto w-full max-w-[1536px] px-4 text-xs text-app-muted">Stop {stopControl.stopReceipt.reference.id}: {stopControl.stopReceipt.status ?? 'Unknown'} · Positions intact.</p>}
+      {stopControl.stopPendingRetry && (
+        <div className="mx-auto w-full max-w-[1536px] px-4 pt-3 sm:px-6 md:px-8 lg:px-10">
+          <Banner
+            variant="warning"
+            title="Emergency Stop pending retry"
+            description={
+              <span>
+                Stop outcome unknown. {stopError && <span className="font-mono text-app-danger">{stopError}</span>}
+              </span>
+            }
+            action={
+              <button
+                type="button"
+                disabled={stopControl.stopping}
+                onClick={() => {
+                  void stopControl.retryStop().catch((error: unknown) =>
+                    setStopError(error instanceof Error ? error.message : 'Retry Stop failed.')
+                  )
+                }}
+                className="rounded-button bg-app-warning/20 px-3 py-1.5 text-xs font-semibold text-app-warning transition-colors hover:bg-app-warning/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-warning disabled:opacity-50"
+              >
+                Retry Stop with same body/key
+              </button>
+            }
+          />
+        </div>
+      )}
+      {stopControl.stopReceipt && dismissedStopReceiptId !== stopControl.stopReceipt.reference.id && (
+        <div className="mx-auto w-full max-w-[1536px] px-4 pt-3 sm:px-6 md:px-8 lg:px-10">
+          <Banner
+            variant={
+              stopControl.stopReceipt.status === 'succeeded'
+                ? 'success'
+                : stopControl.stopReceipt.status === 'failed'
+                  ? 'error'
+                  : 'info'
+            }
+            title={
+              stopControl.stopReceipt.status === 'succeeded'
+                ? 'Emergency Stop completed'
+                : 'Emergency Stop status'
+            }
+            description={
+              <span>
+                Stop {stopControl.stopReceipt.reference.id}: {stopControl.stopReceipt.status ?? 'Unknown'} · Positions intact.
+              </span>
+            }
+            onDismiss={() => setDismissedStopReceiptId(stopControl.stopReceipt?.reference.id ?? null)}
+          />
+        </div>
+      )}
       <Outlet />
 
       {/* Single global emergency stop — floating above the ContextBar, visible from any page.
