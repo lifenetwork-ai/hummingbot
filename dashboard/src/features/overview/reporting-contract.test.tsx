@@ -34,6 +34,11 @@ function supplement(): components['schemas']['OverviewSupplementOutput'] {
 }
 
 describe('published reporting mapping', () => {
+  it('names the controller report link from its visible label', () => {
+    render(<CapitalRiskCard view={deriveCapitalRisk(completionOverview, null)} mode="operator" />)
+    expect(screen.getByRole('link', { name: 'Controller report' })).toHaveAttribute('href', '/statistics')
+  })
+
   it('keeps eligible and total-time denominators separate and preserves restrictions', () => {
     const [view] = deriveLiquidity(completionOverview, supplement())
     expect(view).toMatchObject({ coverageFraction: 0.98, totalTimeCoverageFraction: 0.5,

@@ -60,6 +60,8 @@ async def client_for(pg_engine, monkeypatch, *, mode="postgres_kms", lose_first_
 @pytest.mark.asyncio
 async def test_secret_save_has_typed_receipt_no_plaintext_and_no_auto_start(pg_engine, monkeypatch):
     async with client_for(pg_engine, monkeypatch) as (client, state, adapter):
+        status = await (await client.get(ADMIN_PREFIX + "/credentials/okx", headers=AUTH)).json()
+        assert all(slot["actions"]["configure"]["allowed"] for slot in status["slots"])
         response = await client.post(ADMIN_PREFIX + "/credentials/okx/okx", headers={**AUTH, "Idempotency-Key": "save"}, json=BODY)
         assert response.status == 202, await response.text()
         receipt = await response.json()
@@ -80,6 +82,74 @@ async def test_secret_save_has_typed_receipt_no_plaintext_and_no_auto_start(pg_e
         assert any(event["operation_id"] == receipt["id"] and event["connector"] == "okx" for event in audit["items"])
         row = CredentialStore(state).load("okx", "okx", "demo")
         assert row["version"] == 1 and "HTTP-CANARY" not in str(row)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "desired,acknowledged,recovery,code,detail",
+    [
+        pytest.param("running", 1, {}, "bot_must_be_stopped", "Stop trading before", id="running"),
+        pytest.param("stopped", 0, {}, "bot_must_be_stopped", "acknowledged Stop", id="waiting-for-ack"),
+        pytest.param("stopped", 1, {"runtime_active": True}, "bot_must_be_stopped", "confirms order cleanup", id="cleanup"),
+        pytest.param("stopped", 1, {"pending_mutations": ["order"]}, "bot_must_be_stopped", "confirms order cleanup",
+                     id="pending-order"),
+        pytest.param("stopped", 1, {"recovery_operation": {"id": "recovery"}}, "recovery_operation_in_progress",
+                     "Wait for its result", id="recovery"),
+        pytest.param("stopped", 1, {"credential_operation": {"id": "connection"}}, "credential_operation_in_progress",
+                     "Wait for its confirmed outcome", id="credential-operation"),
+        pytest.param("stopped", 1, {"halt": True}, "recovery_required", "technical review", id="halted"),
+        pytest.param("stopped", 1, {"halt": True, "pending_mutations": ["order"]}, "recovery_required", "technical review",
+                     id="halted-with-pending-order"),
+        pytest.param("stopped", 1, {"halt": True, "halt_kind": "shutdown_pending",
+                                    "automatic_recovery": {"cold_recovery_supported": True}},
+                     "bot_must_be_stopped", "owner verifies shutdown", id="shutdown-fence"),
+    ],
+)
+async def test_configure_status_matches_set_blocker(pg_engine, monkeypatch, desired, acknowledged, recovery, code, detail):
+    async with client_for(pg_engine, monkeypatch) as (client, state, adapter):
+        with pg_engine.begin() as connection:
+            connection.execute(update(BotState).values(desired_state=desired, control_version=1,
+                                                       acknowledged_version=acknowledged, recovery_state=recovery))
+        response = await client.get(ADMIN_PREFIX + "/credentials/okx", headers=AUTH)
+        assert response.status == 200
+        slots = (await response.json())["slots"]
+        assert {slot["connector"] for slot in slots} == {"okx", "okx_perpetual"}
+        response = await client.post(ADMIN_PREFIX + "/credentials/okx/okx", headers={**AUTH, "Idempotency-Key": "blocked"},
+                                     json={**BODY, "expected_control_version": 1})
+        assert response.status == 409 and (await response.json())["code"] == code
+        for slot in slots:
+            action = slot["actions"]["configure"]
+            assert action["allowed"] is False and action["reason_code"] == code
+            assert detail in action["detail"]
+        adapter.preflight.assert_not_awaited()
+        assert state.read()["control_version"] == 1 and not CredentialStore(state).metadata()
+
+
+@pytest.mark.asyncio
+async def test_set_rechecks_stop_barrier_after_exchange_preflight(pg_engine, monkeypatch):
+    async with client_for(pg_engine, monkeypatch) as (client, state, adapter):
+        def pending_cleanup(*args):
+            with pg_engine.begin() as connection:
+                connection.execute(update(BotState).values(recovery_state={"pending_mutations": ["order"]}))
+            return "www:account"
+
+        adapter.preflight.side_effect = pending_cleanup
+        status = await (await client.get(ADMIN_PREFIX + "/credentials/okx", headers=AUTH)).json()
+        assert all(slot["actions"]["configure"]["allowed"] for slot in status["slots"])
+        url = ADMIN_PREFIX + "/credentials/okx/okx"
+        headers = {**AUTH, "Idempotency-Key": "race"}
+        response = await client.post(url, headers=headers, json=BODY)
+        assert response.status == 409 and (await response.json())["code"] == "bot_must_be_stopped"
+        adapter.preflight.assert_awaited_once()
+        assert state.read()["control_version"] == 0 and not CredentialStore(state).metadata()
+        with pg_engine.begin() as connection:
+            connection.execute(update(BotState).values(recovery_state={}))
+        adapter.preflight.side_effect = None
+        status = await (await client.get(ADMIN_PREFIX + "/credentials/okx", headers=AUTH)).json()
+        assert all(slot["actions"]["configure"]["allowed"] for slot in status["slots"])
+        response = await client.post(url, headers=headers, json=BODY)
+        assert response.status == 202, await response.text()
+        assert state.read()["desired_state"] == "stopped"
 
 
 @pytest.mark.asyncio

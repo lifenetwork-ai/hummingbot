@@ -10,11 +10,13 @@ from sqlalchemy import text
 from hummingbot.model.bot_state_store import BotStateStore
 
 
-@pytest.mark.parametrize('checkpoint_history,terminal_metadata,uncertain,pending_fills', [
-    (False, False, False, False), (True, False, False, False), (True, True, False, False),
-    (True, False, True, False), (True, True, False, True)])
+@pytest.mark.parametrize('checkpoint_history,terminal_metadata,uncertain_count,pending_fills', [
+    (False, False, 0, False), (True, False, 0, False), (True, True, 0, False),
+    (True, False, 1, False), (True, True, 0, True), (True, False, 2, False)])
 def test_supervised_review_confirm_retry_and_restart_stay_stopped(
-        pg_engine, tmp_path, monkeypatch, checkpoint_history, terminal_metadata, uncertain, pending_fills):
+        pg_engine, tmp_path, monkeypatch, checkpoint_history, terminal_metadata, uncertain_count, pending_fills):
+    uncertain = bool(uncertain_count)
+    batch = uncertain_count > 1
     monkeypatch.setenv('EXCHANGE_CREDENTIALS_SOURCE', 'postgres_kms')
     monkeypatch.setenv('KMS_PROVIDER', 'local')
     monkeypatch.setenv('KMS_LOCAL_SECRET_KEY', base64.b64encode(b'K' * 32).decode())
@@ -54,7 +56,8 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             from hummingbot.model.recovery_store import RecoveryStore
             if uncertain:
                 from test.integration.postgres.test_recovery_uncertain import seed_uncertain
-                identity = seed_uncertain(RecoveryStore(state), existing_binding=True, api_key='RECOVERY-CANARY-API')
+                seeded = seed_uncertain(RecoveryStore(state), existing_binding=True, api_key='RECOVERY-CANARY-API', count=uncertain_count)
+                reviewed_ids = seeded if batch else [seeded]
             elif terminal_metadata:
                 from test.integration.postgres.test_recovery_pending_fills import pending_native_fills, seed_pending
                 from test.integration.postgres.test_recovery_terminal_metadata import seed_terminal_work
@@ -77,10 +80,16 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
                 seed_checkpoint(RecoveryStore(state), fills=0, existing_binding=True)
         expected = {'expected_version': 1}
         if uncertain:
-            path = '/recovery?uncertain_order_id=' + identity
+            scope_key = 'uncertain_order_ids' if batch else 'uncertain_order_id'
+            path = '/recovery?' + scope_key + '=' + ','.join(reversed(reviewed_ids))
             assert not call(port, '/recovery')[1]['check_available']
             assert call(port, path)[1]['check_available']
-            expected['uncertain_order_id'] = identity
+            if batch:
+                assert not call(port, '/recovery?uncertain_order_id=' + reviewed_ids[0])[1]['check_available']
+                status, _ = call(port, '/recovery/check', key='duplicate', body={
+                    **expected, scope_key: [reviewed_ids[0]] * 2})
+                assert status == 422
+            expected[scope_key] = list(reversed(reviewed_ids)) if batch else reviewed_ids[0]
         else:
             eventually(lambda: call(port, '/status')[1].get('recovery', {}).get('halted'))
         code, check = call(port, '/recovery/check', key='check', body=expected)
@@ -97,10 +106,12 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             assert check['proposed_changes'][0]['after']['amount'] == '1'
         assert bool(state.read()['recovery_state'].get('halt')) is not uncertain
         if uncertain:
-            assert check['proposed_uncertain_order']['id'] == identity
-            assert check['proposed_uncertain_order']['before'] == 'PendingBuy'
+            preview = check['proposed_uncertain_orders'] if batch else [check['proposed_uncertain_order']]
+            assert [item['id'] for item in preview] == reviewed_ids
+            assert all(item['before'] == 'PendingBuy' for item in preview)
+            assert check['verification']['orders_checked'] == uncertain_count
             assert call(port, path)[1]['reset_available']
-            assert call(port, '/orders/' + identity)[1]['order']['creation_pending']
+            assert all(call(port, '/orders/' + identity)[1]['order']['creation_pending'] for identity in reviewed_ids)
         payload = dict(**expected, check_id=check['id'], confirmation_token='0' * 32)
         code, rejected = call(port, '/recovery/reset', key='tampered', body=payload)
         assert code == 409 and rejected['code'] == 'recovery_confirmation_invalid'
@@ -111,14 +122,15 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             payload['confirm_order_changes'] = True
         if uncertain:
             code, rejected = call(port, '/recovery/reset', key='different-order',
-                                  body={**payload, 'uncertain_order_id': 'different'})
+                                  body={**payload, scope_key: [reviewed_ids[0], 'different'] if batch else 'different'})
             assert code == 409 and rejected['code'] == 'recovery_state_changed'
+            identity = reviewed_ids[-1]  # Finding one exchange record must block the entire batch.
             orders_path.write_text(json.dumps({identity: {'clOrdId': identity, 'ordId': '1', 'state': 'live'}}))
             code, late = call(port, '/recovery/reset', key='late-ack', body=payload)
             assert code == 202, late
             late = eventually(lambda: (item if (item := call(port, '/recovery/operations/' + late['id'])[1]).get('status') == 'failed' else None))
             assert late['blockers'][0]['code'] == 'recovery_uncertain_order_found'
-            assert call(port, '/orders/' + identity)[1]['order']['creation_pending']
+            assert all(call(port, '/orders/' + identity)[1]['order']['creation_pending'] for identity in reviewed_ids)
             orders_path.write_text('{}')
         if pending_fills:
             changed = identities[-1]
@@ -149,18 +161,23 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             assert {item['target_id'] for item in fill_repairs} == set(identities[1:])
             assert all(item['actor_role'] == 'admin' for item in fill_repairs)
         if uncertain:
-            assert reset['repaired_uncertain_order'] == check['proposed_uncertain_order']
-            result = call(port, '/orders/' + identity)[1]['order']
-            assert not result['creation_pending'] and result['status'] == 'OrderFailure'
-            assert not result['exchange_order_id'] and result['recorded_filled_amount'] == '0'
-            assert not call(port, '/recovery?uncertain_order_id=' + identity)[1]['check_available']
+            repaired = reset['repaired_uncertain_orders'] if batch else [reset['repaired_uncertain_order']]
+            assert repaired == preview
+            for identity in reviewed_ids:
+                result = call(port, '/orders/' + identity)[1]['order']
+                assert not result['creation_pending'] and result['status'] == 'OrderFailure'
+                assert not result['exchange_order_id'] and result['recorded_filled_amount'] == '0'
+            assert not call(port, path)[1]['check_available']
+            if batch:
+                payload[scope_key] = reviewed_ids
         replay_code, replay = call(port, '/recovery/reset', key='reset', body=payload)
         assert replay_code == 202 and replay['id'] == reset['id'], replay
         if uncertain:
             audit_code, audit = call(port, '/audit?operation_id=' + reset['id'])
             assert audit_code == 200, audit
             repairs = [event for event in audit['items'] if event['action'] == 'recovery_order_repaired']
-            assert len(repairs) == 1 and repairs[0]['target_id'] == identity and repairs[0]['actor_role'] == 'admin'
+            assert sorted(event['target_id'] for event in repairs) == reviewed_ids
+            assert all(event['actor_role'] == 'admin' for event in repairs)
         eventually(lambda: state.read()['acknowledged_version'] == 2)
         assert state.read()['desired_state'] == 'stopped' and not state.read()['status']['running']
         assert not state.read()['recovery_state'].get('halt')

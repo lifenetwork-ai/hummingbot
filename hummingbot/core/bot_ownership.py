@@ -444,8 +444,10 @@ class BotOwnership:
                             recorder = self._prepare_order_intent(connector, order)
                             try:
                                 cancelled = await recorder.persist_order_intent(connector, order)
-                            except IntentAdmissionBusy:
+                            except IntentAdmissionBusy as error:
                                 self._release_busy_intent(order)
+                                if error.cancellation is not None:
+                                    raise error.cancellation from None
                                 raise
                             if cancelled is not None:
                                 raise cancelled
@@ -711,14 +713,14 @@ class BotOwnership:
         self._read_owner(identity_only=True)
         self.lock_owner_row(session, nowait=nowait)
 
-    def fence_recorder_session(self, session):
+    def fence_recorder_session(self, session, *, nowait=False):
         # The recorder holds this row until it commits. Check the original
         # owner's advisory lock from the same PostgreSQL transaction, without
         # accessing the dedicated owner connection from the worker thread.
         if self.lost:
             raise OwnershipLost('Trading ownership was lost while recording the order.',
                                 reason_code='ownership_already_lost')
-        self.lock_owner_row(session)
+        self.lock_owner_row(session, nowait=nowait)
         advisory_lock = session.connection().execute(text("""
             SELECT EXISTS (
                 SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted

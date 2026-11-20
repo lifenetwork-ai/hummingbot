@@ -153,9 +153,9 @@ class SQLConnectionManager(TransactionBase):
             return
         self.persistence_healthy = False
 
-    def order_intent_transaction(self, order_id):
+    def order_intent_transaction(self, order_id, *, worker_owner=None):
         from hummingbot.model.intent_admission import order_intent_transaction
-        return order_intent_transaction(self, order_id)
+        return order_intent_transaction(self, order_id, worker_owner=worker_owner)
 
     def assert_persistence_healthy(self) -> None:
         if not self.persistence_healthy:

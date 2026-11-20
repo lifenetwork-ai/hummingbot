@@ -228,22 +228,17 @@ def applied_executors(session, identities):
         RuntimeJournal.event_key.in_(keys), RuntimeJournal.kind == 'hold', RuntimeJournal.applied.is_(True))).scalars()}
 
 
-def prepare_attempt(session, order, owner, connector):
+def capture_attempt_context(order, owner, connector):
     from hummingbot.core.order_submission_guard import current_executor_scope, current_session_scope
-    from hummingbot.model.exchange_credential import ExchangeCredential
     scope = current_session_scope()
     config = current_executor_scope()
-    bindings = [dict(row) for row in session.execute(select(
-        ExchangeCredential.connector, ExchangeCredential.environment, ExchangeCredential.account_id,
-        ExchangeCredential.version).where(ExchangeCredential.bot_id == owner.store.bot_id,
-                                          ExchangeCredential.state == 'active')).mappings()]
     context = dict(bot_id=owner.store.bot_id, owner_uuid=owner.owner_uuid, generation=owner.generation,
                    control_version=owner.version, config_file_path=owner.config_file_path,
                    session=list(scope) if scope else None, executor=config,
                    environment=environment_identity(),
                    credential_fingerprint=credential_fingerprint(connector),
                    cleanup=order.client_order_id in owner.cleanup_intents,
-                   order=order.to_json(), bindings=bindings,
+                   order=order.to_json(),
                    reservation=dict(base=str(order.amount),
                                     quote=str(order.amount * order.price) if order.price is not None and order.price.is_finite() else None,
                                     side=order.trade_type.name))
@@ -260,12 +255,23 @@ def prepare_attempt(session, order, owner, connector):
                 pass  # Unsupported original fees cannot later qualify a resident reservation.
             else:
                 context['reservation']['cash_sell_base_cost'] = str(cost)
-                order._cash_sell_reserved_base = cost
+    return context
+
+
+def prepare_attempt(session, order_id, context):
+    context = {**context, 'bindings': bindings(session, context['bot_id'])}
     # Financial history contains no keys, passphrases or authenticated HTTP headers.
     if len(json.dumps(context, allow_nan=False).encode()) > 65536:
         raise ValueError('Submission context exceeds the bounded record size')
-    session.add(SubmissionAttempt(order_id=order.client_order_id, state='prepared', context=context))
+    session.add(SubmissionAttempt(order_id=order_id, state='prepared', context=context))
+    config = context['executor']
+    session.add(RuntimeJournal(event_key='intent:' + order_id, kind='intent',
+                               order_id=order_id, applied=True, payload={'executor_id': config.get('id') if config else None}))
+
+
+def mark_prepared_order(order, context):
     from hummingbot.core.automatic_recovery import eligible
     order._managed_recovery_order = eligible(context)
-    session.add(RuntimeJournal(event_key='intent:' + order.client_order_id, kind='intent',
-                               order_id=order.client_order_id, applied=True, payload={'executor_id': config.get('id') if config else None}))
+    cost = context['reservation'].get('cash_sell_base_cost')
+    if cost is not None:
+        order._cash_sell_reserved_base = Decimal(cost)

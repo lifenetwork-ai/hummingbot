@@ -21,6 +21,12 @@ function positions(pair = 'BTC-USDT', amount = '0.0498', stale = false): Overvie
 }
 
 describe('asset-aware overview', () => {
+  it('names the net position report link from its visible label and context', () => {
+    const capital = deriveCapitalRisk(completionOverview, null)
+    render(<OverviewKpiStripV2 capital={capital} liquidity={[]} />)
+    expect(screen.getByRole('link', { name: 'View report for net position and PnL' })).toHaveAttribute('href', '/statistics')
+  })
+
   it('shows fractional BTC exposure instead of rounding LONG to zero', () => {
     const capital = deriveCapitalRisk({ ...completionOverview, positionMarkets: positions() }, null)
     render(<OverviewKpiStripV2 capital={capital} liquidity={[]} />)

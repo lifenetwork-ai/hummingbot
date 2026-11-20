@@ -38,6 +38,10 @@ class PositionCheckpointBusy(RuntimeError):
     """The ownership row was busy and the checkpoint rolled back before any writes."""
 
 
+class PositionCheckpointPending(RuntimeError):
+    """A controller report still needs a committed position checkpoint."""
+
+
 class ExecutorArchiveBusy(RuntimeError):
     """The executor archive rolled back before any writes while acquiring ownership."""
 

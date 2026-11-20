@@ -42,10 +42,15 @@ validation and a dedicated operation receipt. Saving never starts trading. Read 
 
 For OKX, submit `credentials: {api_key, secret_key, passphrase}`. These are input-only
 secret fields. Site, Demo/live routing and strategy YAML stay deployment-owned.
-Use the existing Stop workflow first; `bot_must_be_stopped` means its cleanup or
-acknowledgement is incomplete. A new empty managed deployment can onboard without
-an MM session. Existing unbound ledgers require reviewed account binding during
-cutover; the API rejects attempts to silently adopt their history.
+Use the existing Stop workflow first. Enable Set when the slot's
+`actions.configure.allowed` is true and show `actions.configure.detail` when blocked.
+For `bot_must_be_stopped`, the detail tells the operator to Stop, wait for the
+engine to acknowledge Stop, or wait for cleanup. Poll connection status after
+Stop. `recovery_operation_in_progress` means wait for Recovery to finish.
+`recovery_required` means the HALT needs review before Set can proceed. POST
+checks the current state and versions again, so refresh after a conflict.
+A new empty managed deployment can onboard without an MM session. Existing unbound
+ledgers require reviewed account binding during cutover.
 
 Poll the returned operation: `accepted/waiting_for_owner`, `applying/loading`, then
 `succeeded/loaded` or `failed`. Receipt success describes loading, never active MM.
@@ -1543,7 +1548,7 @@ After Stop, a generic HALT Check returns `recovery_pending_intents` before
 position replay or credential loading when a pending send exists. An admin can
 request a review for a specific uncertain Spot BUY using the flow below.
 
-### Review one uncertain Spot BUY
+### Review uncertain Spot BUYs
 
 Wait for Stop to be acknowledged. Use the exact client order ID from
 `automatic_recovery.order_id` or Orders. Read
@@ -1573,6 +1578,17 @@ the exchange order history and the exact order ID. Existing or conflicting
 evidence, incomplete pages, different credentials, active runtime work and
 risk stops block the operation. Operators can use Swagger to review and
 confirm this scope.
+
+If several such BUYs are unresolved, Check and Reset accept
+`uncertain_order_ids` with 2–8 distinct client order IDs. The batch must
+include every pending local order and live tracker in the scope. Use
+`GET /recovery?uncertain_order_ids=<id1>,<id2>` to check availability, then
+review `proposed_uncertain_orders` before Reset. Reset rechecks every ID,
+reports `repaired_uncertain_orders` and applies the whole batch atomically.
+A venue record or missing proof for one ID blocks the entire reset. The
+single-order field and receipt remain supported. After Stop advances the
+generation, a random order can qualify when its original window is verified
+against the recorded activation of that generation in the same session.
 
 ### Automatic order reconciliation
 

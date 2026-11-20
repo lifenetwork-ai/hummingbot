@@ -114,8 +114,9 @@ class RecoveryCoordinator:
         owner.allow_new_orders = False
         payload = row['payload']
         snapshot = await self.call(self.store.operation_snapshot, payload)
-        uncertain = snapshot.get('uncertain_order')
-        blockers = recovery_blockers(snapshot['state'], uncertain_order=uncertain is not None)
+        single = snapshot.get('uncertain_order')
+        uncertain = snapshot.get('uncertain_orders') or ([single] if single else [])
+        blockers = recovery_blockers(snapshot['state'], uncertain_order=bool(uncertain))
         if blockers:
             if row['action'] == 'recovery_check':
                 await self.finish(self.store.finish_check, row, snapshot, [], dict(verified=False), blockers=blockers)
@@ -153,7 +154,7 @@ class RecoveryCoordinator:
             if snapshot.get('terminal_orders') or uncertain or pending:
                 if uncertain:
                     from hummingbot.core.recovery_uncertain import verify_uncertain_order
-                    change = await verify_uncertain_order(snapshot, self.readers)
+                    changes = [await verify_uncertain_order(candidate, self.readers) for candidate in uncertain]
                 else:
                     changes = await verify_terminal_orders(snapshot, self.readers)
                 proved_fills = await verify_pending_fills(snapshot, self.readers)
@@ -166,7 +167,11 @@ class RecoveryCoordinator:
                 if proof is None:
                     raise RecoveryBlocked('recovery_check_unavailable')
                 if uncertain:
-                    proof['uncertain_order_change'], proof['orders_checked'] = change, 1
+                    if single:
+                        proof['uncertain_order_change'] = changes[0]
+                    else:
+                        proof['uncertain_order_changes'] = changes
+                    proof['orders_checked'] = len(changes)
                 else:
                     proof['terminal_order_changes'], proof['orders_checked'] = changes, len(changes)
                 if proved_fills:

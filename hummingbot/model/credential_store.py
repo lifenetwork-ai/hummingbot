@@ -11,6 +11,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from hummingbot.core.credential_encryption import CredentialEnvelope
+from hummingbot.core.halt_diagnostics import halt_cause
 from hummingbot.model.admin_access import AdminAccessStore
 from hummingbot.model.admin_command import AdminCommand
 from hummingbot.model.admin_store import IdempotencyConflict
@@ -20,6 +21,29 @@ from hummingbot.model.exchange_credential import ExchangeCredential
 
 CREDENTIAL_ACTIONS = ("credentials_set", "credentials_disconnect", "credentials_cleanup_key", "credentials_cleanup_retry")
 SAFE_COLUMNS = tuple(column for column in ExchangeCredential.__table__.c if column.name != "envelope")
+
+
+def credential_set_blocker(state) -> tuple[str | None, str | None]:
+    """Return the state blocker and optional operator guidance for a new Set."""
+    if state is None:
+        return "control_conflict", "Bot state is unavailable. Refresh connection status."
+    recovery = state["recovery_state"] or {}
+    if recovery.get("recovery_operation"):
+        return "recovery_operation_in_progress", None
+    if recovery.get("credential_operation"):
+        return "credential_operation_in_progress", None
+    if recovery.get("halt"):
+        cause = halt_cause(recovery)
+        if cause["current_reason_code"] == "shutdown_verification_incomplete" and cause["automatic_recovery_expected"]:
+            return "bot_must_be_stopped", "Wait until the owner verifies shutdown and completes order cleanup."
+        return "recovery_required", None
+    if state["desired_state"] != "stopped":
+        return "bot_must_be_stopped", "Stop trading before changing this connection."
+    if state["acknowledged_version"] != state["control_version"]:
+        return "bot_must_be_stopped", "The engine has not acknowledged Stop yet. Wait and refresh connection status."
+    if recovery.get("runtime_active") or recovery.get("pending_mutations"):
+        return "bot_must_be_stopped", "Stop was acknowledged. Wait until the bot confirms order cleanup."
+    return None, None
 
 
 class CredentialStore:
@@ -106,16 +130,13 @@ class CredentialStore:
         from hummingbot.model.order import Order
         from hummingbot.model.position import Position
         from hummingbot.model.trade_fill import TradeFill
-        recovery = state["recovery_state"] or {}
-        if recovery.get("credential_operation"):
-            raise ControlConflict("Wait for the current connection operation", code="credential_operation_in_progress")
+        code, detail = credential_set_blocker(state)
+        if code == "credential_operation_in_progress":
+            raise ControlConflict("Wait for the current connection operation", code=code)
         if state["control_version"] != payload["expected_control_version"]:
             raise ControlConflict("Control version changed", code="control_version_changed")
-        if (state["desired_state"] != "stopped" or state["acknowledged_version"] != state["control_version"]
-                or recovery.get("runtime_active") or recovery.get("pending_mutations")):
-            raise ControlConflict("Stop and confirm order cleanup first", code="bot_must_be_stopped")
-        if recovery.get("halt"):
-            raise ControlConflict("Resolve the existing recovery incident first", code="recovery_required")
+        if code:
+            raise ControlConflict(detail or "Bot state blocks connection changes", code=code)
         saved = connection.execute(select(ExchangeCredential.version).where(*self.scope(
             payload["exchange"], payload["connector"], payload["environment"]))).scalar_one_or_none()
         if (saved or 0) != payload["expected_version"]:

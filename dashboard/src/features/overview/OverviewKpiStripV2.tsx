@@ -239,9 +239,9 @@ export function OverviewKpiStripV2({
             <Link
               to="/statistics"
               className="text-[11px] font-medium text-app-action hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-action rounded-xs"
-              aria-label="View detailed statistics report"
             >
-              View report →
+              View report <span aria-hidden="true">→</span>
+              <span className="sr-only"> for net position and PnL</span>
             </Link>
           </div>
           {!net.observed && <TargetLine>Net position unavailable — check individual positions</TargetLine>}

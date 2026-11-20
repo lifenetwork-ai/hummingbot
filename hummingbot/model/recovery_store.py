@@ -20,6 +20,7 @@ from hummingbot.core.recovery import (
     decimal,
     fingerprint,
     recovery_blockers,
+    uncertain_order_ids,
 )
 from hummingbot.core.recovery_pending_fills import fill_ids
 from hummingbot.model.admin_access import AdminAccessStore
@@ -49,10 +50,10 @@ class RecoveryStore:
         statement = select(BotState, func.clock_timestamp().label('database_now')).where(BotState.bot_id == self.bot_id)
         return dict(connection.execute(statement.with_for_update() if lock else statement).mappings().one())
 
-    def snapshot(self, connection=None, *, uncertain_order_id=None):
+    def snapshot(self, connection=None, *, uncertain_ids=()):
         if connection is None:
             with self.engine.connect().execution_options(isolation_level='REPEATABLE READ') as connection, connection.begin():
-                return self.operation_snapshot({'uncertain_order_id': uncertain_order_id}, connection)
+                return self.snapshot(connection, uncertain_ids=uncertain_ids)
         state = self._state(connection)
         from hummingbot.model.checkpoint_recovery import snapshot as checkpoint_snapshot
         positions = [dict(row) for row in connection.execute(select(Position).order_by(Position.id).limit(101)).mappings()]
@@ -61,10 +62,10 @@ class RecoveryStore:
             ExchangeCredential.account_id, ExchangeCredential.version, ExchangeCredential.state).where(
                 ExchangeCredential.bot_id == self.bot_id).order_by(ExchangeCredential.exchange, ExchangeCredential.connector, ExchangeCredential.environment)).mappings()]
         if len(positions) <= 100:
-            current = checkpoint_snapshot(connection, state, positions, bindings, uncertain_order_id=uncertain_order_id)
+            current = checkpoint_snapshot(connection, state, positions, bindings, uncertain_ids=uncertain_ids)
             if current is not None:
                 return current
-        if uncertain_order_id is not None:
+        if uncertain_ids:
             raise RecoveryBlocked('recovery_uncertain_order_scope')
         orders = [dict(row) for row in connection.execute(select(Order).order_by(Order.id).limit(MAX_ORDERS + 1)).mappings()]
         sides = defaultdict(set)
@@ -82,8 +83,8 @@ class RecoveryStore:
                     truncated=len(orders) > MAX_ORDERS or len(fills) > MAX_FILLS or len(positions) > 100)
 
     def operation_snapshot(self, payload, connection=None):
-        identity = payload.get('uncertain_order_id')
-        return self.snapshot(connection, uncertain_order_id=identity) if identity is not None else self.snapshot(connection)
+        identities = uncertain_order_ids(payload)
+        return self.snapshot(connection, uncertain_ids=identities) if identities else self.snapshot(connection)
 
     def checkpoint_fill_rows(self, keys, watermark, *, pending_ids=()):
         from hummingbot.model.checkpoint_recovery import fill_identity
@@ -128,22 +129,29 @@ class RecoveryStore:
                                                             AdminCommand.id == operation_id, AdminCommand.action.in_(ACTIONS))).mappings().first()
         return dict(row) if row else None
 
-    def latest(self, *, uncertain_order_id=None):
+    def latest(self, *, uncertain_ids=()):
         identity = AdminCommand.payload['uncertain_order_id'].as_string()
-        scope = identity.is_(None) if uncertain_order_id is None else identity == uncertain_order_id
+        batch = AdminCommand.payload['uncertain_order_ids']
+        if len(uncertain_ids) > 1:
+            scope = batch == list(uncertain_ids)
+        elif uncertain_ids:
+            scope = identity == uncertain_ids[0]
+        else:
+            scope = identity.is_(None) & batch.as_string().is_(None)
         with self.engine.connect() as connection:
             row = connection.execute(select(AdminCommand).where(AdminCommand.bot_id == self.bot_id,
                                                                 AdminCommand.action.in_(ACTIONS), scope).order_by(
                 AdminCommand.created_at.desc(), AdminCommand.id.desc()).limit(1)).mappings().first()
             return dict(row) if row else None
 
-    def uncertain_order_pending(self, identity):
+    def uncertain_orders_pending(self, identities):
         from hummingbot.model.runtime_journal import SubmissionAttempt
         with self.engine.connect() as connection:
-            return bool(connection.scalar(select(exists().where(
-                Order.id == identity, Order.creation_pending.is_(True), Order.market == 'okx',
-                Order.last_status == 'PendingBuy', Order.exchange_order_id.is_(None),
-                SubmissionAttempt.order_id == Order.id, SubmissionAttempt.state == 'uncertain'))))
+            rows = connection.execute(select(Order.id, Order.market, Order.last_status, Order.exchange_order_id,
+                                             SubmissionAttempt.state).outerjoin(SubmissionAttempt, SubmissionAttempt.order_id == Order.id)
+                                      .where(Order.creation_pending.is_(True)).limit(len(identities) + 1)).all()
+        return {row.id for row in rows} == set(identities) and all(
+            row[1:] == ('okx', 'PendingBuy', None, 'uncertain') for row in rows)
 
     @staticmethod
     def _same_owner(state, private):
@@ -163,11 +171,12 @@ class RecoveryStore:
             _conflict('recovery_proof_expired')
         if not self._same_owner(state, report['_private']):
             _conflict('recovery_owner_changed')
-        if check['payload'].get('uncertain_order_id') != payload.get('uncertain_order_id'):
+        identities = uncertain_order_ids(payload)
+        if uncertain_order_ids(check['payload']) != identities:
             _conflict('recovery_state_changed')
-        if payload.get('uncertain_order_id') and report['_private']['actor'] != asdict(actor):
+        if identities and report['_private']['actor'] != asdict(actor):
             _conflict('recovery_actor_changed')
-        review = (report.get('proposed_order_changes') or report.get('proposed_uncertain_order')
+        review = (report.get('proposed_order_changes') or report.get('proposed_uncertain_order') or report.get('proposed_uncertain_orders')
                   or (report.get('verification') or {}).get('pending_fill_ids'))
         if review and payload.get('confirm_order_changes') is not True:
             _conflict('recovery_order_review_required')
@@ -181,6 +190,9 @@ class RecoveryStore:
             raise ValueError('Invalid recovery request or Idempotency-Key')
         if type(payload.get('expected_version')) is not int or payload['expected_version'] < 0:
             raise ValueError('Invalid expected control version')
+        identities = uncertain_order_ids(payload)
+        if len(identities) > 1:
+            payload = {**payload, 'uncertain_order_ids': list(identities)}
         digest = hashlib.sha256(json.dumps(dict(action=action, payload=payload), sort_keys=True).encode()).hexdigest()
         with self.engine.begin() as connection:
             actor = self.access.authorize(connection, principal, 'admin')
@@ -190,7 +202,7 @@ class RecoveryStore:
             # a request can never certify a concurrent financial change.
             preview = self.get(payload.get('check_id', ''), connection) if action == 'recovery_reset' else None
             prepared, preparation_error = None, None
-            if (preview and preview['payload'].get('uncertain_order_id') == payload.get('uncertain_order_id')
+            if (preview and uncertain_order_ids(preview['payload']) == identities
                     and ((preview.get('result') or {}).get('verification') or {}).get('scope') == 'verified_checkpoint'):
                 try:
                     prepared = self.operation_snapshot(payload, connection)
@@ -207,7 +219,7 @@ class RecoveryStore:
                 _conflict('control_version_changed')
             if not isinstance(state['recovery_state'], dict):
                 _conflict('recovery_checkpoint_invalid')
-            uncertain = payload.get('uncertain_order_id') is not None
+            uncertain = bool(identities)
             blockers = recovery_blockers(state, uncertain_order=uncertain)
             if action == 'recovery_check' and not uncertain:
                 blockers = [code for code in blockers if code in ('recovery_stop_required', 'recovery_stop_incomplete',
@@ -336,7 +348,7 @@ class RecoveryStore:
             _conflict('recovery_owner_changed')
         if state['control_version'] != row['expected_version']:
             _conflict('control_version_changed')
-        uncertain = row['payload'].get('uncertain_order_id') is not None
+        uncertain = bool(uncertain_order_ids(row['payload']))
         blockers = recovery_blockers(state, uncertain_order=uncertain)
         if checking and not uncertain:
             blockers = [code for code in blockers if code in ('recovery_stop_required', 'recovery_stop_incomplete',
@@ -404,6 +416,7 @@ class RecoveryStore:
                           blockers=blockers, proposed_changes=plan, verification=verification,
                           proposed_order_changes=verification.get('terminal_order_changes', []) if not blockers else [],
                           proposed_uncertain_order=verification.get('uncertain_order_change') if not blockers else None,
+                          proposed_uncertain_orders=verification.get('uncertain_order_changes', []) if not blockers else [],
                           confirmation_token=None if blockers else uuid.uuid4().hex,
                           expires_at=(state['database_now'] + timedelta(seconds=PROOF_TTL_SECONDS)).isoformat(),
                           _private={**row['result']['_private'], 'fingerprint': fingerprint(snapshot)})
@@ -425,7 +438,7 @@ class RecoveryStore:
                     or fill_ids(snapshot) != (check['result'].get('verification') or {}).get('pending_fill_ids', [])):
                 _conflict('recovery_state_changed')
             self._complete_segmented_proof(connection, row, snapshot, verification)
-            if snapshot.get('uncertain_order'):
+            if snapshot.get('uncertain_order') or snapshot.get('uncertain_orders'):
                 self._finish_uncertain_reset(connection, state, row, snapshot, verification, check, actor)
                 owner.check_owner()
                 return True
@@ -501,35 +514,41 @@ class RecoveryStore:
 
     @staticmethod
     def _verified_uncertain_change(snapshot, verification):
-        candidate = snapshot.get('uncertain_order')
-        actual = verification.get('uncertain_order_change')
-        if candidate:
+        single = snapshot.get('uncertain_order')
+        candidates = snapshot.get('uncertain_orders') or ([single] if single else [])
+        actual_single = verification.get('uncertain_order_change')
+        actual_batch = verification.get('uncertain_order_changes', [])
+        if candidates:
             from hummingbot.model.recovery_uncertain import change_for
-            if actual != change_for(candidate) or not verification.get('segmented'):
+            expected = [change_for(candidate) for candidate in candidates]
+            same_scope = actual_single == expected[0] and not actual_batch if single else actual_single is None and actual_batch == expected
+            if not same_scope or not verification.get('segmented'):
                 _conflict('recovery_uncertain_order_unproven')
-        elif actual is not None:
+            return candidates, expected
+        if actual_single is not None or actual_batch:
             _conflict('recovery_uncertain_order_scope')
-        return actual
 
     def _finish_uncertain_reset(self, connection, state, row, snapshot, verification, check, actor):
         from hummingbot.model.recovery_uncertain import apply_change
-        change = self._verified_uncertain_change(snapshot, verification)
-        if change != check['result'].get('proposed_uncertain_order'):
+        candidates, changes = self._verified_uncertain_change(snapshot, verification)
+        preview = check['result']
+        if changes != (preview.get('proposed_uncertain_orders') or [preview.get('proposed_uncertain_order')]):
             _conflict('recovery_state_changed')
         timestamp = int(state['database_now'].timestamp() * 1000)
-        apply_change(connection, snapshot['uncertain_order'], timestamp)
-        self.access.audit(connection, actor=actor, action='recovery_order_repaired', outcome='succeeded',
-                          operation_id=row['id'], request_id=row['result']['_private']['request_id'],
-                          target_id=change['id'], connector='okx', exchange='okx',
-                          environment=next(r['environment'] for r in snapshot['bindings']
-                                           if r['connector'] == 'okx' and r['state'] == 'active'),
-                          reason_code='operator_reviewed_busy_absence',
-                          details=dict(order_id=change['id'], pair=change['pair'], amount=change['amount'],
-                                       stage='uncertain_submission_retired'))
+        environment = next(r['environment'] for r in snapshot['bindings'] if r['connector'] == 'okx' and r['state'] == 'active')
+        for candidate, change in zip(candidates, changes):
+            apply_change(connection, candidate, timestamp)
+            self.access.audit(connection, actor=actor, action='recovery_order_repaired', outcome='succeeded',
+                              operation_id=row['id'], request_id=row['result']['_private']['request_id'],
+                              target_id=change['id'], connector='okx', exchange='okx', environment=environment,
+                              reason_code='operator_reviewed_busy_absence',
+                              details=dict(order_id=change['id'], pair=change['pair'], amount=change['amount'],
+                                           stage='uncertain_submission_retired'))
         recovery = deepcopy(state['recovery_state'])
         recovery.pop('automatic_recovery', None)
         state['recovery_state'] = recovery
-        result = dict(stage='recovered', can_recover=False, blockers=[], repaired_uncertain_order=change,
+        result = dict(stage='recovered', can_recover=False, blockers=[],
+                      **({'repaired_uncertain_order': changes[0]} if len(changes) == 1 else {'repaired_uncertain_orders': changes}),
                       verification=verification, trading_state='stopped', _private=row['result']['_private'])
         self._finish(connection, state, row, result, actor, control_version=state['control_version'] + 1)
 

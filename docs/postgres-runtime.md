@@ -473,7 +473,10 @@ confirmation token. Reset repeats venue verification and writes the order
 failure metadata, terminal submission attempt, tracker removal and audit in
 one transaction. The original receipt, risk state and financial checkpoint are
 retained. The engine keeps its ownership lock and the session remains stopped.
-See the [scoped API flow](fe-integration.md#review-one-uncertain-spot-buy).
+For two to eight outstanding orders, supply the complete set of client IDs as
+`uncertain_order_ids`. The same proofs apply to every order and all rows
+and per-order audit entries commit together. Any missing or conflicting
+evidence blocks the batch. See the [scoped API flow](fe-integration.md#review-uncertain-spot-buys).
 
 Migration021 adds immutable submission attempts, a fill/application journal and
 verified runtime checkpoints, plus `orders.position_applied`. Apply it through

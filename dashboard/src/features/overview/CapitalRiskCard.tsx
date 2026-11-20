@@ -134,10 +134,9 @@ export function CapitalRiskCard({ view, mode, onOpenRiskGuards }: { view: Capita
           <Link
             to="/statistics"
             className="inline-flex items-center gap-1 text-[11px] font-semibold text-app-action hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-action rounded-xs"
-            aria-label="Inspect controller performance in statistics report"
           >
             <span>Controller report</span>
-            <ArrowUpRight size={12} />
+            <ArrowUpRight aria-hidden="true" size={12} />
           </Link>
         </div>
         {c.positions.length === 0 && (

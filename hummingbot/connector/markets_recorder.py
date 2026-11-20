@@ -154,18 +154,6 @@ class MarketsRecorder:
             if not already_tracked:
                 owner.terminal_tasks.discard(task)
 
-    async def _commit_order_write(self, session):
-        from hummingbot.core.order_submission_guard import active_guard
-
-        owner = active_guard()
-        if owner.engine is not self._sql_manager.engine:
-            raise RuntimeError('Order recorder is outside the active ownership scope.')
-        # Finish ORM staging and its physical ownership checks on the engine.
-        # The worker solely owns this pooled session until COMMIT returns.
-        session.flush()
-        _, cancelled = await self._drain_order_write(session.commit)
-        return cancelled
-
     @staticmethod
     async def _drain_order_write(write):
         cancelled = None
@@ -177,9 +165,9 @@ class MarketsRecorder:
                 cancelled = error
         return job.result(), cancelled
 
-    async def _run_native_write(self, stage, *args, defer_archive_contention=False):
+    async def _run_native_write(self, stage, *args, defer_contention=None):
         from hummingbot.core.bot_ownership import OwnershipLost
-        from hummingbot.core.operational_warnings import ExecutorArchiveBusy
+        from hummingbot.core.operational_warnings import ExecutorArchiveBusy, PositionCheckpointBusy
         from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
         from hummingbot.model.intent_admission import confirmed_prewrite_failure
 
@@ -221,8 +209,8 @@ class MarketsRecorder:
                         self.logger().info('Order recorder transaction completed after %.3fs', elapsed,
                                            extra={'event': 'order_recorder_write_completed'})
                     return result, cancelled
-                if defer_archive_contention:
-                    raise ExecutorArchiveBusy('Executor archive waits for the ownership row.')
+                if defer_contention is not None:
+                    raise defer_contention from None
                 remaining = deadline - loop.time()
                 if remaining <= 0:
                     raise lock_error
@@ -234,8 +222,8 @@ class MarketsRecorder:
                     cancelled = error
                 if loop.time() >= deadline:
                     raise lock_error
-        except ExecutorArchiveBusy:
-            if not defer_archive_contention:
+        except (ExecutorArchiveBusy, PositionCheckpointBusy):
+            if defer_contention is None:
                 self._sql_manager.persistence_healthy = False
             raise
         except OwnershipLost as error:
@@ -378,6 +366,7 @@ class MarketsRecorder:
     @trace_runtime('executor.archive')
     async def archive_executors(self, snapshots, *, defer_contention):
         """Use the recorder worker and retain ownership until its transaction settles."""
+        from hummingbot.core.operational_warnings import ExecutorArchiveBusy
         from hummingbot.core.order_submission_guard import active_guard
 
         owner = active_guard()
@@ -385,8 +374,8 @@ class MarketsRecorder:
         already_tracked = task in owner.terminal_tasks
         owner.terminal_tasks.add(task)
         try:
-            _, cancelled = await self._run_native_write(
-                self._write_executor_snapshots, snapshots, defer_archive_contention=defer_contention)
+            busy = ExecutorArchiveBusy('Executor archive waits for the ownership row.') if defer_contention else None
+            _, cancelled = await self._run_native_write(self._write_executor_snapshots, snapshots, defer_contention=busy)
             return cancelled
         finally:
             if not already_tracked:
@@ -573,6 +562,36 @@ class MarketsRecorder:
         """
         from hummingbot.core.operational_warnings import PositionCheckpointBusy
         from hummingbot.model.intent_admission import deferred_recorder_transaction
+        manager = self._sql_manager
+        manager.assert_persistence_healthy()
+        with manager.get_new_session() as session, (
+            deferred_recorder_transaction(manager, session, PositionCheckpointBusy, 'Position checkpoint waits for the ownership row.')
+            if defer_ownership_contention else session.begin()
+        ):
+            if self._stage_held_positions(session, positions, infos, reduction_bases):
+                session.flush()
+                from hummingbot.core.order_submission_guard import fence_session
+                fence_session(session)
+
+    @trace_runtime('position.checkpoint')
+    async def persist_held_positions(self, positions, infos, reduction_bases, *, defer_ownership_contention):
+        from hummingbot.core.operational_warnings import PositionCheckpointBusy
+        from hummingbot.core.order_submission_guard import active_guard
+
+        owner = active_guard()
+        task = asyncio.current_task()
+        already_tracked = task in owner.terminal_tasks
+        owner.terminal_tasks.add(task)
+        try:
+            busy = PositionCheckpointBusy('Position checkpoint waits for the ownership row.') if defer_ownership_contention else None
+            _, cancelled = await self._run_native_write(
+                self._stage_held_positions, positions, infos, reduction_bases, defer_contention=busy)
+            return cancelled
+        finally:
+            if not already_tracked:
+                owner.terminal_tasks.discard(task)
+
+    def _stage_held_positions(self, session, positions, infos, reduction_bases):
         from hummingbot.model.runtime_journal import (
             RuntimeCheckpoint,
             RuntimeJournal,
@@ -580,117 +599,107 @@ class MarketsRecorder:
             applied_executors,
             financial_hash,
         )
-        manager = self._sql_manager
-        manager.assert_persistence_healthy()
-        with manager.get_new_session() as session, (
-            deferred_recorder_transaction(manager, session, PositionCheckpointBusy, 'Position checkpoint waits for the ownership row.')
-            if defer_ownership_contention else session.begin()
-        ):
-            if applied_executors(session, [info.id for info in infos]):
-                raise ValueError('Position application changed; reload its durable checkpoint')
-            checkpoint = session.get(RuntimeCheckpoint, self._config_file_path)
-            if checkpoint is not None and checkpoint.financial_hash != financial_hash(session):
-                raise ValueError('Position checkpoint changed outside its application journal')
-            previous_bases = {}
-            if checkpoint is not None and reduction_bases is not None and 'reduction_basis' in checkpoint.payload:
-                from hummingbot.strategy_v2.utils.perpetual_reduction import restore_basis_checkpoint
-                try:
-                    previous_bases = restore_basis_checkpoint(checkpoint.payload['reduction_basis'], checkpoint.financial_hash)
-                except (ValueError, ArithmeticError, TypeError):
-                    pass  # Unproven old costs cannot supply authority to a new session.
-            # Prefetch rows by identity on this transaction, in bounded SQL
-            # parameter groups. Fill reads also batch, with an independent
-            # 1001-row sentinel per order; no proof survives this transaction.
-            executor_ids = list(dict.fromkeys(info.id for info in infos))
-            order_ids = list(dict.fromkeys(
-                order['client_order_id'] for info in infos for order in info.custom_info.get('held_position_orders', [])))
-            batch = len(infos) > 1 or len(order_ids) > 1
-            existing_executors, recorded_orders = {}, {}
-            lookups = ((Executors, executor_ids, existing_executors), (Order, order_ids, recorded_orders))
-            if batch:
-                for model, identities, target in lookups:
-                    for offset in range(0, len(identities), 100):
-                        target.update((row.id, row) for row in session.query(model).filter(
-                            model.id.in_(identities[offset:offset + 100])).all())
-            self.update_or_store_positions(positions, session=session)
-            # The reads below concern committed fills, not the pending hold,
-            # executor or position writes. Validate every member before their
-            # first guarded flush; retain shared ORM identity for duplicate-order
-            # rejection within the group.
-            # Single transfers need no prefetch, but their metadata/fill reads
-            # must not flush the pending financial writes either. All proof
-            # remains on this transaction before the first guarded write.
-            with session.no_autoflush:
-                fill_proofs = self._iter_held_order_fill_proofs(session, order_ids)
-                for info in infos:
-                    data = json.loads(info.model_dump_json())
-                    existing = existing_executors.get(info.id) if batch else session.get(Executors, info.id)
-                    if existing is None:
-                        existing = existing_executors[info.id] = Executors(**data)
-                        session.add(existing)
-                    else:
-                        for name, value in data.items():
-                            setattr(existing, name, value)
-                    orders = info.custom_info.get('held_position_orders', [])
-                    session.add(RuntimeJournal(event_key='hold:' + info.id, kind='hold', applied=True,
-                                               payload={'executor': data,
-                                                        'positions': [{c.name: str(getattr(p, c.name))
-                                                                       for c in Position.__table__.columns} for p in positions]}))
-                    for order in orders:
-                        identity = order['client_order_id']
-                        recorded_order = recorded_orders.get(identity) if batch else session.get(Order, identity)
-                        managed = (getattr(info.config, 'mm_session_id', None) is not None
-                                   and getattr(info.config, 'mm_generation', None) is not None)
-                        if managed and recorded_order is None:
-                            raise ValueError('Durable order identity is missing from the managed held transfer')
-                        if recorded_order is not None and recorded_order.position_applied:
-                            raise ValueError('Fill application already belongs to a held executor')
-                        proven_identity, fills = next(fill_proofs, (None, ()))
-                        if proven_identity != identity:
-                            raise ValueError('Fill coverage order identity mismatch')
-                        if len(fills) > 1000:
-                            raise ValueError('Fill coverage exceeds the bounded native transfer')
-                        if fills or managed:
-                            if (any(fill.trade_fee_in_quote is None for fill in fills)
-                                    or sum((fill.amount for fill in fills), Decimal(0)) != Decimal(str(order['executed_amount_base']))
-                                    or sum((fill.amount * fill.price for fill in fills), Decimal(0)) != Decimal(str(order['executed_amount_quote']))
-                                    or sum((fill.trade_fee_in_quote for fill in fills), Decimal(0)) != Decimal(str(order['cumulative_fee_paid_quote']))
-                                    or any(fill.symbol != info.trading_pair or fill.market != info.connector_name
-                                           or fill.trade_type != order['trade_type'] for fill in fills)):
-                                raise ValueError('Fill coverage does not match the native held transfer')
-                            native_ids = order.get('order_fills')
-                            if native_ids is not None and set(native_ids) != {fill.exchange_trade_id for fill in fills}:
-                                raise ValueError('Fill coverage identity mismatch')
-                        session.add(RuntimeJournal(event_key='applied-order:' + identity, kind='applied_order', order_id=identity,
-                                                   applied=True, payload={'executor_id': info.id, 'order': order}))
-                        if recorded_order is not None:
-                            recorded_order.position_applied = True
-            for offset in range(0, len(order_ids), 100):
-                session.query(RuntimeJournal).filter(RuntimeJournal.kind == 'fill',
-                                                     RuntimeJournal.order_id.in_(order_ids[offset:offset + 100])).update(
-                    {RuntimeJournal.applied: True}, synchronize_session=False)
-            if checkpoint is not None:
-                advance_checkpoints(session, [checkpoint])
-                if reduction_bases is not None:
-                    from hummingbot.strategy_v2.utils.perpetual_reduction import basis_checkpoint
-                    scope = {(row.controller_id, row.connector_name, row.trading_pair, row.side): row.amount
-                             for row in positions}
-                    if any(key not in scope or basis.amount != scope[key] for key, basis in reduction_bases.items()):
-                        raise ValueError('Remaining costs do not cover the exact owned position snapshot')
-                    # An inactive controller's unchanged position is outside this
-                    # batch. Carry its verified costs; drop costs for any updated
-                    # position whose new basis is unavailable.
-                    retained = {key: basis for key, basis in previous_bases.items() if key not in scope}
-                    retained.update(reduction_bases)
-                    checkpoint.payload = {**checkpoint.payload,
-                                          'reduction_basis': basis_checkpoint(checkpoint.financial_hash, retained)}
-            # Coalescing can leave no later dirty checkpoint (legacy baseline
-            # absent). Check the physical owner after the final write as well;
-            # a transaction's earlier fence cannot certify a lost lock session.
-            if batch or checkpoint is None:
-                session.flush()
-                from hummingbot.core.order_submission_guard import fence_session
-                fence_session(session)
+        if applied_executors(session, [info.id for info in infos]):
+            raise ValueError('Position application changed; reload its durable checkpoint')
+        checkpoint = session.get(RuntimeCheckpoint, self._config_file_path)
+        if checkpoint is not None and checkpoint.financial_hash != financial_hash(session):
+            raise ValueError('Position checkpoint changed outside its application journal')
+        previous_bases = {}
+        if checkpoint is not None and reduction_bases is not None and 'reduction_basis' in checkpoint.payload:
+            from hummingbot.strategy_v2.utils.perpetual_reduction import restore_basis_checkpoint
+            try:
+                previous_bases = restore_basis_checkpoint(checkpoint.payload['reduction_basis'], checkpoint.financial_hash)
+            except (ValueError, ArithmeticError, TypeError):
+                pass  # Unproven old costs cannot supply authority to a new session.
+        # Prefetch rows by identity on this transaction, in bounded SQL
+        # parameter groups. Fill reads also batch, with an independent
+        # 1001-row sentinel per order; no proof survives this transaction.
+        executor_ids = list(dict.fromkeys(info.id for info in infos))
+        order_ids = list(dict.fromkeys(
+            order['client_order_id'] for info in infos for order in info.custom_info.get('held_position_orders', [])))
+        batch = len(infos) > 1 or len(order_ids) > 1
+        existing_executors, recorded_orders = {}, {}
+        lookups = ((Executors, executor_ids, existing_executors), (Order, order_ids, recorded_orders))
+        if batch:
+            for model, identities, target in lookups:
+                for offset in range(0, len(identities), 100):
+                    target.update((row.id, row) for row in session.query(model).filter(
+                        model.id.in_(identities[offset:offset + 100])).all())
+        self.update_or_store_positions(positions, session=session)
+        # The reads below concern committed fills, not the pending hold,
+        # executor or position writes. Validate every member before their
+        # first guarded flush; retain shared ORM identity for duplicate-order
+        # rejection within the group.
+        # Single transfers need no prefetch, but their metadata/fill reads
+        # must not flush the pending financial writes either. All proof
+        # remains on this transaction before the first guarded write.
+        with session.no_autoflush:
+            fill_proofs = self._iter_held_order_fill_proofs(session, order_ids)
+            for info in infos:
+                data = json.loads(info.model_dump_json())
+                existing = existing_executors.get(info.id) if batch else session.get(Executors, info.id)
+                if existing is None:
+                    existing = existing_executors[info.id] = Executors(**data)
+                    session.add(existing)
+                else:
+                    for name, value in data.items():
+                        setattr(existing, name, value)
+                orders = info.custom_info.get('held_position_orders', [])
+                session.add(RuntimeJournal(event_key='hold:' + info.id, kind='hold', applied=True,
+                                           payload={'executor': data,
+                                                    'positions': [{c.name: str(getattr(p, c.name))
+                                                                   for c in Position.__table__.columns} for p in positions]}))
+                for order in orders:
+                    identity = order['client_order_id']
+                    recorded_order = recorded_orders.get(identity) if batch else session.get(Order, identity)
+                    managed = (getattr(info.config, 'mm_session_id', None) is not None
+                               and getattr(info.config, 'mm_generation', None) is not None)
+                    if managed and recorded_order is None:
+                        raise ValueError('Durable order identity is missing from the managed held transfer')
+                    if recorded_order is not None and recorded_order.position_applied:
+                        raise ValueError('Fill application already belongs to a held executor')
+                    proven_identity, fills = next(fill_proofs, (None, ()))
+                    if proven_identity != identity:
+                        raise ValueError('Fill coverage order identity mismatch')
+                    if len(fills) > 1000:
+                        raise ValueError('Fill coverage exceeds the bounded native transfer')
+                    if fills or managed:
+                        if (any(fill.trade_fee_in_quote is None for fill in fills)
+                                or sum((fill.amount for fill in fills), Decimal(0)) != Decimal(str(order['executed_amount_base']))
+                                or sum((fill.amount * fill.price for fill in fills), Decimal(0)) != Decimal(str(order['executed_amount_quote']))
+                                or sum((fill.trade_fee_in_quote for fill in fills), Decimal(0)) != Decimal(str(order['cumulative_fee_paid_quote']))
+                                or any(fill.symbol != info.trading_pair or fill.market != info.connector_name
+                                       or fill.trade_type != order['trade_type'] for fill in fills)):
+                            raise ValueError('Fill coverage does not match the native held transfer')
+                        native_ids = order.get('order_fills')
+                        if native_ids is not None and set(native_ids) != {fill.exchange_trade_id for fill in fills}:
+                            raise ValueError('Fill coverage identity mismatch')
+                    session.add(RuntimeJournal(event_key='applied-order:' + identity, kind='applied_order', order_id=identity,
+                                               applied=True, payload={'executor_id': info.id, 'order': order}))
+                    if recorded_order is not None:
+                        recorded_order.position_applied = True
+        for offset in range(0, len(order_ids), 100):
+            session.query(RuntimeJournal).filter(RuntimeJournal.kind == 'fill',
+                                                 RuntimeJournal.order_id.in_(order_ids[offset:offset + 100])).update(
+                {RuntimeJournal.applied: True}, synchronize_session=False)
+        if checkpoint is not None:
+            advance_checkpoints(session, [checkpoint])
+            if reduction_bases is not None:
+                from hummingbot.strategy_v2.utils.perpetual_reduction import basis_checkpoint
+                scope = {(row.controller_id, row.connector_name, row.trading_pair, row.side): row.amount
+                         for row in positions}
+                if any(key not in scope or basis.amount != scope[key] for key, basis in reduction_bases.items()):
+                    raise ValueError('Remaining costs do not cover the exact owned position snapshot')
+                # An inactive controller's unchanged position is outside this
+                # batch. Carry its verified costs; drop costs for any updated
+                # position whose new basis is unavailable.
+                retained = {key: basis for key, basis in previous_bases.items() if key not in scope}
+                retained.update(reduction_bases)
+                checkpoint.payload = {**checkpoint.payload,
+                                      'reduction_basis': basis_checkpoint(checkpoint.financial_hash, retained)}
+        # Coalescing can leave no later dirty checkpoint (legacy baseline
+        # absent). The synchronous caller then checks ownership explicitly.
+        return batch or checkpoint is None
 
     def store_controller_config(self, controller_config: ControllerConfigBase):
         with self._sql_manager.get_new_session() as session:
@@ -802,13 +811,15 @@ class MarketsRecorder:
     def save_market_states(self, config_file_path: str, market: ConnectorBase, session: Session,
                            *, new_order_id: Optional[str] = None, tracking_states=None):
         saved_state = dict(market.tracking_states if tracking_states is None else tracking_states)
+        self._save_market_state_snapshot(session, config_file_path, market.display_name, saved_state, new_order_id)
+
+    def _save_market_state_snapshot(self, session, config_file_path, market_name, saved_state, new_order_id=None):
         # A newly persisted identity requires a new snapshot. Avoid decoding
         # the old JSON unless unresolved identities need merging below. Ordinary
         # checkpoints retain full reads and unchanged-JSON dirty checking.
         fresh_tracking = (self._sql_manager.engine.dialect.name == "postgresql"
                           and new_order_id is not None and new_order_id in saved_state)
-        market_states: Optional[MarketState] = self.get_market_states(
-            config_file_path, market, session=session, include_saved_state=not fresh_tracking)
+        market_states = self._get_market_states(session, config_file_path, market_name, include_saved_state=not fresh_tracking)
         timestamp: int = self.db_timestamp
         pending_ids = None
         if saved_state and self._sql_manager.engine.dialect.name == "postgresql":
@@ -821,7 +832,7 @@ class MarketsRecorder:
                 # same scoped statement; do not cache this proof across writes.
                 selection = or_(selection, Order.creation_pending.is_(True))
             admitted = session.query(Order.id, Order.creation_pending).filter(
-                Order.config_file_path == config_file_path, Order.market == market.display_name, selection).all()
+                Order.config_file_path == config_file_path, Order.market == market_name, selection).all()
             saved_state = {order_id: saved_state[order_id] for order_id, _ in admitted if order_id in saved_state}
             pending_ids = [order_id for order_id, pending in admitted if pending]
         if market_states is not None:
@@ -831,7 +842,7 @@ class MarketsRecorder:
                 # Empty PostgreSQL snapshots and the legacy file backend retain
                 # their existing single pending-identity lookup.
                 pending_ids = [order_id for (order_id,) in session.query(Order.id).filter_by(
-                    config_file_path=config_file_path, market=market.display_name, creation_pending=True).all()]
+                    config_file_path=config_file_path, market=market_name, creation_pending=True).all()]
             for order_id in pending_ids:
                 if order_id not in saved_state and order_id in market_states.saved_state:
                     saved_state[order_id] = market_states.saved_state[order_id]
@@ -841,7 +852,7 @@ class MarketsRecorder:
             market_states.timestamp = timestamp
         else:
             market_states = MarketState(config_file_path=config_file_path,
-                                        market=market.display_name,
+                                        market=market_name,
                                         timestamp=timestamp,
                                         saved_state=saved_state)
             session.add(market_states)
@@ -849,17 +860,57 @@ class MarketsRecorder:
     @trace_runtime('order.intent', order_parameter='order')
     def record_order_intent(self, market: ConnectorBase, order) -> None:
         """Persist existing order identity/tracking state before an external submission."""
+        from hummingbot.model.runtime_journal import mark_prepared_order
+
         with self._sql_manager.order_intent_transaction(order.client_order_id) as session:
-            self._stage_order_intent(session, market, order)
+            record, cleanup, attempt = self._capture_order_intent(market, order)
+            self._stage_order_intent(session, record, cleanup, attempt, dict(market.tracking_states))
+            if attempt is not None:
+                mark_prepared_order(order, attempt)
 
     @trace_runtime('order.intent', order_parameter='order')
     async def persist_order_intent(self, market, order):
-        with self._sql_manager.order_intent_transaction(order.client_order_id) as session:
-            self._stage_order_intent(session, market, order)
-            return await self._commit_order_write(session)
+        from hummingbot.core.bot_ownership import OwnershipLost
+        from hummingbot.core.order_submission_guard import IntentAdmissionBusy, active_guard
+        from hummingbot.model.runtime_journal import mark_prepared_order
 
-    def _stage_order_intent(self, session, market, order):
+        owner = active_guard()
+        owner.require_owner_connection()
+        try:
+            record, cleanup, attempt = self._capture_order_intent(market, order)
+            tracking_states = dict(market.tracking_states)
+        except Exception:
+            self._sql_manager.persistence_healthy = False
+            raise
+
+        def write():
+            try:
+                # The mutable connector/tracker stay on the engine. The worker
+                # opens and closes its own session for the entire transaction.
+                with self._sql_manager.order_intent_transaction(record.id, worker_owner=owner) as session:
+                    self._stage_order_intent(session, record, cleanup, attempt, tracking_states)
+                    session.flush()
+                    self._sql_manager.assert_persistence_healthy()
+                    owner.fence_recorder_session(session)
+            except IntentAdmissionBusy as error:
+                return error
+            return None
+
+        try:
+            busy, cancelled = await self._drain_order_write(write)
+        except OwnershipLost as error:
+            raise owner._lose_ownership(str(error), error.reason_code) from None
+        if busy is not None:
+            raise IntentAdmissionBusy(str(busy), cancellation=cancelled) from None
+        if attempt is not None:
+            mark_prepared_order(order, attempt)
+        return cancelled
+
+    def _capture_order_intent(self, market, order):
         from hummingbot.core.cleanup_authority import current_cleanup_scope
+        from hummingbot.core.order_submission_guard import active_guard
+        from hummingbot.model.runtime_journal import capture_attempt_context
+
         cleanup = current_cleanup_scope()
         base, quote = order.trading_pair.split("-")
         timestamp = int(order.creation_timestamp * 1000)
@@ -873,24 +924,27 @@ class MarketsRecorder:
                        last_update_timestamp=timestamp, creation_pending=True,
                        cleanup_operation_id=cleanup.operation_id if cleanup is not None else None,
                        cleanup_scope=cleanup.json() if cleanup is not None else None)
-        session.add(record)
-        if self.durable_position_checkpoints:
-            from hummingbot.core.order_submission_guard import active_guard
-            from hummingbot.model.runtime_journal import prepare_attempt
+        attempt = capture_attempt_context(order, active_guard(), market) if self.durable_position_checkpoints else None
+        return record, cleanup, attempt
 
+    def _stage_order_intent(self, session, record, cleanup, attempt, tracking_states):
+        from hummingbot.model.runtime_journal import prepare_attempt
+
+        session.add(record)
+        if attempt is not None:
             # Binding metadata does not depend on the pending Order INSERT.
             # Persist the complete identity/status together at the existing
             # checkpoint read, preserving its write fence and final commit.
             with session.no_autoflush:
-                prepare_attempt(session, order, active_guard(), market)
+                prepare_attempt(session, record.id, attempt)
         if cleanup is not None:
             from hummingbot.model.cleanup_positions import record_cleanup_intent
             record_cleanup_intent(session, cleanup, record)
         # Keep the original side even when a terminal update precedes any
         # Created callback. This records intent, not exchange admission.
         with session.no_autoflush:
-            self._add_order_status(session, record, timestamp, record.last_status)
-        self.save_market_states(self._config_file_path, market, session, new_order_id=order.client_order_id)
+            self._add_order_status(session, record, record.creation_timestamp, record.last_status)
+        self._save_market_state_snapshot(session, record.config_file_path, record.market, tracking_states, record.id)
 
     def _event_configuration(self, session, market, order):
         if order is None or order.config_file_path == self._config_file_path:
@@ -963,10 +1017,14 @@ class MarketsRecorder:
                           config_file_path: str,
                           market: ConnectorBase,
                           session: Session, *, include_saved_state: bool = True) -> Optional[MarketState]:
+        return self._get_market_states(session, config_file_path, market.display_name, include_saved_state=include_saved_state)
+
+    @staticmethod
+    def _get_market_states(session, config_file_path, market_name, *, include_saved_state=True):
         query: Query = (session
                         .query(MarketState)
                         .filter(MarketState.config_file_path == config_file_path,
-                                MarketState.market == market.display_name))
+                                MarketState.market == market_name))
         if not include_saved_state:
             query = query.options(defer(MarketState.saved_state))
         market_states: Optional[MarketState] = query.one_or_none()

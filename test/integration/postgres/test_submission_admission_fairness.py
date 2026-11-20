@@ -1,6 +1,7 @@
 """A native quote burst must leave loop turns for health and revocation checks."""
 import asyncio
 import json
+import threading
 import time
 from decimal import Decimal
 from test.integration.postgres.test_ownership import assistant, owned as owned_fixture
@@ -9,14 +10,18 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiohttp import web
 from bidict import bidict
 from sqlalchemy import event
 
+from hummingbot.cli.service import ServiceHost
+from hummingbot.cli.service_processes import probe_health
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.connector.trading_rule import TradingRule
+from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.order_submission_guard import session_order_scope
 from hummingbot.model.order import Order
@@ -57,6 +62,158 @@ def native(owned):
     finally:
         recorder.stop()
         owned.loop.run_until_complete(exchange._web_assistants_factory.close())
+
+
+@pytest.mark.parametrize(('after_probe', 'final_state'), [
+    ('send', 'acknowledged'), ('stop', 'terminal'), ('cancel', 'rejected'),
+])
+def test_slow_intent_read_keeps_engine_live_until_durable_admission(native, after_probe, final_state):
+    delayed, release = threading.Event(), threading.Event()
+    order_id = 'slow-intent'
+    original_reply = native.transport.call.side_effect
+
+    def hold_checkpoint(connection, cursor, statement, parameters, context, executemany):
+        if 'FROM market_states' in statement and not delayed.is_set():
+            delayed.set()
+            release.wait(1.5)
+
+    async def venue(request):
+        with native.manager.get_new_session() as db:
+            assert db.get(Order, order_id).creation_pending
+            assert db.get(SubmissionAttempt, order_id).state == 'possibly_sent'
+        return await original_reply(request)
+
+    async def exercise():
+        host = SimpleNamespace(stop=asyncio.Event(), phase='running', observer_progress_at=None)
+
+        async def live(request):
+            return await ServiceHost.health(host, request)
+
+        app = web.Application()
+        app.router.add_get('/live', live)
+        server = web.AppRunner(app)
+        await server.setup()
+        await web.TCPSite(server, '127.0.0.1', 0).start()
+        port = server.addresses[0][1]
+
+        def probe():
+            assert delayed.wait(2)
+            return probe_health(port, '/live')
+
+        checking = asyncio.create_task(asyncio.to_thread(probe))
+        await asyncio.sleep(0)
+        with session_order_scope(native.session.id, native.session.generation):
+            order = asyncio.create_task(native.market._create_order(
+                TradeType.BUY, order_id, 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
+        try:
+            healthy, detail = await checking
+            assert healthy, detail
+            native.transport.call.assert_not_awaited()
+            with native.manager.get_new_session() as db:
+                assert db.get(Order, order_id) is None and db.get(SubmissionAttempt, order_id) is None
+            if after_probe == 'stop':
+                native.owner.begin_shutdown()
+            elif after_probe == 'cancel':
+                order.cancel()
+                await asyncio.sleep(0)
+                assert not order.done() and order in native.owner.submission_tasks
+        finally:
+            release.set()
+            results = await asyncio.gather(order, return_exceptions=True)
+            await server.cleanup()
+        if after_probe == 'cancel':
+            assert isinstance(results[0], asyncio.CancelledError)
+        else:
+            assert results == [None]
+
+    event.listen(native.engine, 'before_cursor_execute', hold_checkpoint)
+    try:
+        with patch.object(native.transport.call, 'side_effect', venue):
+            native.loop.run_until_complete(exercise())
+    finally:
+        event.remove(native.engine, 'before_cursor_execute', hold_checkpoint)
+    sent = after_probe == 'send'
+    assert native.transport.call.await_count == int(sent)
+    with native.manager.get_new_session() as db:
+        assert not db.get(Order, order_id).creation_pending
+        assert db.get(SubmissionAttempt, order_id).state == final_state
+    assert not native.owner.submission_tasks and not native.store.read()['recovery_state'].get('halt')
+
+
+def test_cancel_during_intent_fence_does_not_retry_a_confirmed_rollback(native):
+    attempting, release = threading.Event(), threading.Event()
+
+    def hold_fence(connection, cursor, statement, parameters, context, executemany):
+        if 'FOR SHARE NOWAIT' in statement and not attempting.is_set():
+            attempting.set()
+            release.wait(1.5)
+
+    async def exercise():
+        with native.engine.connect() as blocker:
+            blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE')
+            with session_order_scope(native.session.id, native.session.generation):
+                order = asyncio.create_task(native.market._create_order(
+                    TradeType.BUY, 'busy-cancel', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
+            try:
+                assert await asyncio.to_thread(attempting.wait, 2)
+                order.cancel()
+                await asyncio.sleep(0)
+                assert not order.done()
+                release.set()
+                with pytest.raises(asyncio.CancelledError):
+                    await asyncio.wait_for(order, 2)
+            finally:
+                release.set()
+                blocker.rollback()
+                if not order.done():
+                    order.cancel()
+                    await asyncio.gather(order, return_exceptions=True)
+
+    event.listen(native.engine, 'before_cursor_execute', hold_fence)
+    try:
+        native.loop.run_until_complete(exercise())
+    finally:
+        event.remove(native.engine, 'before_cursor_execute', hold_fence)
+    native.transport.call.assert_not_awaited()
+    with native.manager.get_new_session() as db:
+        assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 0
+    assert not native.owner.active_intents and not native.owner.submission_tasks
+    assert native.owner.spot_outflow.status()['reserved_quote'] == 0
+    assert native.manager.persistence_healthy and not native.store.read()['recovery_state'].get('halt')
+
+
+def test_slow_intent_rolls_back_if_original_owner_lock_disappears(native):
+    reading, release = threading.Event(), threading.Event()
+    order = InFlightOrder('lost-lock', 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
+                          Decimal('5'), time.time(), Decimal('10'))
+    native.market._order_tracker.start_tracking_order(order)
+
+    def hold_checkpoint(connection, cursor, statement, parameters, context, executemany):
+        if 'FROM market_states' in statement and not reading.is_set():
+            reading.set()
+            release.wait(1.5)
+
+    async def exercise():
+        with session_order_scope(native.session.id, native.session.generation):
+            admitting = asyncio.create_task(native.owner.admit_order(native.market, order))
+        try:
+            assert await asyncio.to_thread(reading.wait, 2)
+            native.owner.connection.exec_driver_sql('SELECT pg_advisory_unlock_all()')
+            native.owner.connection.commit()
+        finally:
+            release.set()
+        with pytest.raises(OwnershipLost):
+            await admitting
+
+    event.listen(native.engine, 'before_cursor_execute', hold_checkpoint)
+    try:
+        native.loop.run_until_complete(exercise())
+    finally:
+        event.remove(native.engine, 'before_cursor_execute', hold_checkpoint)
+    assert native.owner.lost and not native.manager.persistence_healthy
+    native.transport.call.assert_not_awaited()
+    with native.manager.get_new_session() as db:
+        assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 0
 
 
 def test_native_eight_quote_burst_allows_health_callback_between_admissions(native):

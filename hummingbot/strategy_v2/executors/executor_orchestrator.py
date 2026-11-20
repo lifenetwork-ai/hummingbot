@@ -15,7 +15,7 @@ from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.data_type.common import PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.engine_diagnostics import trace_runtime
-from hummingbot.core.operational_warnings import ExecutorArchiveBusy, PositionCheckpointBusy
+from hummingbot.core.operational_warnings import ExecutorArchiveBusy, PositionCheckpointBusy, PositionCheckpointPending
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.executors import Executors
 from hummingbot.model.position import Position
@@ -305,6 +305,7 @@ class ExecutorOrchestrator:
         self._initial_positions_initialized = False
         self._checkpoint_candidates = []
         self._position_checkpoint_busy_since = None
+        self._position_checkpoint_task = None
         self._executor_archive_retry_at = 0.0
         self._executor_archive_task = None
         self._executor_archive_batch = None
@@ -778,7 +779,7 @@ class ExecutorOrchestrator:
         # while connector prices and strategy market registrations are still available.
         if self._executor_archive_task is not None:
             await asyncio.shield(self._executor_archive_task)
-        self._update_positions_from_done_executors()
+        await self.update_positions_from_done_executors()
         # Store all positions and executors
         self.store_all_positions()
         from hummingbot.client.config.runtime_config import postgres_requested
@@ -936,33 +937,28 @@ class ExecutorOrchestrator:
             return
         executor.early_stop(action.keep_position)
 
-    def _update_positions_from_done_executors(self, executor_reports=None, *, defer_ownership_contention=False):
+    def _held_checkpoint_work(self, reports):
         recorder = MarketsRecorder._shared_instance
-        reports = executor_reports if executor_reports is not None else self.get_executors_report()
-        # Session durability is independent of the optional drawdown policy.
-        # Preserve the legacy path for executors outside managed MM sessions.
+        # Durability is independent of the optional drawdown policy.
         managed = self._mm_scope() or any(
             getattr(info.config, 'mm_session_id', None) is not None
             and getattr(info.config, 'mm_generation', None) is not None
             for infos in reports.values() for info in infos)
-        durable = managed and recorder is not None and recorder.durable_position_checkpoints is True
-        if not durable:
-            return self._apply_position_updates(reports)
-        candidates = [info for infos in reports.values() for info in infos
-                      if info.is_done and info.close_type == CloseType.POSITION_HOLD
-                      and info.id not in self.executors_ids_position_held]
-        if not candidates:
-            self._position_checkpoint_busy_since = None
-            return self._apply_position_updates(reports)
-        applied = recorder.applied_position_executors([info.id for info in candidates])
+        if not managed or recorder is None or recorder.durable_position_checkpoints is not True:
+            return recorder, []
+        return recorder, [info for infos in reports.values() for info in infos
+                          if info.is_done and info.close_type == CloseType.POSITION_HOLD
+                          and info.id not in self.executors_ids_position_held]
+
+    def _plan_held_checkpoint(self, reports, candidates, applied):
         old_positions, old_ids = self.positions_held, self.executors_ids_position_held
         self.positions_held = deepcopy(old_positions)
         self.executors_ids_position_held = set(old_ids) | applied
         try:
             self._apply_position_updates(reports)
             fresh = [info for info in candidates if info.id not in applied]
+            snapshots, bases = [], {}
             if fresh:
-                snapshots = []
                 for controller_id, holds in self.positions_held.items():
                     for held in holds:
                         summary = held.get_position_summary(held.avg_entry_price)
@@ -970,24 +966,133 @@ class ExecutorOrchestrator:
                                                   timestamp=int(self.strategy.market_data_provider.time() * 1000),
                                                   **{key: (value.name if key == 'side' else value)
                                                      for key, value in summary.model_dump().items()}))
-                bases = {(controller_id, hold.connector_name, hold.trading_pair, hold.side.name): hold.reduction_basis
-                         for controller_id, holds in self.positions_held.items() for hold in holds
-                         if hold.reduction_basis is not None}
-                try:
-                    recorder.checkpoint_held_positions(
-                        snapshots, fresh, reduction_bases=bases, defer_ownership_contention=defer_ownership_contention)
-                except PositionCheckpointBusy:
-                    now = time.monotonic()
-                    if self._position_checkpoint_busy_since is None:
-                        self._position_checkpoint_busy_since = now
-                    if now - self._position_checkpoint_busy_since >= self._POSITION_CHECKPOINT_RETRY_SECONDS:
-                        recorder.sql_manager.persistence_healthy = False
-                        raise RuntimeError('Position checkpoint still blocked by the ownership row.') from None
-                    raise
-            self._position_checkpoint_busy_since = None
-        except BaseException:
+                        if held.reduction_basis is not None:
+                            bases[controller_id, held.connector_name, held.trading_pair, held.side.name] = held.reduction_basis
+            return (self.positions_held, self.executors_ids_position_held), snapshots, fresh, bases
+        finally:
+            # Pending financial state is local to the plan. Other engine tasks
+            # continue to see only committed positions during database waits.
             self.positions_held, self.executors_ids_position_held = old_positions, old_ids
-            raise
+
+    def _defer_held_checkpoint(self, recorder):
+        now = time.monotonic()
+        if self._position_checkpoint_busy_since is None:
+            self._position_checkpoint_busy_since = now
+        if now - self._position_checkpoint_busy_since >= self._POSITION_CHECKPOINT_RETRY_SECONDS:
+            recorder.sql_manager.persistence_healthy = False
+            raise RuntimeError('Position checkpoint still blocked by the ownership row.') from None
+
+    def _update_positions_from_done_executors(self, executor_reports=None, *, defer_ownership_contention=False):
+        reports = self.get_executors_report() if executor_reports is None else executor_reports
+        recorder, candidates = self._held_checkpoint_work(reports)
+        if not candidates:
+            self._position_checkpoint_busy_since = None
+            return self._apply_position_updates(reports)
+        applied = recorder.applied_position_executors([info.id for info in candidates])
+        committed, positions, fresh, bases = self._plan_held_checkpoint(reports, candidates, applied)
+        if fresh:
+            try:
+                recorder.checkpoint_held_positions(
+                    positions, fresh, reduction_bases=bases, defer_ownership_contention=defer_ownership_contention)
+            except PositionCheckpointBusy:
+                self._defer_held_checkpoint(recorder)
+                raise
+        self.positions_held, self.executors_ids_position_held = committed
+        self._position_checkpoint_busy_since = None
+
+    async def update_positions_from_done_executors(self, executor_reports=None):
+        while (task := getattr(self, '_position_checkpoint_task', None)) is not None:
+            try:
+                await asyncio.shield(task)
+            except PositionCheckpointBusy:
+                pass  # A proven pre-write lock miss can be retried after draining.
+            finally:
+                if task.done() and self._position_checkpoint_task is task:
+                    self._position_checkpoint_task = None
+        task = self._position_checkpoint_task = asyncio.create_task(
+            self._persist_held_checkpoint(executor_reports, defer_ownership_contention=False), name='position-checkpoint')
+        try:
+            await asyncio.shield(task)
+        finally:
+            if task.done() and self._position_checkpoint_task is task:
+                self._position_checkpoint_task = None
+
+    async def _persist_held_checkpoint(self, executor_reports=None, *, defer_ownership_contention):
+        from hummingbot.core.order_submission_guard import active_guard
+
+        recorder = MarketsRecorder._shared_instance
+        if recorder is None or recorder.durable_position_checkpoints is not True:
+            return self._update_positions_from_done_executors(executor_reports)
+        owner = active_guard()
+        if owner is None:
+            return self._update_positions_from_done_executors(executor_reports)
+        task = asyncio.current_task()
+        owner.terminal_tasks.add(task)
+        try:
+            archive = getattr(self, '_executor_archive_task', None)
+            if archive is not None:
+                await asyncio.shield(archive)
+            async with recorder.order_writes:
+                reports = self.get_executors_report() if executor_reports is None else executor_reports
+                _, candidates = self._held_checkpoint_work(reports)
+                if not candidates:
+                    self._position_checkpoint_busy_since = None
+                    return self._apply_position_updates(reports)
+                applied = await asyncio.to_thread(recorder.applied_position_executors, [info.id for info in candidates])
+                committed, positions, fresh, bases = self._plan_held_checkpoint(reports, candidates, applied)
+                cancelled = None
+                if fresh:
+                    try:
+                        cancelled = await recorder.persist_held_positions(
+                            positions, [info.model_copy(deep=True) for info in fresh], bases,
+                            defer_ownership_contention=defer_ownership_contention)
+                    except PositionCheckpointBusy:
+                        self._defer_held_checkpoint(recorder)
+                        raise
+                self.positions_held, self.executors_ids_position_held = committed
+                self._position_checkpoint_busy_since = None
+                if cancelled is not None:
+                    raise cancelled
+        finally:
+            owner.terminal_tasks.discard(task)
+
+    def _update_report_positions(self, reports):
+        pending = getattr(self, '_position_checkpoint_task', None)
+        if pending is not None:
+            if not pending.done():
+                raise PositionCheckpointPending('Position checkpoint is still writing.')
+            self._position_checkpoint_task = None
+            pending.result()
+        _, candidates = self._held_checkpoint_work(reports)
+        if not candidates:
+            self._position_checkpoint_busy_since = None
+            return self._apply_position_updates(reports)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return self._update_positions_from_done_executors(reports, defer_ownership_contention=True)
+        from hummingbot.core.order_submission_guard import active_guard
+        owner = active_guard()
+        if owner is None:
+            return self._update_positions_from_done_executors(reports, defer_ownership_contention=True)
+        if getattr(self, '_executor_archive_stopping', False) or owner.shutdown_requested:
+            raise PositionCheckpointPending('Position checkpoint is reserved for shutdown.')
+        task = self._position_checkpoint_task = loop.create_task(
+            self._persist_held_checkpoint(defer_ownership_contention=True), name='position-checkpoint')
+        task.add_done_callback(self._position_checkpoint_done)
+        raise PositionCheckpointPending('Position checkpoint is still writing.')
+
+    def _position_checkpoint_done(self, task):
+        # Consume the task error here to avoid an unobserved exception even if
+        # shutdown has already replaced the report loop. The next report or
+        # shutdown still reads the task's result.
+        if task.cancelled() or task.exception() is not None:
+            return
+        if (self._position_checkpoint_task is task and not self._executor_archive_stopping
+                and not getattr(self.strategy, '_is_stop_triggered', False)):
+            publish = getattr(self.strategy, 'update_executors_info', None)
+            if callable(publish):
+                publish()
 
     def _apply_position_updates(self, executor_reports=None):
         """
@@ -1129,6 +1234,9 @@ class ExecutorOrchestrator:
         """
         Store executor data based on the action details and update cached performance.
         """
+        checkpoint = getattr(self, '_position_checkpoint_task', None)
+        if checkpoint is not None and not checkpoint.done():
+            return  # The executor and its position identities remain resident until commit.
         retry_at = getattr(self, '_executor_archive_retry_at', 0.0)
         if time.monotonic() < retry_at:
             return  # The clock will propose the retained records again.
@@ -1269,7 +1377,7 @@ class ExecutorOrchestrator:
         # A synchronous report uses one DTO per resident executor for hold
         # transitions, display and PnL. Nothing is retained for the next call.
         executors_report = self.get_executors_report()
-        self._update_positions_from_done_executors(executors_report, defer_ownership_contention=True)
+        self._update_report_positions(executors_report)
         positions_report = self.get_positions_report()
 
         # Get all controller IDs

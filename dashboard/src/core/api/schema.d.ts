@@ -4498,6 +4498,11 @@ export interface components {
              * @description Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.
              */
             uncertain_order_id?: string | null;
+            /**
+             * Uncertain Order Ids
+             * @description Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.
+             */
+            uncertain_order_ids?: string[] | null;
         };
         /** RecoveryOperation */
         RecoveryOperationOutput: {
@@ -4536,11 +4541,15 @@ export interface components {
             /** Proposed Order Changes */
             proposed_order_changes?: components["schemas"]["RecoveryOrderRepairOutput"][];
             proposed_uncertain_order?: components["schemas"]["RecoveryUncertainOrderRepairOutput"] | null;
+            /** Proposed Uncertain Orders */
+            proposed_uncertain_orders?: components["schemas"]["RecoveryUncertainOrderRepairOutput"][];
             /** Repaired Orders */
             repaired_orders?: components["schemas"]["RecoveryOrderRepairOutput"][];
             /** Repaired Positions */
             repaired_positions?: components["schemas"]["RecoveryPositionRepairOutput"][];
             repaired_uncertain_order?: components["schemas"]["RecoveryUncertainOrderRepairOutput"] | null;
+            /** Repaired Uncertain Orders */
+            repaired_uncertain_orders?: components["schemas"]["RecoveryUncertainOrderRepairOutput"][];
             /** Stage */
             stage: string;
             /**
@@ -4683,7 +4692,7 @@ export interface components {
             check_id: string;
             /**
              * Confirm Order Changes
-             * @description True after reviewing proposed_order_changes, proposed_uncertain_order or pending fill application.
+             * @description True after reviewing proposed_order_changes, proposed_uncertain_order, proposed_uncertain_orders or pending fill application.
              * @default false
              */
             confirm_order_changes: boolean;
@@ -4696,6 +4705,11 @@ export interface components {
              * @description Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.
              */
             uncertain_order_id?: string | null;
+            /**
+             * Uncertain Order Ids
+             * @description Complete batch of distinct expired uncertain OKX Spot BUY client order IDs on a stopped session.
+             */
+            uncertain_order_ids?: string[] | null;
         };
         /** RecoverySummary */
         RecoverySummaryOutput: {
@@ -10238,6 +10252,7 @@ export interface operations {
         parameters: {
             query?: {
                 uncertain_order_id?: string | null;
+                uncertain_order_ids?: string | null;
             };
             header?: never;
             path?: never;
