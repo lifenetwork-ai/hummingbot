@@ -92,8 +92,9 @@ staging writes. A PostgreSQL `55P03` from that initial fence is temporary only
 when the identity was absent and the same transaction's DBAPI rollback is
 confirmed, with no connection invalidation and a previously healthy recorder.
 It releases only that unsent local admission and waits on the same native order
-identity. New admissions share a 500 ms cooldown outside the admission slot;
-ready final-send checks, health callbacks and cancellation can still progress.
+identity. New admissions share a cooldown of 100, 150, 250 and then 500 ms
+outside the admission slot. A successful intent write resets the delay to 100 ms.
+Ready final-send checks, health callbacks and cancellation can still progress.
 Every resumed attempt rechecks authority, native order state, session, price and
 risk before writing an intent. Expected contention does not emit an order-failure
 event, consume executor retries or allocate replacement identities. One bounded

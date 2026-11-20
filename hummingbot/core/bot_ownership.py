@@ -39,6 +39,7 @@ from hummingbot.model.order import Order
 ORDER_PATH = "/api/v5/trade/order"
 CANCEL_PATHS = {"/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"}
 ACCOUNT_PATHS = {"/api/v5/account/set-leverage", "/api/v5/account/set-position-mode"}
+INTENT_ADMISSION_RETRY_DELAYS = (.1, .15, .25, .5)
 
 
 @contextmanager
@@ -106,6 +107,7 @@ class BotOwnership:
         self.config_file_path = None
         self.connectors = {}
         self._intent_admission_retry_at = 0.
+        self._intent_admission_retry_index = 0
         self._intent_admission_warnings = OperationalWarnings(maximum=1)
         self.active_intents = set()
         self.sent_intents = set()
@@ -462,6 +464,7 @@ class BotOwnership:
                                 if error.cancellation is not None:
                                     raise error.cancellation from None
                                 raise
+                            self._intent_admission_retry_index = 0
                             if cancelled is not None:
                                 raise cancelled
                 except IntentAdmissionBusy:
@@ -487,12 +490,15 @@ class BotOwnership:
         except IntentAdmissionBusy:
             self._release_busy_intent(order)
             raise
+        self._intent_admission_retry_index = 0
         self._track_submission_task()
 
     def _release_busy_intent(self, order):
         # Only a confirmed prewrite rollback releases this native identity.
         self._release_unsent_admission(order.client_order_id)
-        self._intent_admission_retry_at = time.monotonic() + .5
+        index = self._intent_admission_retry_index
+        self._intent_admission_retry_at = time.monotonic() + INTENT_ADMISSION_RETRY_DELAYS[index]
+        self._intent_admission_retry_index = min(index + 1, len(INTENT_ADMISSION_RETRY_DELAYS) - 1)
 
     def _prepare_order_intent(self, connector, order):
         from hummingbot.core.cleanup_authority import current_cleanup_scope, validate_close

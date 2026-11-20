@@ -525,9 +525,10 @@ the same proof path; an ACK of the cancel request is not terminal evidence.
 the initial recorder ownership lock is busy and its read-only transaction has
 rolled back successfully. Local cash/bootstrap reservations are released, while
 the native identity waits without consuming executor retries. Queued admissions
-share a 500 ms cooldown outside the send-check slot and must pass current owner,
-session, native-order, price and budget checks again. No failed-order event or
-replacement ID is created for the wait. A warning is emitted once per continuing
+share a cooldown outside the send-check slot. The delay starts at 100 ms and
+increases to 500 ms until the next successful intent write. Each attempt must
+pass current owner, session, native-order, price and budget checks again. The
+wait keeps the original order identity. A warning is emitted once per continuing
 30-second warning window; successful admission emits recovery INFO. This exception does
 not apply to fills, terminal effects, lost commit responses or failed rollback.
 A persisted HALT from an earlier incident still needs normal verified recovery.

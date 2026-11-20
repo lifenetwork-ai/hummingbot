@@ -19,7 +19,7 @@ from hummingbot.cli.service_processes import probe_health
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.connector.trading_rule import TradingRule
-from hummingbot.core import engine_diagnostics
+from hummingbot.core import bot_ownership, engine_diagnostics
 from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
@@ -492,7 +492,7 @@ def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(
     phases = diagnostics.snapshot()['submission_recent']
     admission, = [phase for phase in phases if phase['operation'] == 'order.admission']
     intents = [phase for phase in phases if phase['operation'] == 'order.intent']
-    assert admission['ownership_backoff_ms'] >= 980
+    assert admission['ownership_backoff_ms'] >= 240
     assert admission['admission_slot_wait_ms'] >= 0
     assert admission['recorder_lock_wait_ms'] >= 0
     assert len(intents) == 2 + sends
@@ -504,25 +504,46 @@ def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(
         if sends:
             assert db.query(Order).one().id == 'busy-native'
             assert db.query(SubmissionAttempt).one().state == 'acknowledged'
+            assert native.owner._intent_admission_retry_index == 0
     assert native.manager.persistence_healthy and not native.store.read()['recovery_state'].get('halt')
 
 
-def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends(native):
+@pytest.mark.parametrize('hold_seconds', [.065, 1.35], ids=['short-lock', 'sustained-lock'])
+@pytest.mark.parametrize('fixed', [True, False], ids=['fixed', 'adaptive'])
+def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends(native, hold_seconds, fixed, monkeypatch):
+    from test.integration.postgres.test_performance import report
+
+    from hummingbot.core.event.event_forwarder import EventForwarder
     from hummingbot.core.event.event_logger import EventLogger
     from hummingbot.core.event.events import MarketEvent
 
-    failures, attempts, progress = EventLogger(), [], []
+    if fixed:
+        monkeypatch.setattr(bot_ownership, 'INTENT_ADMISSION_RETRY_DELAYS', (.5,), raising=False)
+    diagnostics = engine_diagnostics.EngineDiagnostics()
+    monkeypatch.setattr(engine_diagnostics, '_ACTIVE', diagnostics)
+    failures, attempts, accepted = EventLogger(), [], {}
+    first_attempt = asyncio.Event()
+    buy_created = EventForwarder(lambda update: accepted.setdefault(update.order_id, time.monotonic()))
     native.market.add_listener(MarketEvent.OrderFailure, failures)
-    blocked = [True]
+    native.market.add_listener(MarketEvent.BuyOrderCreated, buy_created)
+    blocked = [False]
 
     def fence(connection, cursor, statement, *args):
         if blocked[0] and 'FOR SHARE' in statement and 'NOWAIT' in statement:
             attempts.append(time.monotonic())
+            if len(attempts) == 1:
+                native.loop.call_soon_threadsafe(first_attempt.set)
 
     async def run():
+        with session_order_scope(native.session.id, native.session.generation):
+            await native.market._create_order(
+                TradeType.SELL, 'resting-sell', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10.1'))
+        assert native.market.in_flight_orders['resting-sell'].current_state is OrderState.OPEN
         tasks = []
         with native.engine.begin() as blocker:
             blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE').all()
+            blocked[0] = True
+            started = time.monotonic()
             with session_order_scope(native.session.id, native.session.generation):
                 tasks = [
                     asyncio.create_task(native.market._create_order(
@@ -530,15 +551,15 @@ def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends
                     for i in range(8)
                 ]
             try:
-                # Repeated loop callbacks progress while the same real row stays
-                # locked. All eight native tasks share one prewrite cooldown.
-                for _ in range(12):
-                    await asyncio.sleep(.1)
-                    progress.append(True)
+                await asyncio.wait_for(first_attempt.wait(), 2)
+                await asyncio.sleep(hold_seconds)
                 assert all(not t.done() for t in tasks)
                 assert not native.owner.submission_admission.locked()
-                assert native.transport.call.await_count == 0 and not failures.event_log
-                assert 2 <= len(attempts) <= 4, 'Waiters must not each poll the DB during shared cooldown'
+                assert native.transport.call.await_count == 1 and not accepted and not failures.event_log
+                if hold_seconds > 1:
+                    assert 2 <= len(attempts) <= 6, 'Waiters must not each poll the DB during shared cooldown'
+                else:
+                    assert len(attempts) == 1
             except BaseException:
                 for task in tasks:
                     task.cancel()
@@ -551,16 +572,30 @@ def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+        assert native.market.in_flight_orders['resting-sell'].current_state is OrderState.OPEN
+        return started
 
     event.listen(native.engine, 'before_cursor_execute', fence)
     try:
-        native.loop.run_until_complete(run())
+        started = native.loop.run_until_complete(run())
     finally:
         event.remove(native.engine, 'before_cursor_execute', fence)
         native.market.remove_listener(MarketEvent.OrderFailure, failures)
-    assert len(progress) == 12 and not failures.event_log and native.transport.call.await_count == 8
+        native.market.remove_listener(MarketEvent.BuyOrderCreated, buy_created)
+    assert not failures.event_log and native.transport.call.await_count == 9
+    order_ids = {f'waiting-{i}' for i in range(8)}
+    assert set(accepted) == order_ids
     with native.manager.get_new_session() as db:
-        assert {x.id for x in db.query(Order)} == {f'waiting-{i}' for i in range(8)}
-        assert db.query(SubmissionAttempt).count() == 8
+        assert {x.id for x in db.query(Order)} == order_ids | {'resting-sell'}
+        assert db.query(SubmissionAttempt).count() == 9
         assert {x.state for x in db.query(SubmissionAttempt)} == {'acknowledged'}
     assert native.manager.persistence_healthy and not native.store.read()['recovery_state'].get('halt')
+    admissions = [row for row in diagnostics.snapshot()['submission_recent']
+                  if row['operation'] == 'order.admission' and row['at_ns'] >= int(started * 1e9)]
+    assert len(admissions) == len(order_ids)
+    # With eight orders the nearest-rank p95 is the largest observation.
+    report(f'admission_backoff_{hold_seconds}_{"fixed" if fixed else "adaptive"}', dict(
+        samples=len(admissions), blocked_attempts=len(attempts),
+        admission_p95_ms=max(row['duration_ms'] for row in admissions),
+        buy_quote_gap_ms=(min(accepted.values()) - started) * 1000,
+        scope='Real PostgreSQL, native connector, simulated venue acknowledgement'))

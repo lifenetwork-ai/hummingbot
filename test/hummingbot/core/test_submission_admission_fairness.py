@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from hummingbot.core import order_submission_guard as gates
+from hummingbot.core import bot_ownership, order_submission_guard as gates
 from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 
@@ -237,6 +237,25 @@ async def test_repeated_proven_unsent_contention_waits_without_failure_or_holdin
     assert not owner.submission_tasks and not owner.submission_admission.locked()
     warnings = [r for r in caplog.records if getattr(r, 'reason_code', None) == 'intent_admission_busy']
     assert len(warnings) == 1, 'Repeated contention must retain a bounded diagnostic'
+
+
+def test_confirmed_contention_retries_ramp_to_a_cap_and_reset_after_a_write(owner, monkeypatch):
+    clock = SimpleNamespace(monotonic=lambda: 10.)
+    monkeypatch.setattr(bot_ownership, 'time', clock)
+    order = SimpleNamespace(client_order_id='waiting')
+    owner._release_unsent_admission = Mock()
+    recorder = Mock()
+    owner._prepare_order_intent = Mock(return_value=recorder)
+
+    for delay in (.1, .15, .25, .5, .5):
+        owner._release_busy_intent(order)
+        assert owner._intent_admission_retry_at == pytest.approx(10. + delay)
+
+    clock.monotonic = lambda: 11.
+    owner.before_order(None, order)
+    recorder.record_order_intent.assert_called_once_with(None, order)
+    owner._release_busy_intent(order)
+    assert owner._intent_admission_retry_at == pytest.approx(11.1)
 
 
 @pytest.mark.asyncio
