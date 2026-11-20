@@ -268,7 +268,7 @@ class ExecutorOrchestrator:
     Orchestrator for various executors.
     """
     _logger = None
-    _POSITION_CHECKPOINT_RETRY_SECONDS = 4.0
+    _POSITION_CHECKPOINT_RETRY_DELAY_SECONDS = 0.1
     _executor_mapping = {
         "position_executor": PositionExecutor,
         "grid_executor": GridExecutor,
@@ -304,7 +304,7 @@ class ExecutorOrchestrator:
         self.initial_positions_by_controller = initial_positions_by_controller or {}
         self._initial_positions_initialized = False
         self._checkpoint_candidates = []
-        self._position_checkpoint_busy_since = None
+        self._position_checkpoint_retry_at = 0.0
         self._position_checkpoint_task = None
         self._executor_archive_retry_at = 0.0
         self._executor_archive_task = None
@@ -975,19 +975,11 @@ class ExecutorOrchestrator:
             # continue to see only committed positions during database waits.
             self.positions_held, self.executors_ids_position_held = old_positions, old_ids
 
-    def _defer_held_checkpoint(self, recorder):
-        now = time.monotonic()
-        if self._position_checkpoint_busy_since is None:
-            self._position_checkpoint_busy_since = now
-        if now - self._position_checkpoint_busy_since >= self._POSITION_CHECKPOINT_RETRY_SECONDS:
-            recorder.sql_manager.persistence_healthy = False
-            raise RuntimeError('Position checkpoint still blocked by the ownership row.') from None
-
     def _update_positions_from_done_executors(self, executor_reports=None, *, defer_ownership_contention=False):
         reports = self.get_executors_report() if executor_reports is None else executor_reports
         recorder, candidates = self._held_checkpoint_work(reports)
         if not candidates:
-            self._position_checkpoint_busy_since = None
+            self._position_checkpoint_retry_at = 0.0
             return self._apply_position_updates(reports)
         applied = recorder.applied_position_executors([info.id for info in candidates])
         committed, positions, fresh, bases = self._plan_held_checkpoint(reports, candidates, applied)
@@ -996,10 +988,10 @@ class ExecutorOrchestrator:
                 recorder.checkpoint_held_positions(
                     positions, fresh, reduction_bases=bases, defer_ownership_contention=defer_ownership_contention)
             except PositionCheckpointBusy:
-                self._defer_held_checkpoint(recorder)
+                self._position_checkpoint_retry_at = time.monotonic() + self._POSITION_CHECKPOINT_RETRY_DELAY_SECONDS
                 raise
         self.positions_held, self.executors_ids_position_held = committed
-        self._position_checkpoint_busy_since = None
+        self._position_checkpoint_retry_at = 0.0
 
     async def update_positions_from_done_executors(self, executor_reports=None):
         while (task := getattr(self, '_position_checkpoint_task', None)) is not None:
@@ -1037,7 +1029,7 @@ class ExecutorOrchestrator:
                 reports = self.get_executors_report() if executor_reports is None else executor_reports
                 _, candidates = self._held_checkpoint_work(reports)
                 if not candidates:
-                    self._position_checkpoint_busy_since = None
+                    self._position_checkpoint_retry_at = 0.0
                     return self._apply_position_updates(reports)
                 applied = await asyncio.to_thread(recorder.applied_position_executors, [info.id for info in candidates])
                 committed, positions, fresh, bases = self._plan_held_checkpoint(reports, candidates, applied)
@@ -1050,10 +1042,10 @@ class ExecutorOrchestrator:
                             positions, [info.model_copy(deep=True) for info in fresh], bases,
                             defer_ownership_contention=defer_ownership_contention)
                     except PositionCheckpointBusy:
-                        self._defer_held_checkpoint(recorder)
+                        self._position_checkpoint_retry_at = time.monotonic() + self._POSITION_CHECKPOINT_RETRY_DELAY_SECONDS
                         raise
                 self.positions_held, self.executors_ids_position_held = committed
-                self._position_checkpoint_busy_since = None
+                self._position_checkpoint_retry_at = 0.0
                 for info in fresh:
                     observe_spot_sell_entry_stage(info, 'checkpoint_committed_at_ns')
                 if cancelled is not None:
@@ -1070,8 +1062,10 @@ class ExecutorOrchestrator:
             pending.result()
         _, candidates = self._held_checkpoint_work(reports)
         if not candidates:
-            self._position_checkpoint_busy_since = None
+            self._position_checkpoint_retry_at = 0.0
             return self._apply_position_updates(reports)
+        if time.monotonic() < self._position_checkpoint_retry_at:
+            raise PositionCheckpointBusy('Position checkpoint waits for the ownership row.')
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

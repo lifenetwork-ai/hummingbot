@@ -11,6 +11,7 @@ from controllers.market_making.life_mm import LifeMMConfig, LifeMMController
 from hummingbot.cli.service import ServiceHost
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.client.config.runtime_config import RuntimeSettings
+from hummingbot.core.data_type.common import PositionAction
 from hummingbot.core.data_type.order_book import OrderBook
 from hummingbot.core.data_type.order_book_row import OrderBookRow
 from hummingbot.core.mm_session import MMSession, MMSessionRequest
@@ -161,6 +162,27 @@ async def test_collateral_readiness_wait_reports_its_actual_reason():
     assert not host.mm_runtime_ready()
     assert host.service_status()["reason_code"] == "insufficient_collateral"
     host.owner.require_recovery.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reason", ["position_checkpoint_pending", "position_checkpoint_waiting"])
+async def test_position_checkpoint_pauses_order_admission_without_drawdown_policy(reason):
+    host, controllers, _ = await setup_host()
+    assert host.mm_session.catalogue.drawdown_policy() is None
+    config = next(iter(controllers.values())).config
+    connector = SimpleNamespace(name=config.connector_name)
+    order = SimpleNamespace(trading_pair=config.trading_pair, position=PositionAction.OPEN)
+    strategy = host.hb.trading_core.strategy
+
+    assert host.mm_runtime_order_ready(connector, order)
+    strategy.controller_reports_error = reason
+    assert not host.mm_runtime_order_ready(connector, order)
+    assert host.owner.mm_order_readiness_reason == reason
+    host.owner.require_recovery.assert_not_called()
+
+    strategy.controller_reports_error = None
+    assert host.mm_runtime_order_ready(connector, order)
+    assert host.owner.mm_order_readiness_reason is None
 
 
 @pytest.mark.asyncio

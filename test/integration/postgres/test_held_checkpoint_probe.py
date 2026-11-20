@@ -6,7 +6,7 @@ from test.integration.postgres.test_automatic_recovery import executor_info, orc
 from test.integration.postgres.test_ownership import owned as owned_fixture
 from test.integration.postgres.test_recorder import fill
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from aiohttp import web
@@ -16,6 +16,7 @@ from sqlalchemy.exc import OperationalError
 from hummingbot.cli.service import ServiceHost
 from hummingbot.cli.service_processes import probe_health
 from hummingbot.core import engine_diagnostics
+from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
 from hummingbot.core.event.events import MarketEvent
@@ -217,21 +218,78 @@ def test_live_during_held_position_checkpoint(owned, locked_seconds):
     assert first[0] and 'NOWAIT' in queries[0], first[1]
 
 
-def test_held_checkpoint_contention_expires_without_publishing_or_writing(owned, monkeypatch):
+@pytest.mark.parametrize('worker', [False, True])
+def test_held_checkpoint_recovers_after_extended_ownership_contention(owned, monkeypatch, worker):
     runtime = pending_checkpoint(owned)
     now = [100.0]
     monkeypatch.setattr(executor_orchestrator, 'time', SimpleNamespace(monotonic=lambda: now[0]))
+
+    async def start_report():
+        with pytest.raises(PositionCheckpointPending):
+            runtime.get_all_reports()
+        await runtime._position_checkpoint_task
+
+    def attempt_blocked_report():
+        if worker:
+            with pytest.raises(PositionCheckpointBusy):
+                owned.loop.run_until_complete(start_report())
+        with pytest.raises(PositionCheckpointBusy):
+            runtime.get_all_reports()
+
+    with owned.engine.begin() as connection:
+        connection.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
+        for timestamp in (100.0, 105.0, 110.0):
+            now[0] = timestamp
+            attempt_blocked_report()
+            assert owned.manager.persistence_healthy
+            assert not runtime.positions_held['maker'] and not runtime.executors_ids_position_held
+            assert owned.recorder.get_all_positions() == []
+
+    # The first tick after the lock clears still observes the retry delay.
+    with patch.object(owned.recorder, 'applied_position_executors',
+                      wraps=owned.recorder.applied_position_executors) as lookup:
+        with pytest.raises(PositionCheckpointBusy):
+            runtime.get_all_reports()
+        lookup.assert_not_called()
+    now[0] += 5.0
+    if worker:
+        owned.loop.run_until_complete(start_report())
+    runtime.get_all_reports()
+    runtime.get_all_reports()
+    assert runtime.executors_ids_position_held == {'hold-probe'}
+    assert [position.amount for position in owned.recorder.get_all_positions()] == [Decimal('.1')]
+    with owned.manager.get_new_session() as session:
+        assert session.query(RuntimeJournal).filter_by(event_key='hold:hold-probe').count() == 1
+
+
+def test_held_checkpoint_rechecks_ownership_after_deferral(owned, monkeypatch):
+    runtime = pending_checkpoint(owned)
+    now = [100.0]
+    monkeypatch.setattr(executor_orchestrator, 'time', SimpleNamespace(monotonic=lambda: now[0]))
+
+    async def report():
+        with pytest.raises(PositionCheckpointPending):
+            runtime.get_all_reports()
+        await runtime._position_checkpoint_task
+
     with owned.engine.begin() as connection:
         connection.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
         with pytest.raises(PositionCheckpointBusy):
+            owned.loop.run_until_complete(report())
+        with pytest.raises(PositionCheckpointBusy):
             runtime.get_all_reports()
-        assert owned.manager.persistence_healthy
-        now[0] += runtime._POSITION_CHECKPOINT_RETRY_SECONDS
-        with pytest.raises(RuntimeError, match='Position checkpoint still blocked'):
-            runtime.get_all_reports()
+    assert owned.manager.persistence_healthy
+
+    owned.owner.connection.invalidate()
+    now[0] += 5.0
+    with pytest.raises(OwnershipLost):
+        owned.loop.run_until_complete(report())
+
     assert not owned.manager.persistence_healthy
     assert not runtime.positions_held['maker'] and not runtime.executors_ids_position_held
     assert owned.recorder.get_all_positions() == []
+    with owned.manager.get_new_session() as session:
+        assert session.query(RuntimeJournal).filter_by(event_key='hold:hold-probe').count() == 0
 
 
 @pytest.mark.parametrize('worker', [False, True])

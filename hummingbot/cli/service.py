@@ -240,11 +240,14 @@ class ServiceHost:
             return False
 
         try:
+            strategy = self.hb.trading_core.strategy
+            report_error = getattr(strategy, "controller_reports_error", None)
+            if report_error in ("position_checkpoint_pending", "position_checkpoint_waiting"):
+                return waiting(report_error)
             defense = getattr(self.owner, 'volatility_checkpoints', None)
             if defense is not None and not defense.attach():
                 return waiting('volatility_checkpoint_pending')
             if self.mm_session.catalogue.drawdown_policy() is not None:
-                strategy = self.hb.trading_core.strategy
                 if strategy is None or not strategy.mm_drawdown_ready():
                     status = strategy.mm_drawdown_status() if strategy is not None else {}
                     return waiting(status.get("reason_code") or "drawdown_report_unavailable")
