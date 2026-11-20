@@ -479,7 +479,7 @@ class ExchangePyBase(ExchangeBase, ABC):
                            "error_type": type(ex).__name__},
                 )
                 return
-            self._on_order_failure(
+            failure_update = self._on_order_failure(
                 order_id=order_id,
                 trading_pair=trading_pair,
                 amount=quantized_amount,
@@ -489,6 +489,11 @@ class ExchangePyBase(ExchangeBase, ABC):
                 exception=ex,
                 **kwargs,
             )
+            from hummingbot.connector.markets_recorder import MarketsRecorder
+            if failure_update is not None and MarketsRecorder.service_recorder_for(self) is not None:
+                # Keep the exact managed create task alive until its local
+                # failure and any required recorder changes are visible.
+                await failure_update
 
     @trace_runtime('order.place', order_parameter='order')
     async def _place_order_and_process_update(self, order: InFlightOrder, **kwargs) -> str:
@@ -560,15 +565,14 @@ class ExchangePyBase(ExchangeBase, ABC):
                 extra={"event": "order_submission_blocked", "reason_code": reason,
                        "scope": "connector", "error_type": error_type},
             )
-            self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair, exception=exception)
-            return
+            return self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair, exception=exception)
         self.logger().network(
             f"Error submitting {trade_type.name.lower()} {order_type.name.upper()} order to {self.name_cap} for "
             f"{amount} {trading_pair} {price}.",
             exc_info=True,
             app_warning_msg=f"Failed to submit {trade_type.name.upper()} order to {self.name_cap}. Check API key and network connection."
         )
-        self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair, exception=exception)
+        return self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair, exception=exception)
 
     def _update_order_after_failure(self, order_id: str, trading_pair: str, exception: Optional[Exception] = None):
         misc_updates = {}
@@ -583,7 +587,7 @@ class ExchangePyBase(ExchangeBase, ABC):
             new_state=OrderState.FAILED,
             misc_updates=misc_updates
         )
-        self._order_tracker.process_order_update(order_update)
+        return self._order_tracker.process_order_update(order_update)
 
     @trace_runtime('order.cancel', order_parameter='order')
     async def _execute_order_cancel(self, order: InFlightOrder) -> Optional[str]:

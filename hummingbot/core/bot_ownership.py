@@ -109,6 +109,7 @@ class BotOwnership:
         self.unsent_rejections = weakref.WeakValueDictionary()
         self.expired_rejections = weakref.WeakValueDictionary()
         self.submission_tasks = set()
+        self._submission_order_tasks = {}
         self.submission_admission = SubmissionAdmission()
         self.terminal_tasks = set()
         self.transport_tasks = {}
@@ -383,14 +384,24 @@ class BotOwnership:
                 self.require_recovery("An order submission has an unresolved outcome; no automatic resubmission is allowed.")
                 raise SubmissionBlocked("Unresolved order submission requires reconciliation.")
 
-    def _track_submission_task(self):
+    def _track_submission_task(self, order=None):
         try:
             task = asyncio.current_task()
         except RuntimeError:
-            task = None
-        if task is not None and task not in self.submission_tasks:
+            return
+        if task is None:
+            return
+        if task not in self.submission_tasks:
             self.submission_tasks.add(task)
             task.add_done_callback(self.submission_tasks.discard)
+        if order is not None and self._submission_order_tasks.get(id(order)) is not task:
+            self._submission_order_tasks[id(order)] = task
+
+            def forget(finished):
+                if self._submission_order_tasks.get(id(order)) is finished:
+                    del self._submission_order_tasks[id(order)]
+
+            task.add_done_callback(forget)
 
     def order_write_scope(self):
         from hummingbot.connector.markets_recorder import MarketsRecorder
@@ -405,7 +416,7 @@ class BotOwnership:
         from hummingbot.core.order_submission_guard import active_guard
 
         # Shutdown must also drain tasks waiting before any durable intent exists.
-        self._track_submission_task()
+        self._track_submission_task(order)
         while True:
             # Wait on the existing native identity before any durable intent or
             # send exists. Release the shared slot: final-send fences and health/
@@ -1163,7 +1174,8 @@ class BotOwnership:
                 self.spot_outflow.reason_code = "spot_outflow_fill_invalid"
 
     @staticmethod
-    async def _refresh_orders(connector, orders, *, limiter=None, terminal_guard=None, local_rejection=None):
+    async def _refresh_orders(connector, orders, *, limiter=None, terminal_guard=None, local_rejection=None,
+                              wait_for_local_rejection=None):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
 
@@ -1192,6 +1204,8 @@ class BotOwnership:
                         # a response. Only positive, terminal no-send evidence
                         # can replace readback; not-found alone proves nothing.
                         if local_rejection is not None and local_rejection(order):
+                            continue
+                        if wait_for_local_rejection is not None and await wait_for_local_rejection(order):
                             continue
                         raise
                     if status.exchange_order_id:
@@ -1372,6 +1386,16 @@ class BotOwnership:
                                        or self.expired_rejections.get(order.client_order_id) is order)
                     and not order.exchange_order_id and order.client_order_id not in self.sent_intents)
 
+        async def wait_for_local_rejection(order):
+            if order.exchange_order_id or order.client_order_id in self.sent_intents:
+                return False
+            task = self._submission_order_tasks.get(id(order))
+            if task is not None and not task.done():
+                # The outer shutdown deadline bounds this read. Cancelling
+                # its waiter must not also cancel an in-flight submit.
+                await asyncio.wait({task})
+            return local_rejection(order)
+
         async def read_terminal_orders():
             # Share the existing three read slots across connectors. A delayed
             # Spot tail must not prevent all Perpetual proof from even starting.
@@ -1393,13 +1417,15 @@ class BotOwnership:
                     remote_orders.append(order)
                 if remote_orders:
                     await self._refresh_orders(connector, remote_orders, limiter=limiter,
-                                               terminal_guard=self.spot_outflow, local_rejection=local_rejection)
+                                               terminal_guard=self.spot_outflow, local_rejection=local_rejection,
+                                               wait_for_local_rejection=wait_for_local_rejection)
                 while any(not order.is_done and order.client_order_id not in deferred for order in orders):
                     self.check_owner()
                     await asyncio.sleep(0.1)
                     await self._refresh_orders(connector, [order for order in orders
                                                            if not order.is_done and order.client_order_id not in deferred],
-                                               limiter=limiter, local_rejection=local_rejection)
+                                               limiter=limiter, local_rejection=local_rejection,
+                                               wait_for_local_rejection=wait_for_local_rejection)
 
             refreshes = [asyncio.create_task(refresh_connector(connector, orders)) for connector, orders in tracked]
             try:

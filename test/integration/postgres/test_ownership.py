@@ -942,6 +942,79 @@ def test_shutdown_keeps_unsent_terminal_proof_when_a_local_cancel_ack_is_queued(
     assert not recovery.get('halt') and not recovery['runtime_active']
 
 
+@pytest.mark.parametrize('proof', ['unsent', 'sent', 'different_object', 'deadline'])
+def test_shutdown_51603_can_wait_for_exact_local_create_to_finish(owned, proof):
+    from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+    from hummingbot.core.order_submission_guard import resolve_order_failure
+
+    core = reconciliation_core(owned)
+    order = InFlightOrder('queued-create', 'BTC-USDT', OrderType.LIMIT, TradeType.BUY,
+                          Decimal('.1'), 1700000000, Decimal('100'))
+    owned.market.in_flight_orders[order.client_order_id] = order
+    read_returned, finish_create = asyncio.Event(), asyncio.Event()
+    tracked_order = InFlightOrder.from_json(order.to_json()) if proof == 'different_object' else order
+    owned.market._all_trade_updates_for_order = AsyncMock(return_value=[])
+
+    async def create():
+        with pytest.raises(SubmissionBlocked):
+            await owned.owner.admit_order(owned.market, order)
+        await finish_create.wait()
+        assert not await resolve_order_failure(owned.market, order)
+        order.current_state = OrderState.FAILED
+
+    async def request_status(requested):
+        assert requested is tracked_order and not order.is_done
+        read_returned.set()
+        if proof == 'sent':
+            owned.owner.sent_intents.add(order.client_order_id)
+        raise OKXOrderNotFoundError('51603')
+
+    owned.market._request_order_status = AsyncMock(side_effect=request_status)
+
+    async def shutdown(**kwargs):
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+
+    async def exercise():
+        # The exact native create enters admission but its final local rejection
+        # is delayed until after the venue's first not-found has returned.
+        async with owned.owner.submission_admission:
+            creating = asyncio.create_task(create())
+            await asyncio.sleep(0)
+            owned.market.in_flight_orders[order.client_order_id] = tracked_order
+            stopping = asyncio.create_task(owned.owner.shutdown_core(core, timeout=.15 if proof == 'deadline' else 2))
+            try:
+                await asyncio.wait_for(read_returned.wait(), 1)
+                if proof == 'unsent':
+                    await asyncio.sleep(.025)
+                    assert not stopping.done()
+                    finish_create.set()
+                elif proof == 'deadline':
+                    assert not await stopping
+                else:
+                    with pytest.raises(OKXOrderNotFoundError):
+                        await stopping
+                assert not creating.done()
+            finally:
+                if not stopping.done() and proof != 'unsent':
+                    stopping.cancel()
+                if proof != 'unsent':
+                    creating.cancel()
+                    await asyncio.gather(creating, return_exceptions=True)
+        if proof == 'unsent':
+            assert await stopping
+            await creating
+
+    owned.loop.run_until_complete(exercise())
+    recovery = owned.store.read()['recovery_state']
+    assert bool(recovery.get('shutdown_incomplete')) is (proof != 'unsent')
+    assert bool(recovery.get('halt')) is (proof != 'unsent')
+    owned.market._request_order_status.assert_awaited_once_with(tracked_order)
+    owned.market._all_trade_updates_for_order.assert_not_awaited()
+
+
 def test_fill_during_v2_shutdown_requires_position_reconciliation(owned):
     core = reconciliation_core(owned)
     core.strategy.executor_orchestrator = object()
