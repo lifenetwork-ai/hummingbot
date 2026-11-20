@@ -870,7 +870,7 @@ class PositionExecutor(ExecutorBase):
     def _log_order_failure(self, role: str, event: MarketOrderFailureEvent, *, reprice: bool = False,
                            outflow_wait: bool = False, session_closed: bool = False):
         from hummingbot.core.order_submission_guard import submission_block_log_context
-        context = submission_block_log_context(event.error_type)
+        context = submission_block_log_context(event.error_type, event.error_message)
         if context is None:
             self.logger().error(f"{role} order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
             return

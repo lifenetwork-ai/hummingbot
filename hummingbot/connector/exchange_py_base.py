@@ -544,7 +544,8 @@ class ExchangePyBase(ExchangeBase, ABC):
         from hummingbot.core.order_submission_guard import SubmissionBlocked, submission_block_log_context
         if isinstance(exception, SubmissionBlocked):
             error_type = type(exception).__name__
-            level, reason = submission_block_log_context(error_type) or submission_block_log_context("SubmissionBlocked")
+            level, reason = (submission_block_log_context(error_type, str(exception))
+                             or submission_block_log_context("SubmissionBlocked"))
             summary = None
             if error_type == 'QuoteRefreshRequired':
                 from hummingbot.core.operational_warnings import OperationalWarnings

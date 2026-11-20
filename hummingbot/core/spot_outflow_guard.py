@@ -201,7 +201,8 @@ class SpotOutflowGuard:
                 self.last_buy_denial = 'spot_outflow_projection_catching_up'
                 raise SpotOutflowPending(self.last_buy_denial)
             if self.terminal_pending:
-                raise ValueError("spot_outflow_reconciling")
+                self.last_buy_denial = 'spot_outflow_reconciling'
+                raise SpotOutflowPending(self.last_buy_denial)
             flat = self._flat_fee(connector, order)
             amount, price = Decimal(order.amount), Decimal(order.price)
             if any(not value.is_finite() or value <= ZERO for value in (amount, price)):

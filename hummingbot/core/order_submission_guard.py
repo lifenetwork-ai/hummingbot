@@ -65,15 +65,17 @@ class SpotOutflowBlocked(MarketReadinessBlocked):
 
 
 class SpotOutflowPending(MarketReadinessBlocked):
-    """Cash BUY waits for bounded clock catch-up; partial risk is unavailable."""
+    """Cash BUY waits for clock catch-up or proof of a prior order's outcome."""
 
 
 class QuoteRefreshRequired(SubmissionBlocked):
     """The fresh pre-transport spread check rejected a configured entry quote."""
 
 
-def submission_block_log_context(error_type):
+def submission_block_log_context(error_type, error_message=None):
     """Classify the existing failure-event type; unknown failures stay errors."""
+    if error_type == "SpotOutflowPending" and error_message == "spot_outflow_reconciling":
+        return logging.WARNING, "spot_outflow_reconciling"
     return {
         "SessionSubmissionBlocked": (logging.INFO, "session_submission_closed"),
         "MarketReadinessBlocked": (logging.WARNING, "market_not_ready"),
