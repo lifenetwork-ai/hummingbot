@@ -23,7 +23,7 @@ from hummingbot.connector.credential_adapters import CredentialAdapterError, Cre
 from hummingbot.core.admin_identity import AccessDenied
 from hummingbot.core.credential_encryption import CredentialContext, CredentialCryptoError, credential_cipher
 from hummingbot.model.bot_state_store import ControlConflict
-from hummingbot.model.credential_store import CredentialStore
+from hummingbot.model.credential_store import CredentialStore, credential_set_blocker
 
 
 class AdminCredentialsAPI:
@@ -80,8 +80,16 @@ class AdminCredentialsAPI:
         metadata, state, operations = await self.run_database(store.status_snapshot, exchange)
         source, actor = credential_source_mode(), request["admin_principal"]
         slots = []
-        cleanup = ((state or {}).get("recovery_state") or {}).get("credential_operation") or {}
-        cleanup = cleanup if cleanup.get("action") == "credentials_disconnect" and cleanup.get("exchange") == exchange else {}
+        connection_operation = ((state or {}).get("recovery_state") or {}).get("credential_operation") or {}
+        cleanup = (connection_operation if connection_operation.get("action") == "credentials_disconnect"
+                   and connection_operation.get("exchange") == exchange else {})
+        permission_blocker = None
+        if not actor.allows("write"):
+            permission_blocker = "insufficient_role"
+        elif source != "postgres_kms":
+            permission_blocker = "credentials_managed_externally"
+        writable = permission_blocker is None
+        state_blocker, state_detail = credential_set_blocker(state) if writable else (None, None)
         visible = registry.enabled_connectors.intersection(adapter.connectors) | {
             item["connector"] for item in metadata if item["environment"] == adapter.environment and item["connector"] in adapter.connectors}
         for connector in sorted(visible):
@@ -114,27 +122,24 @@ class AdminCredentialsAPI:
                 status, label, detail = "failed", "Connection failed", MESSAGES.get(reason, "The saved connection could not be loaded. Contact support with the operation ID.")
             elif row is not None:
                 status, label, detail, reason = "unavailable", "Status unavailable", "Current engine evidence is unavailable. Saved credentials do not prove an active connection.", "credential_observation_unavailable"
-            allowed = actor.allows("write") and source == "postgres_kms"
-            reason_action = None if allowed else "insufficient_role" if not actor.allows("write") else "credentials_managed_externally"
-            operation_pending = bool((state or {}).get("recovery_state", {}).get("credential_operation"))
-            stopped = bool(state and state["desired_state"] == "stopped" and state["control_version"] == state["acknowledged_version"]
-                           and not any((state["recovery_state"] or {}).get(key) for key in ("runtime_active", "halt", "pending_mutations")))
-            if allowed and (operation_pending or not stopped):
-                allowed, reason_action = False, "credential_operation_in_progress" if operation_pending else "bot_must_be_stopped"
-            if allowed and connector not in registry.enabled_connectors:
-                allowed, reason_action = False, "unsupported_connector"
-            writable = actor.allows("write") and source == "postgres_kms"
+            configure_reason, configure_detail = permission_blocker, None
+            if writable:
+                if connector in registry.enabled_connectors:
+                    configure_reason, configure_detail = state_blocker, state_detail
+                else:
+                    configure_reason = "unsupported_connector"
+            if configure_detail is None:
+                configure_detail = MESSAGES[configure_reason] if configure_reason else "Configure or replace while trading is stopped."
             cleanup_capable = getattr(adapter, "disconnect_available", False)
-            can_disconnect = bool(writable and cleanup_capable and row and row["state"] == "active" and not operation_pending)
+            can_disconnect = bool(writable and cleanup_capable and row and row["state"] == "active" and not connection_operation)
             can_retry = bool(writable and cleanup and cleanup.get("stage") in ("action_required", "waiting_for_dependency"))
             slots.append(dict(connector=connector, configured=bool(row and row["state"] != "revoked"), version=row["version"] if row else 0,
                               status=status, label=label, detail=detail, reason_code=reason,
                               changed_at=row["changed_at"] if row else None, changed_by=row["changed_by"] if row else None,
                               operation_id=row["operation_id"] if row else None, observed_at=(state or {}).get("heartbeat") if fresh else None,
                               cleanup_operation_id=cleanup.get("id"), operation_version=cleanup.get("transition") if cleanup else None,
-                              actions={"configure": dict(allowed=allowed, reason_code=reason_action,
-                                       detail="Configure or replace while trading is stopped." if allowed else MESSAGES.get(reason_action, "Check your permission and stop/connection state first.")),
-                                       "disconnect": dict(allowed=can_disconnect, reason_code=None if can_disconnect else "credential_operation_in_progress" if operation_pending else "credentials_not_configured" if writable else "insufficient_role" if not actor.allows("write") else "credentials_managed_externally",
+                              actions={"configure": dict(allowed=configure_reason is None, reason_code=configure_reason, detail=configure_detail),
+                                       "disconnect": dict(allowed=can_disconnect, reason_code=None if can_disconnect else "credential_operation_in_progress" if connection_operation else permission_blocker or "credentials_not_configured",
                                                           detail="Stops trading, cancels bot orders, closes managed perpetual positions and removes only this saved key."),
                                        "retry_cleanup": dict(allowed=can_retry, reason_code=None if can_retry else "credential_operation_in_progress",
                                                              detail="Recheck and resume the same blocked cleanup. Trading remains stopped."),

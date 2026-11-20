@@ -42,10 +42,15 @@ validation and a dedicated operation receipt. Saving never starts trading. Read 
 
 For OKX, submit `credentials: {api_key, secret_key, passphrase}`. These are input-only
 secret fields. Site, Demo/live routing and strategy YAML stay deployment-owned.
-Use the existing Stop workflow first; `bot_must_be_stopped` means its cleanup or
-acknowledgement is incomplete. A new empty managed deployment can onboard without
-an MM session. Existing unbound ledgers require reviewed account binding during
-cutover; the API rejects attempts to silently adopt their history.
+Use the existing Stop workflow first. Enable Set when the slot's
+`actions.configure.allowed` is true and show `actions.configure.detail` when blocked.
+For `bot_must_be_stopped`, the detail tells the operator to Stop, wait for the
+engine to acknowledge Stop, or wait for cleanup. Poll connection status after
+Stop. `recovery_operation_in_progress` means wait for Recovery to finish.
+`recovery_required` means the HALT needs review before Set can proceed. POST
+checks the current state and versions again, so refresh after a conflict.
+A new empty managed deployment can onboard without an MM session. Existing unbound
+ledgers require reviewed account binding during cutover.
 
 Poll the returned operation: `accepted/waiting_for_owner`, `applying/loading`, then
 `succeeded/loaded` or `failed`. Receipt success describes loading, never active MM.
