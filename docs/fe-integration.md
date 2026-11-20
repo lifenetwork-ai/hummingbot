@@ -1586,9 +1586,9 @@ include every pending local order and live tracker in the scope. Use
 review `proposed_uncertain_orders` before Reset. Reset rechecks every ID,
 reports `repaired_uncertain_orders` and applies the whole batch atomically.
 A venue record or missing proof for one ID blocks the entire reset. The
-single-order field and receipt remain supported. An earlier random step of
-the same session can qualify when the original send deadline falls within
-that step and the rest of the proof still agrees.
+single-order field and receipt remain supported. After Stop advances the
+generation, a random order can qualify when its original window is verified
+against the recorded activation of that generation in the same session.
 
 ### Automatic order reconciliation
 

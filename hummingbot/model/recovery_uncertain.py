@@ -5,6 +5,7 @@ from hummingbot.core.automatic_recovery import eligible
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.recovery import RecoveryBlocked, decimal
 from hummingbot.model.market_state import MarketState
+from hummingbot.model.mm_event import MMEvent
 from hummingbot.model.order import Order
 from hummingbot.model.order_status import OrderStatus
 from hummingbot.model.runtime_journal import SubmissionAttempt, digest
@@ -19,8 +20,9 @@ def _require(condition):
         raise RecoveryBlocked('recovery_uncertain_order_scope')
 
 
-def _matches_stopped_session(scope, original, created, deadline):
+def _matches_stopped_session(db, state, original, created, deadline):
     session_id, generation = original
+    scope = state['mm_session'] or {}
     current = scope.get('generation')
     if (scope.get('status') != 'stopped' or scope.get('id') != session_id or not session_id
             or type(generation) is not int or type(current) is not int or not 0 <= generation <= current):
@@ -28,21 +30,24 @@ def _matches_stopped_session(scope, original, created, deadline):
     if generation == current:
         return True
     request = scope.get('request') or {}
-    seconds, step_index = request.get('step_duration_seconds'), scope.get('step_index')
+    seconds, last_step = request.get('step_duration_seconds'), scope.get('step_index')
     started = scope.get('started_at')
     if (request.get('selection') != 'random' or type(seconds) is not int or seconds <= 0
-            or type(step_index) is not int or type(started) not in (int, float)):
+            or type(last_step) is not int or type(started) not in (int, float)):
+        return False
+    # Stop advances the generation without changing the step. A restart can
+    # also skip elapsed steps, so look up the original activated generation.
+    step = db.scalar(select(MMEvent.payload).where(
+        MMEvent.bot_id == state['bot_id'], MMEvent.session_id == session_id, MMEvent.event_type == 'step_started',
+        MMEvent.generation == generation).order_by(MMEvent.id.desc()).limit(1))
+    if not step or step.get('status') != 'running' or step.get('started_at') != started:
+        return False
+    index, ended_at = step.get('step_index'), step.get('step_expires_at')
+    if type(index) is not int or not 0 <= index <= last_step or type(ended_at) not in (int, float):
         return False
     start_ms, step_ms = decimal(started) * 1000, seconds * 1000
-    offset = created - start_ms
-    if offset < 0:
-        return False
-    creation_step = int(offset // step_ms)
-    # Random steps can skip elapsed indices on restart. The original
-    # generation and its valid send deadline must fit the elapsed schedule.
-    return (generation <= creation_step < step_index
-            and step_index - creation_step >= current - generation
-            and deadline <= start_ms + (creation_step + 1) * step_ms)
+    return (start_ms + index * step_ms <= created
+            and deadline <= min(decimal(ended_at) * 1000, start_ms + (index + 1) * step_ms))
 
 
 def candidates(db, state, bindings, checkpoint, anchor, identities):
@@ -88,7 +93,7 @@ def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, r
     _require(type(deadline) is int and anchor['verified_at_ms'] < created <= deadline
              and created <= order['last_update_timestamp'] <= now
              and deadline - created <= 60_000)
-    _require(_matches_stopped_session(state['mm_session'] or {}, context['session'], created, deadline))
+    _require(_matches_stopped_session(db, state, context['session'], created, deadline))
     if now - deadline < SETTLEMENT_GRACE_MS:
         raise RecoveryBlocked('recovery_uncertain_order_wait')
     if now - created >= ORDER_HISTORY_AGE_MS:

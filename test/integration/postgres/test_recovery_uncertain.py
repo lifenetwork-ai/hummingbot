@@ -16,6 +16,7 @@ from hummingbot.core.recovery import RecoveryBlocked
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import ControlConflict
 from hummingbot.model.market_state import MarketState
+from hummingbot.model.mm_event import record_transition
 from hummingbot.model.order import Order
 from hummingbot.model.order_status import OrderStatus
 from hummingbot.model.runtime_journal import RuntimeCheckpoint, SubmissionAttempt, digest
@@ -68,28 +69,36 @@ def test_uncertain_batch_requires_complete_exact_set(recovering, monkeypatch):
         store.operation_snapshot({'uncertain_order_ids': identities})
 
 
-@pytest.mark.parametrize('fault', [None, 'different_session', 'future_generation', 'expired_step'])
+@pytest.mark.parametrize('fault', [None, 'current_step', 'different_session', 'future_generation', 'expired_step', 'missing_step'])
 def test_uncertain_batch_from_earlier_random_step_requires_its_original_send_window(recovering, monkeypatch, fault):
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
     monkeypatch.setenv('OKX_SITE', 'www')
-    store, _ = recovering
+    store, owner = recovering
     identities = seed_uncertain(store, count=2)
     with store.engine.begin() as db:
         scope = db.scalar(select(BotState.mm_session))
         created = db.scalar(select(Order.creation_timestamp).where(Order.id == identities[0]))
-        scope.update(started_at=created / 1000 - 1, step_index=2, generation=2)
-        scope['request'].update(selection='random', step_duration_seconds=30)
+        scope.update(started_at=created / 1000 - 1, status='running', anchors={})
+        scope['request'].update(selection='random', profile_id=None, step_duration_seconds=30,
+                                profile_ids=['follow_market', 'sideways'])
+        original = {**scope, 'step_expires_at': scope['started_at'] + (4 if fault == 'expired_step' else 30)}
+        if fault != 'missing_step':
+            record_transition(db, store.bot_id, {**original, 'status': 'preparing'}, original, 0)
+        step = 0 if fault == 'current_step' else 2
+        scope.update(generation=step, step_index=step, step_expires_at=scope['started_at'] + (step + 1) * 30)
         if fault == 'different_session':
             scope['id'] = 'unrelated-session'
         if fault == 'future_generation':
-            scope['generation'] = 1
             for identity, context in db.execute(select(SubmissionAttempt.order_id, SubmissionAttempt.context)):
-                context['session'][1] = context['executor']['mm_generation'] = 2
+                context['session'][1] = context['executor']['mm_generation'] = 4
                 db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == identity).values(context=context))
-        if fault == 'expired_step':
-            scope['request']['step_duration_seconds'] = 4
-        db.execute(update(BotState).values(mm_session=scope))
-    if fault:
+        db.execute(update(BotState).values(mm_session=scope, desired_state='running'))
+    stopped = store.state.request_mm_session(action='stop', expected_version=0, current_session_id=scope['id'])
+    assert stopped['generation'] == step + 1
+    store.state.update_mm_session(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1,
+                                  session_id=scope['id'], generation=stopped['generation'],
+                                  change=lambda session, _: setattr(session, 'status', 'stopped'))
+    if fault not in (None, 'current_step'):
         with pytest.raises(RecoveryBlocked, match='recovery_uncertain_order_scope'):
             store.operation_snapshot({'uncertain_order_ids': identities})
     else:
