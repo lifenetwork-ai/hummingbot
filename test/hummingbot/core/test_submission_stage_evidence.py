@@ -131,10 +131,107 @@ def test_quote_milestones_bound_pending_state_and_do_not_link_stale_fills():
     for index in range(80):
         lane = f'lane-{index}'
         tracer.record_quote_marker('quote.sell_fill', f'fill-{index}', lane=lane)
+        tracer.record_quote_handoff(lane, 'first_proposal_at_ns', None, executor=f'executor-{index}')
         tracer.record_quote_marker('quote.sell_send', f'order-{index}', lane=lane)
     assert len(tracer._quote_fills) == len(tracer._quote_sends) == len(tracer.snapshot()['submission_recent']) == 64
+    assert len(tracer._quote_attempts) == 64
     assert tracer.record_quote_marker('quote.sell_open', 'order-0') is None
     assert tracer.record_quote_marker('quote.sell_open', 'order-79')['replaces'] == 'fill-79'
+
+
+@pytest.mark.parametrize('reprice', [False, True])
+@pytest.mark.parametrize('slow', [False, True])
+def test_spot_sell_warning_joins_executor_stages_and_keeps_only_slow_replacements(monkeypatch, reprice, slow):
+    now, records = [10_000_000_000], []
+    tracer = EngineDiagnostics(clock=lambda: now[0], emit=records.append)
+    tracer._started, tracer.loop_thread_id = True, threading.get_ident()
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    config = dict(id='private-first', type='position_executor', connector_name='okx', use_configured_entry_price=True,
+                  mm_session_id='private-session', mm_generation=1, controller_id='private-controller',
+                  trading_pair='BTC-USDT', level_id='sell_0')
+    executor = SimpleNamespace(config=config, _completed_entry_fill_timestamp=lambda: 1)
+    diagnostic.observe_spot_sell_fill(executor, 'private-original')
+    diagnostic.observe_spot_sell_handoff(config, 'first_proposal_at_ns')
+    first_proposal = now[0]
+    if reprice:
+        now[0] += 1_000_000
+        diagnostic.observe_spot_sell_executor(config, 'created')
+        with gates.session_order_scope('private-session', 1, executor=config):
+            diagnostic.observe_spot_sell_submit('private-rejected-order')
+        diagnostic.observe_spot_sell_executor(config, 'rejected', 'private-rejected-order', reason='QuoteRefreshRequired')
+        now[0] += 1_400_000_000 if slow else 40_000_000
+        config = dict(config, id='private-replacement')
+        diagnostic.observe_spot_sell_handoff(config, 'first_proposal_at_ns')
+    proposal = now[0]
+    now[0] += 1_300_000_000 if slow and not reprice else 3_000_000
+    diagnostic.observe_spot_sell_executor(config, 'created')
+    order = SimpleNamespace(client_order_id='private-worked', exchange_order_id='private-native',
+                            amount=1, executed_amount_base=0)
+    request = SimpleNamespace(throttler_limit_id='/api/v5/trade/order', method=RESTMethod.POST, is_auth_required=True,
+                              data=json.dumps(dict(clOrdId=order.client_order_id, side='sell', ordType='post_only')))
+    with gates.session_order_scope('private-session', 1, executor=config):
+        diagnostic.observe_spot_sell_submit(order.client_order_id)
+        submitted = now[0]
+        diagnostic.observe_spot_sell_dispatch(request)
+    now[0] += 40_000_000
+    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), order)
+    for _ in range(65):
+        with tracer.span('order.intent', order='private-other-order'):
+            pass
+
+    assert not records
+    tracer._beat_ns = now[0]
+    tracer.watch_once()
+    tracer.watch_once()
+    warnings = [row for row in records if row['event'] == 'spot_sell_replacement_slow']
+    assert len(warnings) == int(slow)
+    if slow:
+        warning, = warnings
+        case, = warning['replacements']
+        assert case['first_proposal_at_ns'] == first_proposal
+        assert case['replacement_proposal_at_ns'] == proposal
+        assert case['replacement_created_at_ns'] == submitted
+        assert case['replacement_submit_at_ns'] == submitted
+        assert case['first_proposal_executor'] == diagnostic._identity('private-first')
+        assert case['replacement_executor'] == diagnostic._identity(config['id'])
+        assert case['proposal_count'] == case['submit_count'] == 1 + int(reprice)
+        if reprice:
+            assert case['last_rejection']['reason_code'] == 'quote_refresh_required'
+            assert case['last_rejection']['executor'] == case['first_proposal_executor']
+        else:
+            assert 'last_rejection' not in case
+        assert 'private-' not in json.dumps(warning)
+
+
+def test_slow_replacement_warnings_batch_and_bound_retention():
+    now, records = [10_000_000_000], []
+    tracer = EngineDiagnostics(clock=lambda: now[0], emit=records.append)
+    tracer._started = True
+
+    def replace(index):
+        lane, executor, order = f'lane-{index}', f'candidate-{index}', f'quote-{index}'
+        original = f'filled-{index}'
+        tracer.record_quote_marker('quote.sell_fill', original, lane=lane)
+        tracer.record_quote_handoff(lane, 'first_proposal_at_ns', None, executor=executor)
+        now[0] += 1_000_000_000
+        tracer.record_quote_attempt(executor, 'submitted', order)
+        tracer.record_quote_marker('quote.sell_send', order, lane=lane, executor=executor)
+        tracer.record_quote_marker('quote.sell_open', order)
+
+    def warnings():
+        tracer._beat_ns = now[0]
+        tracer.watch_once()
+        return [row for row in records if row['event'] == 'spot_sell_replacement_slow']
+
+    replace(0)
+    first, = warnings()
+    for index in range(1, 11):
+        replace(index)
+    assert warnings() == [first]
+    now[0] = first['at_ns'] + 30_000_000_000
+    _, next_batch = warnings()
+    assert next_batch['dropped'] == 2
+    assert [row['order'] for row in next_batch['replacements']] == [f'quote-{i}' for i in range(3, 11)]
 
 
 def test_eight_order_burst_retains_all_five_phases_before_next_batch():

@@ -47,6 +47,14 @@ _SUBMISSION_TIMING_OPERATIONS = {
 }
 _QUOTE_LIMIT = 64
 _QUOTE_LINK_TTL_NS = 120_000_000_000
+_QUOTE_SLOW_NS = 1_000_000_000
+_QUOTE_WARNING_INTERVAL_NS = 30_000_000_000
+_QUOTE_REJECTION_CODES = {
+    'QuoteRefreshRequired': 'quote_refresh_required',
+    'MarketReadinessBlocked': 'market_readiness_blocked',
+    'SessionSubmissionBlocked': 'session_submission_blocked',
+    'SubmissionBlocked': 'submission_blocked',
+}
 _QUOTE_HANDOFF_TIMINGS = frozenset({
     'fill_report_at_ns', 'account_wait_at_ns', 'account_ready_at_ns', 'handoff_requested_at_ns',
     'checkpoint_started_at_ns', 'checkpoint_committed_at_ns', 'release_report_at_ns', 'first_proposal_at_ns',
@@ -155,6 +163,10 @@ def _spot_sell_lane(config, *, controller_id=None):
     return hashlib.sha256(json.dumps((*identifiers, generation), separators=(',', ':')).encode()).hexdigest()[:16]
 
 
+def _executor_identity(config):
+    return _identity(config.get('id') if isinstance(config, dict) else getattr(config, 'id', None))
+
+
 def observe_spot_sell_fill(executor, order_id):
     tracer = _ACTIVE
     if tracer is not None:
@@ -173,7 +185,28 @@ def observe_spot_sell_handoff(config, field, order_id=None, *, controller_id=Non
         try:
             lane = _spot_sell_lane(config, controller_id=controller_id)
             if lane:
-                tracer.record_quote_handoff(lane, field, _identity(order_id))
+                executor = _executor_identity(config) if field == 'first_proposal_at_ns' else None
+                tracer.record_quote_handoff(lane, field, _identity(order_id), executor=executor)
+        except Exception:
+            pass
+
+
+def observe_spot_sell_executor(config, stage, order_id=None, *, reason=None):
+    tracer = _ACTIVE
+    if tracer is not None:
+        try:
+            executor = _executor_identity(config)
+            if executor:
+                tracer.record_quote_attempt(executor, stage, _identity(order_id), reason=reason)
+        except Exception:
+            pass
+
+
+def observe_spot_sell_submit(order_id):
+    if _ACTIVE is not None:
+        try:
+            from hummingbot.core.order_submission_guard import current_executor_scope
+            observe_spot_sell_executor(current_executor_scope(), 'submitted', order_id)
         except Exception:
             pass
 
@@ -209,12 +242,13 @@ def observe_spot_sell_dispatch(request):
                 or not request.is_auth_required or not isinstance(request.data, str) or len(request.data) > 2048):
             return None
         from hummingbot.core.order_submission_guard import current_executor_scope
-        lane = _spot_sell_lane(current_executor_scope())
+        config = current_executor_scope()
+        lane = _spot_sell_lane(config)
         if lane:
             data = json.loads(request.data)
             order = _identity(data.get('clOrdId'))
             if order and data.get('side') == 'sell' and data.get('ordType') == 'post_only':
-                marker = tracer.record_quote_marker('quote.sell_send', order, lane=lane)
+                marker = tracer.record_quote_marker('quote.sell_send', order, lane=lane, executor=_executor_identity(config))
                 if marker is not None:
                     return tracer, marker
     except Exception:
@@ -264,7 +298,10 @@ def trace_runtime(operation, *, order_parameter=None):
 
         def token(tracer, args, kwargs):
             try:
-                return tracer.begin(operation, **fields(args, kwargs))
+                metadata = fields(args, kwargs)
+                if operation == 'order.submit' and metadata['order']:
+                    observe_spot_sell_submit(metadata['order'])
+                return tracer.begin(operation, **metadata)
             except Exception:
                 return None  # Metadata is never permission to fail a business operation.
 
@@ -317,6 +354,10 @@ class EngineDiagnostics:
         self._shutdown_recent = deque(maxlen=32)
         self._submission_recent = deque(maxlen=64)
         self._quote_fills, self._quote_sends = {}, {}
+        self._quote_attempts = {}
+        self._slow_quotes = deque(maxlen=8)
+        self._dropped_slow_quotes = 0
+        self._last_quote_warning_ns = -_QUOTE_WARNING_INTERVAL_NS
         self._submission_completed = self._submission_published = 0
         self._last_submission_emitted_ns = -2_000_000_000
         self.sequence = self.dropped_spans = self.sink_errors = 0
@@ -407,18 +448,45 @@ class EngineDiagnostics:
         row['completion_sequence'] = self._submission_completed
         self._submission_recent.append(row)
 
-    def record_quote_handoff(self, lane, field, order):
+    def record_quote_handoff(self, lane, field, order, *, executor=None):
         """Retain first observations for one already sampled, filled level."""
         if field not in _QUOTE_HANDOFF_TIMINGS:
             return
         now = self.clock()
         with self.lock:
             fill = self._quote_fills.get(lane)
-            if (not self._closed and fill is not None and 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS
-                    and (order == fill[0] or field == 'first_proposal_at_ns' and order is None)):
-                fill[2].setdefault(field, now)
+            if (self._closed or fill is None or not 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS
+                    or not (order == fill[0] or field == 'first_proposal_at_ns' and order is None)):
+                return
+            timings = fill[2]
+            timings.setdefault(field, now)
+            if field == 'first_proposal_at_ns' and executor and executor not in self._quote_attempts:
+                timings.setdefault('first_proposal_executor', executor)
+                timings['proposal_count'] = timings.get('proposal_count', 0) + 1
+                if len(self._quote_attempts) >= _QUOTE_LIMIT:
+                    del self._quote_attempts[next(iter(self._quote_attempts))]
+                self._quote_attempts[executor] = dict(lane=lane, replaces=fill[0], replacement_proposal_at_ns=now)
 
-    def record_quote_marker(self, operation, order, *, lane=None, sent=None):
+    def record_quote_attempt(self, executor, stage, order, *, reason=None):
+        now = self.clock()
+        with self.lock:
+            attempt = self._quote_attempts.get(executor)
+            if self._closed or attempt is None:
+                return
+            fill = self._quote_fills.get(attempt['lane'])
+            if fill is None or fill[0] != attempt['replaces'] or not 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS:
+                return
+            timings = fill[2]
+            if stage == 'created':
+                attempt.setdefault('replacement_created_at_ns', now)
+            elif stage == 'submitted' and order and order != attempt.get('order'):
+                attempt.update(order=order, replacement_submit_at_ns=now)
+                timings['submit_count'] = timings.get('submit_count', 0) + 1
+            elif stage == 'rejected' and order and order == attempt.get('order'):
+                timings['last_rejection'] = dict(executor=executor, order=order, at_ns=now,
+                                                 reason_code=_QUOTE_REJECTION_CODES.get(reason, 'order_failure'))
+
+    def record_quote_marker(self, operation, order, *, lane=None, sent=None, executor=None):
         """Retain opaque quote milestones on the existing watchdog stream."""
         now = self.clock()
         with self.lock:
@@ -438,7 +506,11 @@ class EngineDiagnostics:
                 evidence.update(fill_at_ns=None, sent_at_ns=now, http_response_at_ns=None)
                 if fill and 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS and fill[0] != order:
                     evidence.update(replaces=fill[0], fill_at_ns=fill[1])
-                    timings = fill[2]
+                    timings = dict(fill[2])
+                    attempt = self._quote_attempts.get(executor)
+                    if attempt and (attempt['lane'], attempt['replaces'], attempt.get('order')) == (lane, fill[0], order):
+                        timings['replacement_executor'] = executor
+                        timings.update({key: value for key, value in attempt.items() if key.endswith('_at_ns')})
                 if order not in self._quote_sends and len(self._quote_sends) >= _QUOTE_LIMIT:
                     del self._quote_sends[next(iter(self._quote_sends))]
                 self._quote_sends[order] = {**evidence, **timings}
@@ -459,6 +531,11 @@ class EngineDiagnostics:
                 return None
             row = dict(operation=operation, at_ns=now, order=order, **evidence)
             self._retain_submission(row)
+            if (operation == 'quote.sell_open' and 'replacement_submit_at_ns' in row and 'first_proposal_at_ns' in row
+                    and row['replacement_submit_at_ns'] - row['first_proposal_at_ns'] >= _QUOTE_SLOW_NS):
+                if len(self._slow_quotes) == self._slow_quotes.maxlen:
+                    self._dropped_slow_quotes += 1
+                self._slow_quotes.append(row)
             return row
 
     @contextmanager
@@ -548,6 +625,18 @@ class EngineDiagnostics:
             with self.lock:
                 self._submission_published = last
 
+    def _publish_slow_quotes(self, now):
+        if not self._slow_quotes or now - self._last_quote_warning_ns < _QUOTE_WARNING_INTERVAL_NS:
+            return
+        with self.lock:
+            replacements = list(self._slow_quotes)
+            dropped = self._dropped_slow_quotes
+            self._slow_quotes.clear()
+            self._dropped_slow_quotes = 0
+        self._last_quote_warning_ns = now
+        self._deliver(dict(event='spot_sell_replacement_slow', at_ns=now, wall_time_ns=time.time_ns(),
+                           process_id=os.getpid(), replacements=replacements, dropped=dropped))
+
     def _read_scheduler(self):
         if self._loop_native_tid is None:
             return {}
@@ -636,6 +725,7 @@ class EngineDiagnostics:
         beat, now = self._beat_ns, self.clock()
         self._sample_scheduler(now)
         self._publish_submissions(now)
+        self._publish_slow_quotes(now)
         if beat != self._beat_ns:
             return  # The loop advanced while this diagnostic thread was descheduled.
         gap_ms = (now - beat) / 1e6

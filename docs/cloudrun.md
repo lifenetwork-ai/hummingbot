@@ -311,6 +311,13 @@ the same strategy level and generation. The emitted order and level identities
 are hashed. Compare the linked timestamps with the controller's quote reason
 and side coverage when evaluating an interruption.
 
+`spot_sell_replacement_slow` is a WARNING for a fill-linked Spot SELL replacement
+when the first proposal on that level precedes the working replacement's submit
+by at least one second. It records hashed executor identities, the successful
+executor's proposal, creation and submit times, and any observed prior rejection.
+The watchdog keeps up to eight cases per batch and publishes at most once every
+30 seconds. This event uses the existing engine diagnostics flag.
+
 Project sink exclusions can discard these INFO events and correlated successful
 `Admin status read` records after the service emits them. Check Log Router when
 headers carry timing but successful server logs are missing. Exempt only the

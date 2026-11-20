@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Union
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.order_candidate import OrderCandidate, PerpetualOrderCandidate
-from hummingbot.core.engine_diagnostics import observe_spot_sell_fill
+from hummingbot.core.engine_diagnostics import observe_spot_sell_executor, observe_spot_sell_fill
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
     BuyOrderCreatedEvent,
@@ -824,6 +824,7 @@ class PositionExecutor(ExecutorBase):
         """
         self._notify_shutdown_order_change(event.order_id)
         if self._open_order and event.order_id == self._open_order.order_id:
+            observe_spot_sell_executor(self.config, 'rejected', event.order_id, reason=event.error_type)
             session_closed = (event.error_type == 'SessionSubmissionBlocked'
                               and getattr(self.config, 'mm_session_id', None) is not None
                               and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
