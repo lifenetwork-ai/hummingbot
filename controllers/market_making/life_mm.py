@@ -3,7 +3,7 @@ import asyncio
 import math
 import time
 from copy import deepcopy
-from decimal import ROUND_DOWN, Decimal, localcontext
+from decimal import ROUND_CEILING, ROUND_DOWN, Decimal, localcontext
 from typing import Dict, List, Literal, Optional
 
 from async_timeout import timeout
@@ -22,7 +22,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.utils.inventory_skew import InventorySkewConfig, inventory_skew_ratios
 from hummingbot.strategy_v2.utils.listing_bootstrap import ListingBootstrap
 from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig, prepare_natr
-from hummingbot.strategy_v2.utils.perpetual_reduction import InventoryReductionConfig
+from hummingbot.strategy_v2.utils.perpetual_reduction import InventoryReductionConfig, PerpetualExposureBudget
 from hummingbot.strategy_v2.utils.perpetual_reduction_runtime import PerpetualReductionMixin, quote_price
 from hummingbot.strategy_v2.utils.quote_guard import (
     MarketObservation,
@@ -80,6 +80,7 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
     max_long_base: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     max_short_base: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
     max_gross_base: Optional[Decimal] = Field(default=None, gt=0, allow_inf_nan=False)
+    perpetual_exposure_budget: Optional[PerpetualExposureBudget] = Field(default_factory=lambda: None)
     skip_rebalance: bool = True
     stop_loss: Optional[Decimal] = None
     take_profit: Optional[Decimal] = None
@@ -107,10 +108,14 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
             values.pop('quote_refresh_max_delay_seconds', None)
         if self.inventory_reduction.mode == 'disabled':
             values.pop('inventory_reduction', None)
+        if self.perpetual_exposure_budget is None:
+            values.pop('perpetual_exposure_budget', None)
         return values
 
     @model_validator(mode="after")
     def validate_mm_policy(self):
+        if self.perpetual_exposure_budget is not None and self.inventory_reduction.mode != 'close_first':
+            raise ValueError('Perpetual exposure budget requires close-first reduction')
         if self.inventory_reduction.mode == 'close_first' and (
                 self.connector_name != 'okx_perpetual' or not self.quote_guards.enabled
                 or not self.spread_policy.enabled or self.initial_positions):
@@ -177,9 +182,11 @@ class LifeMMConfig(pmm_simple.PMMSimpleConfig):
             raise ValueError("Use HEDGE; spot leverage must be 1")
         if self.connector_name == "okx" and self.max_base_inventory is None:
             raise ValueError("Spot requires max_base_inventory")
-        if self.connector_name == "okx_perpetual" and any(
-                cap is None for cap in (self.max_long_base, self.max_short_base, self.max_gross_base)):
-            raise ValueError("Perpetual requires long, short and gross exposure caps")
+        if self.connector_name == "okx_perpetual":
+            if self.max_gross_base is None:
+                raise ValueError("Perpetual requires max_gross_base")
+            if self.perpetual_exposure_budget is None and (self.max_long_base is None or self.max_short_base is None):
+                raise ValueError("Perpetual requires long, short and gross exposure caps in fixed mode")
         if not self.skip_rebalance or any(value is not None for value in (
                 self.stop_loss, self.take_profit, self.time_limit, self.trailing_stop)):
             raise ValueError("LIFE MM preserves positions; automatic rebalance and exit barriers must be disabled")
@@ -220,6 +227,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                            if config.quote_guards.mode == "bootstrap_then_market" else None)
         self._inventory_factors = (Decimal("1"), Decimal("1"), Decimal("1"))
         self._inventory_status = None
+        self._inventory_sell_floor = None
         self._life_anchor = config.saved_life_anchor
         self._source_anchors = dict(config.saved_source_anchors)
         self._stops_requested = set()
@@ -538,15 +546,15 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 raise ValueError("Inventory cash observations are stale")
             base, quote = Decimal(str(base["cash_balance"])), Decimal(str(quote["cash_balance"]))
             price = self._inventory_valuation_price(guard_status)
-            levels = [(self.get_trade_type_from_level_id(level), *self._baseline_price_and_amount(level))
+            levels = [(level, self.get_trade_type_from_level_id(level), *self._baseline_price_and_amount(level))
                       for level in self.get_not_active_levels_ids([])]
             portfolio_value = base * price + quote
             if self.config.inventory_skew.inventory_range_pct is not None:
                 base_range = portfolio_value * self.config.inventory_skew.inventory_range_pct / price
             else:
-                base_range = sum((amount for _, _, amount in levels), Decimal("0")) * self.config.inventory_skew.inventory_range_multiplier
+                base_range = sum((amount for _, _, _, amount in levels), Decimal("0")) * self.config.inventory_skew.inventory_range_multiplier
             buy, sell = inventory_skew_ratios(base, quote, price, self.config.inventory_skew.target_base_pct, base_range)
-            proposed = sum((p * amount * (buy if side == TradeType.BUY else sell) for side, p, amount in levels), Decimal("0"))
+            proposed = sum((p * amount * (buy if side == TradeType.BUY else sell) for _, side, p, amount in levels), Decimal("0"))
             with localcontext() as context:
                 context.rounding = ROUND_DOWN
                 scale = min(Decimal("1"), self._quote_budget() / proposed) if proposed > 0 else Decimal("1")
@@ -555,11 +563,76 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                                           inventory_range_pct=min(base_range * price / portfolio_value, Decimal('.5')),
                                           valuation_price=price, cash_quote=quote, base_cash=base, buy_multiplier=buy, sell_multiplier=sell,
                                           budget_scale=scale, balance_observed_at=min(stamps))
+            if self._inside_sell_band():
+                self._inventory_sell_floor = self._minimum_spot_sell_plan(connector, levels)
         except Exception:
             # This optional enhancement never restarts the controller or weakens
             # the ordinary balance, exposure, price or owner/send checks.
             pass
         self.processed_data["inventory_skew"] = self._inventory_status
+
+    def _inside_sell_band(self):
+        status = self._inventory_status or {}
+        return (status.get('state') == 'active' and status.get('range_mode') == 'portfolio_pct'
+                and status['base_pct'] > status['target_base_pct'] - status['inventory_range_pct'])
+
+    def _minimum_spot_sell_plan(self, connector, levels):
+        """Consolidate dusty SELL levels, borrowing only the missing quote from BUY."""
+        buy, sell, scale = self._inventory_factors
+        if not 0 < sell < buy:
+            return None
+        if self._bootstrap is not None and not self._bootstrap.market_qualified:
+            return None
+        pair = self.config.trading_pair
+        try:
+            rule = connector.trading_rules[pair]
+            planned_sells = [(level, price, amount) for level, side, price, amount in levels
+                             if side == TradeType.SELL and amount > 0]
+            if not planned_sells or not rule.min_base_amount_increment.is_finite() or rule.min_base_amount_increment <= 0:
+                return None
+            sell_budget = Decimal(0)
+            for _, price, amount in planned_sells:
+                raw_amount = amount * sell * scale
+                rounded_price, _, quantity = self._rounded_open_entry(connector, TradeType.SELL, price, raw_amount)
+                if self._meets_order_minimum(rule, rounded_price, quantity):
+                    return None
+                sell_budget += price * raw_amount
+            level, price, unskewed_amount = min(planned_sells, key=lambda row: row[1])
+            unskewed_quote = price * unskewed_amount
+            passive_price = self._passive_entry_price(TradeType.SELL, price)
+            price = self._rounded_entry_price(connector, TradeType.SELL, passive_price, round_sell_up=True)
+            if price < passive_price or not self.quote_price_valid(price):
+                return None
+            lot = rule.min_base_amount_increment
+            with localcontext() as context:
+                context.rounding = ROUND_CEILING
+                quantity = max(Decimal(1), rule.min_order_size / lot,
+                               rule.min_notional_size / (price * lot)).to_integral_value() * lot
+            if (quantity > rule.max_order_size or connector.quantize_order_amount(pair, quantity) != quantity
+                    or not self._meets_order_minimum(rule, price, quantity)):
+                return None
+            cost = price * quantity
+            planned_buys = [(price, amount * buy * scale) for _, side, price, amount in levels if side == TradeType.BUY]
+            buy_budget = sum((price * amount for price, amount in planned_buys), Decimal(0))
+            extra = max(Decimal(0), cost - sell_budget)
+            # This repairs rounding dust. A level that is unfundable even
+            # at its normal allocation still needs an operator budget change.
+            if cost > unskewed_quote or extra >= buy_budget:
+                return None
+            with localcontext() as context:
+                context.rounding = ROUND_DOWN
+                buy_scale = (buy_budget - extra) / buy_budget
+            if extra:
+                # Do not transfer a deficit only to leave BUY below the venue minimum.
+                for buy_price, buy_amount in planned_buys:
+                    bid, raw, rounded = self._rounded_open_entry(connector, TradeType.BUY, buy_price, buy_amount * buy_scale)
+                    if rounded <= raw and self._meets_order_minimum(rule, bid, rounded):
+                        break
+                else:
+                    return None
+            return level, price, quantity, buy_scale
+        except (ArithmeticError, AttributeError, EnvironmentError, KeyError, TypeError, ValueError):
+            return None
 
     def _quote_budget(self):
         base = (self.config.quote_guards.bootstrap.max_quote
@@ -571,6 +644,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         guard_status = None
         self._inventory_factors = (Decimal("1"), Decimal("1"), Decimal("1"))
         self._inventory_status = None
+        self._inventory_sell_floor = None
         spread_multiplier = self.processed_data.get("spread_multiplier", Decimal("1"))
         try:
             if not self._account_ready:
@@ -932,11 +1006,13 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             raise ValueError("Invalid account exposure")
         return long, short
 
-    def _within_caps(self, long, short):
+    def _within_caps(self, long, short, *, limits=None):
         if self.config.connector_name == "okx":
             return long <= self.config.max_base_inventory
-        return (long <= self.config.max_long_base and short <= self.config.max_short_base
-                and long + short <= self.config.max_gross_base)
+        long_cap, short_cap, gross_cap = limits or (
+            self.config.max_long_base, self.config.max_short_base, self.config.max_gross_base)
+        return ((long_cap is None or long <= long_cap) and (short_cap is None or short <= short_cap)
+                and long + short <= gross_cap)
 
     def exposure_within_caps(self):
         try:
@@ -946,11 +1022,6 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
 
     def create_actions_proposal(self):
         if self.reduction_enabled:
-            from hummingbot.core.order_submission_guard import recovery_side_permitted
-            if not recovery_side_permitted(self.config.connector_name, TradeType.SELL):
-                self._reset_quote_diagnostics()
-                self._quote_reason('uncertain_order_risk_paused')
-                return []
             return self._create_reduction_actions()
         return self._create_actions_proposal()
 
@@ -979,7 +1050,11 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                     executor.status == RunnableStatus.SHUTTING_DOWN for executor in self.executors_info):
                 self._quote_reason('allocation_limit')
                 return []
-            for action in super().create_actions_proposal():
+            actions = super().create_actions_proposal()
+            if self._inventory_sell_floor is not None:
+                floor_level = self._inventory_sell_floor[0]
+                actions.sort(key=lambda action: action.executor_config.level_id != floor_level)
+            for action in actions:
                 config = action.executor_config
                 from hummingbot.core.order_submission_guard import recovery_side_permitted
                 if not recovery_side_permitted(self.config.connector_name, config.side):
@@ -1235,10 +1310,39 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         price, amount = self._baseline_price_and_amount(level_id)
         if self.config.inventory_skew.enabled:
             buy, sell, scale = self._inventory_factors
+            side = self.get_trade_type_from_level_id(level_id)
+            floor = self._inventory_sell_floor
+            if floor is not None and side == TradeType.SELL:
+                sell_level, sell_price, sell_amount, _ = floor
+                return (sell_price, sell_amount) if level_id == sell_level else (price, Decimal(0))
+            status = self._inventory_status or {}
+            if side == TradeType.SELL and status.get('range_mode') == 'portfolio_pct' and status.get('state') == 'active' and not self._inside_sell_band():
+                return price, Decimal(0)
             with localcontext() as context:
                 context.rounding = ROUND_DOWN
-                amount = amount * (buy if self.get_trade_type_from_level_id(level_id) == TradeType.BUY else sell) * scale
+                amount = amount * (buy if side == TradeType.BUY else sell) * scale
+                if floor is not None:
+                    amount *= floor[3]
         return price, amount
+
+    def _rounded_entry_price(self, connector, side, price, *, round_sell_up=False):
+        pair = self.config.trading_pair
+        rounded = connector.quantize_order_price(pair, price)
+        if (round_sell_up or self.config.spread_policy.enabled) and side == TradeType.SELL and rounded < price:
+            rounded = connector.quantize_order_price(pair, rounded + connector.get_order_price_quantum(pair, price))
+        return rounded
+
+    def _rounded_open_entry(self, connector, side, price, amount):
+        rounded = self._rounded_entry_price(connector, side, price)
+        if self.config.spread_policy.enabled and rounded > price:
+            with localcontext() as context:
+                context.rounding = ROUND_DOWN
+                amount = amount * price / rounded
+        return rounded, amount, connector.quantize_order_amount(self.config.trading_pair, amount)
+
+    @staticmethod
+    def _meets_order_minimum(rule, price, quantity):
+        return quantity > 0 and quantity >= rule.min_order_size and price * quantity >= rule.min_notional_size
 
     def get_executor_config(self, level_id, price, amount):
         if self.reduction_enabled:
@@ -1246,41 +1350,43 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         return self._get_open_executor_config(level_id, price, amount)
 
     def _get_open_executor_config(self, level_id, price, amount):
-        if self.config.spread_policy.enabled:
-            connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
-            rounded = connector.quantize_order_price(self.config.trading_pair, price)
-            if self.get_trade_type_from_level_id(level_id) == TradeType.SELL and rounded < price:
-                rounded = connector.quantize_order_price(
-                    self.config.trading_pair, rounded + connector.get_order_price_quantum(self.config.trading_pair, price))
-            if rounded > price:
-                with localcontext() as context:
-                    context.rounding = ROUND_DOWN
-                    amount = amount * price / rounded
-            price = rounded
+        side = self.get_trade_type_from_level_id(level_id)
+        if side == TradeType.SELL and self._inventory_sell_floor is not None and level_id != self._inventory_sell_floor[0]:
+            return None
         if self.config.inventory_skew.enabled or self.config.spread_policy.enabled:
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
-            raw_amount = amount
-            price = connector.quantize_order_price(self.config.trading_pair, price)
-            amount = connector.quantize_order_amount(self.config.trading_pair, amount)
+            price, raw_amount, amount = self._rounded_open_entry(connector, side, price, amount)
             rule = connector.trading_rules[self.config.trading_pair]
-            if (amount <= 0 or amount > raw_amount or amount < rule.min_order_size
-                    or price * amount < rule.min_notional_size):
-                self._quote_reason('order_size_rejected', self.get_trade_type_from_level_id(level_id))
+            if amount > raw_amount or not self._meets_order_minimum(rule, price, amount):
+                reason = 'order_size_rejected'
+                status = self._inventory_status or {}
+                if side == TradeType.SELL and amount <= raw_amount and status.get('state') == 'active' and status.get('range_mode') == 'portfolio_pct':
+                    reason = 'inventory_skew_sell_below_minimum' if self._inside_sell_band() else 'inventory_skew_sell_suppressed'
+                self._quote_reason(reason, side)
                 return None
         if not self.quote_price_valid(price):
-            self._quote_reason('quote_price_rejected', self.get_trade_type_from_level_id(level_id))
+            self._quote_reason('quote_price_rejected', side)
             return None
         if self.config.spread_policy.enabled:
             try:
-                if not self.spread_quote_valid(self.get_trade_type_from_level_id(level_id), price, amount, level_id=level_id):
-                    self._quote_reason('spread_policy_rejected', self.get_trade_type_from_level_id(level_id))
+                if not self.spread_quote_valid(side, price, amount, level_id=level_id):
+                    self._quote_reason('spread_policy_rejected', side)
                     return None
             except ValueError:
-                self._quote_reason('spread_policy_unavailable', self.get_trade_type_from_level_id(level_id))
+                self._quote_reason('spread_policy_unavailable', side)
                 return None
         return super().get_executor_config(level_id, price, amount).model_copy(update={
             "mm_session_id": self.config.mm_session_id, "mm_generation": self.config.mm_generation,
-            "use_configured_entry_price": self.config.spread_policy.enabled or (self._bootstrap is not None and not self._bootstrap.market_qualified)})
+            "use_configured_entry_price": self.config.spread_policy.enabled
+            or (side == TradeType.SELL and self._inventory_sell_floor is not None)
+            or (self._bootstrap is not None and not self._bootstrap.market_qualified)})
+
+    def _passive_entry_price(self, side, price):
+        self._fresh_price(self.config.connector_name, self.config.trading_pair)
+        kind = PriceType.BestBid if side == TradeType.BUY else PriceType.BestAsk
+        maker = Decimal(str(self.market_data_provider.get_price_by_type(
+            self.config.connector_name, self.config.trading_pair, kind)))
+        return min(price, maker) if side == TradeType.BUY else max(price, maker)
 
     def prepare_entry_order(self, original):
         """Refresh a queued first entry before any order identity/intent exists.
@@ -1309,14 +1415,10 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             # configured order at the transport boundary. Empty-book bootstrap
             # retains its explicit seed policy.
             try:
-                self._fresh_price(self.config.connector_name, self.config.trading_pair)
-                kind = PriceType.BestBid if original.side == TradeType.BUY else PriceType.BestAsk
-                maker = Decimal(str(self.market_data_provider.get_price_by_type(
-                    self.config.connector_name, self.config.trading_pair, kind)))
+                price = self._passive_entry_price(original.side, price)
             except (ValueError, ArithmeticError, EnvironmentError, KeyError, TypeError):
                 self._quote_reason('market_price_unavailable', original.side)
                 return None
-            price = min(price, maker) if original.side == TradeType.BUY else max(price, maker)
         with localcontext() as context:
             context.rounding = ROUND_DOWN
             amount = min(amount, original.amount, quote_budget / price)

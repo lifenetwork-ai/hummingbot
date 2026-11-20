@@ -65,15 +65,19 @@ class SpotOutflowBlocked(MarketReadinessBlocked):
 
 
 class SpotOutflowPending(MarketReadinessBlocked):
-    """Cash BUY waits for bounded clock catch-up; partial risk is unavailable."""
+    """Cash BUY waits for clock catch-up or proof of a prior order's outcome."""
 
 
 class QuoteRefreshRequired(SubmissionBlocked):
     """The fresh pre-transport spread check rejected a configured entry quote."""
 
 
-def submission_block_log_context(error_type):
+def submission_block_log_context(error_type, error_message=None):
     """Classify the existing failure-event type; unknown failures stay errors."""
+    if error_type == "SpotOutflowPending" and error_message == "spot_outflow_reconciling":
+        return logging.WARNING, "spot_outflow_reconciling"
+    if error_type == "QuoteRefreshRequired" and error_message == "exchange_price_limit":
+        return logging.WARNING, "exchange_price_limit"
     return {
         "SessionSubmissionBlocked": (logging.INFO, "session_submission_closed"),
         "MarketReadinessBlocked": (logging.WARNING, "market_not_ready"),
@@ -123,13 +127,14 @@ async def after_rest(context, response) -> None:
             await guard.record_transport_receipt(request, response)
 
 
-def failed_rest(context) -> None:
+async def failed_rest(context) -> None:
     if context is not None:
         guard, token, request = context
-        if token is not None:
-            guard.account_mutation_failed(token)
-        else:
-            guard.mutation_transport_failed(request)
+        async with guard.order_write_scope():
+            if token is not None:
+                guard.account_mutation_failed(token)
+            else:
+                guard.mutation_transport_failed(request)
 
 
 def completed_rest(context) -> None:
@@ -165,8 +170,12 @@ def terminal_proof_conflict(reason):
     _guard.require_recovery(reason)
 
 
-def cancel_failed(connector, order):
-    return postgres_requested() and _guard is not None and _guard.cancel_failed(connector, order)
+async def cancel_failed(connector, order):
+    guard = _guard
+    if not postgres_requested() or guard is None:
+        return False
+    async with guard.order_write_scope():
+        return _guard is not guard or guard.cancel_failed(connector, order)
 
 
 def order_failed(connector, order, exception=None) -> bool:
@@ -177,6 +186,16 @@ def order_failed(connector, order, exception=None) -> bool:
         else:
             return bool(_guard.order_failed(connector, order, exception))
     return False
+
+
+async def resolve_order_failure(connector, order, exception=None) -> bool:
+    guard = _guard
+    if not postgres_requested() or guard is None:
+        return False
+    async with guard.order_write_scope():
+        if _guard is not guard:
+            return True  # The next owner resolves any retained effects.
+        return order_failed(connector, order, exception)
 
 
 def fill_committed(row) -> None:

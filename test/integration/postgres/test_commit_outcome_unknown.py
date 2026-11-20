@@ -12,14 +12,17 @@ from test.integration.postgres.test_recorder import fill, recording as recording
 
 import pytest
 
+from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
+from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.event.events import MarketEvent
 from hummingbot.core.order_submission_guard import SubmissionBlocked
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.order import Order
 from hummingbot.model.order_status import OrderStatus
 from hummingbot.model.position import Position
+from hummingbot.model.runtime_journal import SubmissionAttempt
 from hummingbot.model.trade_fill import TradeFill
 
 recording = recording_fixture
@@ -73,7 +76,113 @@ async def cut_commit(engine, mode, committed):
 
 
 @pytest.mark.parametrize('committed', [False, True], ids=['commit-not-delivered', 'commit-reply-lost'])
-@pytest.mark.parametrize('mode', ['intent', 'fill', 'cleanup'])
+def test_terminal_commit_loss_has_one_durable_outcome_after_restart(recording, committed):
+    recorder, manager, market = recording
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(cut_commit(manager.engine, 'terminal', committed))
+
+    with manager.get_new_session() as session:
+        order = session.get(Order, 'order-1')
+        assert order.last_status == ('OrderCancelled' if committed else 'BuyOrderCreated')
+        attempt = session.get(SubmissionAttempt, 'order-1')
+        assert attempt.state == ('terminal' if committed else 'acknowledged')
+        saved = session.query(MarketState).one().saved_state
+        assert saved['order-1']['last_state'] == str((OrderState.CANCELED if committed else OrderState.OPEN).value)
+        assert session.query(OrderStatus).filter_by(status='OrderCancelled').count() == int(committed)
+
+    tracker = ClientOrderTracker(market)
+    market.restore_tracking_states.side_effect = tracker.restore_tracking_states
+    market.current_timestamp = 1700000002
+
+    def record_terminal(event, payload):
+        market.tracking_states = {order_id: order.to_json() for order_id, order in tracker.active_orders.items()}
+        recorder._did_cancel_order(event.value, market, payload)
+
+    market.trigger_event.side_effect = record_terminal
+    recorder.restore_market_states('test.yml', market)
+    assert ('order-1' in tracker.active_orders) is not committed
+    update = OrderUpdate('BTC-USDT', 1700000002, OrderState.CANCELED, 'order-1', 'exchange-1')
+    for _ in range(2):
+        loop.run_until_complete(tracker.process_order_update(update))
+    assert market.trigger_event.call_count == int(not committed)
+    assert 'order-1' not in tracker.active_orders
+    with manager.get_new_session() as session:
+        assert session.get(Order, 'order-1').last_status == 'OrderCancelled'
+        assert session.get(SubmissionAttempt, 'order-1').state == 'terminal'
+        assert session.query(OrderStatus).filter_by(status='OrderCancelled').count() == 1
+        assert session.query(MarketState).one().saved_state['order-1']['last_state'] == str(OrderState.CANCELED.value)
+        assert session.query(TradeFill).count() == 0
+
+
+@pytest.mark.parametrize('committed', [False, True], ids=['commit-not-delivered', 'commit-reply-lost'])
+def test_async_creation_ack_commit_loss_replays_once_after_restart(recording, committed):
+    recorder, manager, market = recording
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(cut_commit(manager.engine, 'async-ack', committed))
+
+    with manager.get_new_session() as session:
+        assert session.get(Order, 'order-1').creation_pending is not committed
+        assert session.get(SubmissionAttempt, 'order-1').state == ('acknowledged' if committed else 'prepared')
+        state = session.query(MarketState).one().saved_state['order-1']['last_state']
+        assert state == str((OrderState.OPEN if committed else OrderState.PENDING_CREATE).value)
+        assert session.query(OrderStatus).filter_by(status='BuyOrderCreated').count() == int(committed)
+
+    tracker = ClientOrderTracker(market)
+    market.restore_tracking_states.side_effect = tracker.restore_tracking_states
+    market.current_timestamp = 1700000002
+
+    def dispatch(tag, payload):
+        market.tracking_states = {identity: order.to_json() for identity, order in tracker.active_orders.items()}
+        recorder._did_create_order(tag.value, market, payload)
+
+    market.trigger_event.side_effect = dispatch
+    recorder.restore_market_states('test.yml', market)
+    update = OrderUpdate('BTC-USDT', 1700000002, OrderState.OPEN, 'order-1', 'exchange-1')
+    for _ in range(2):
+        loop.run_until_complete(tracker.process_order_update(update))
+    assert tracker.active_orders['order-1'].current_state is OrderState.OPEN
+    assert market.trigger_event.call_count == int(not committed)
+    with manager.get_new_session() as session:
+        assert session.get(Order, 'order-1').exchange_order_id == 'exchange-1'
+        assert session.get(SubmissionAttempt, 'order-1').state == 'acknowledged'
+        assert session.query(OrderStatus).filter_by(status='BuyOrderCreated').count() == 1
+
+
+@pytest.mark.parametrize('committed', [False, True], ids=['commit-not-delivered', 'commit-reply-lost'])
+def test_async_fill_commit_loss_replays_once_after_restart(recording, committed):
+    recorder, manager, market = recording
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(cut_commit(manager.engine, 'async-fill', committed))
+
+    evt = fill()
+    with manager.get_new_session() as session:
+        assert session.query(TradeFill).count() == int(committed)
+        saved = session.query(MarketState).one().saved_state['order-1']
+        assert Decimal(saved['executed_amount_base']) == (evt.amount if committed else 0)
+
+    tracker = ClientOrderTracker(market)
+    market.restore_tracking_states.side_effect = tracker.restore_tracking_states
+    market.current_timestamp = 1700000001
+
+    def dispatch(event, payload):
+        market.tracking_states = {order_id: order.to_json() for order_id, order in tracker.active_orders.items()}
+        recorder._did_fill_order(event.value, market, payload)
+
+    market.trigger_event.side_effect = dispatch
+    recorder.restore_market_states('test.yml', market)
+    update = TradeUpdate(evt.exchange_trade_id, evt.order_id, 'exchange-1', evt.trading_pair, evt.timestamp,
+                         evt.price, evt.amount, evt.amount * evt.price, evt.trade_fee)
+    for _ in range(2):
+        loop.run_until_complete(tracker.apply_trade_update(update))
+    assert tracker.active_orders['order-1'].executed_amount_base == evt.amount
+    assert market.trigger_event.call_count == int(not committed)
+    with manager.get_new_session() as session:
+        assert session.query(TradeFill).count() == 1
+        assert session.query(OrderStatus).filter_by(status='OrderFilled').count() == 1
+
+
+@pytest.mark.parametrize('committed', [False, True], ids=['commit-not-delivered', 'commit-reply-lost'])
+@pytest.mark.parametrize('mode', ['intent', 'async-intent', 'fill', 'cleanup'])
 def test_network_loss_at_commit_keeps_gate_closed_and_restart_reads_durable_truth(recording, mode, committed):
     recorder, manager, market = prepare(recording) if mode == 'cleanup' else recording
     if mode == 'cleanup':
@@ -85,7 +194,7 @@ def test_network_loss_at_commit_keeps_gate_closed_and_restart_reads_durable_trut
     # This manager/recorder is in the parent process: no child-side session/cache
     # or success acknowledgement can influence its independent PostgreSQL read.
     with manager.get_new_session() as session:
-        assert session.query(TradeFill).count() == (int(committed) if mode != 'intent' else 0)
+        assert session.query(TradeFill).count() == (int(committed) if mode not in ('intent', 'async-intent') else 0)
         if mode == 'cleanup':
             position = session.get(Position, 'long-hold')
             assert position.amount == (Decimal('.2') if committed else Decimal('.3'))
@@ -96,7 +205,7 @@ def test_network_loss_at_commit_keeps_gate_closed_and_restart_reads_durable_trut
         else:
             for model in (Order, OrderStatus, MarketState):
                 assert session.query(model).count() == int(committed)
-    if mode == 'intent':
+    if mode in ('intent', 'async-intent'):
         successor = BotOwnership(manager.engine, 'hummingbot')
         assert successor.try_acquire()
         try:

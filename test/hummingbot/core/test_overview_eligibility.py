@@ -126,6 +126,21 @@ def test_readiness_and_old_or_unproven_proposals_are_not_funding_evidence():
     assert eligibility(observation, now=1000, running=True) == 'unknown'
 
 
+def test_spot_skew_size_failure_does_not_exclude_a_missing_sell_from_the_slo():
+    from hummingbot.core.overview_coverage import eligibility
+
+    observer = LiquidityObserver()
+    sample(observer, 1000, quotes=False)
+    observation = observer.previous['spot']
+    observation['proposal']['proposed']['SELL'] = 0
+    observation['proposal']['reasons']['SELL'] = ['inventory_skew_sell_below_minimum']
+    assert eligibility(observation, now=1000, running=True) == 'unknown'
+    observation['proposal']['proposed']['SELL'] = 1
+    assert eligibility(observation, now=1000, running=True) == 'eligible'
+    observation['proposal']['reasons']['SELL'] = ['inventory_skew_sell_suppressed']
+    assert eligibility(observation, now=1000, running=True) == 'inventory'
+
+
 def test_full_window_high_frequency_churn_preserves_counts_with_bounded_checkpoints():
     """A hand-built interval oracle does not reuse projection/classifier helpers."""
     generator = random.Random(82)

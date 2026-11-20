@@ -354,6 +354,15 @@ class OkxExchange(ExchangePyBase):
                 "clOrdId": order.client_order_id},
             is_auth_required=True)
 
+    async def _request_recovery_order_history(self, order: InFlightOrder) -> Dict[str, Any]:
+        created_ms = int(order.creation_timestamp * 1000)
+        return await self._api_get(
+            path_url=CONSTANTS.OKX_ORDER_HISTORY_PATH,
+            params={"instType": "SPOT", "instId": await self.exchange_symbol_associated_to_pair(order.trading_pair),
+                    "ordType": "post_only", "begin": str(max(0, created_ms - 60000)),
+                    "end": str(created_ms + 60000), "limit": "100"},
+            is_auth_required=True)
+
     async def _request_order_fills(self, order: InFlightOrder, *, after=None, limit=None) -> Dict[str, Any]:
         return await self._api_request(
             method=RESTMethod.GET,
@@ -443,7 +452,7 @@ class OkxExchange(ExchangePyBase):
                                 fill_price=Decimal(data["fillPx"]),
                                 fill_timestamp=int(data["uTime"]) * 1e-3,
                             )
-                            self._order_tracker.process_trade_update(trade_update)
+                            await self._order_tracker.apply_trade_update(trade_update)
 
                         if updatable_order is not None:
                             order_update = OrderUpdate(

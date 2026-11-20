@@ -93,6 +93,9 @@ def operator_view(row, process):
     elif automatic_attention:
         state, label, detail, next_action = ('needs_attention', 'Order verification needs review',
                                              'The exchange outcome is still unconfirmed. New orders remain paused; contact support. Do not resubmit or reset the pending order.', 'contact_support')
+        if automatic.get('reason_code') == 'order_not_found_inconclusive':
+            detail = ('OKX order reads have no matching evidence. Support must verify the exact order and its fills '
+                      'before the reservation can be released.')
     elif not available or observation_old:
         state, label, detail, next_action = "unavailable", "Status unavailable", "The latest trading state cannot be confirmed.", "wait"
     elif row["desired_state"] == "stopped":

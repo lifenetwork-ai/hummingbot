@@ -225,8 +225,7 @@ def _inventory_limits(controllers, session, now):
         config = controller.config
         market = "spot" if config.connector_name == "okx" else "perpetual"
 
-        def encoded_limit(name):
-            raw = getattr(config, name, None)
+        def encoded_limit(raw):
             if raw is None:
                 return None
             value = Decimal(str(raw))
@@ -234,7 +233,13 @@ def _inventory_limits(controllers, session, now):
                 raise ValueError("inventory_limit_unavailable")
             return _decimal_string(value)
 
-        spot_limit = encoded_limit("max_base_inventory") if market == "spot" else None
+        spot_limit = encoded_limit(getattr(config, 'max_base_inventory', None)) if market == 'spot' else None
+        if getattr(config, 'perpetual_exposure_budget', None) is not None:
+            perpetual_limits = controller.perpetual_opening_caps() or (None, None, None)
+        else:
+            perpetual_limits = (getattr(config, 'max_long_base', None), getattr(config, 'max_short_base', None),
+                                getattr(config, 'max_gross_base', None)) if market == 'perpetual' else (None, None, None)
+        long_limit, short_limit, gross_limit = map(encoded_limit, perpetual_limits)
         exposure = getattr(controller, '_risk_exposure_observation', None)
         expected = (config.id, config.connector_name, config.trading_pair, session.id, session.generation)
         known = (isinstance(exposure, tuple) and len(exposure) == 4 and exposure[1] == expected
@@ -246,9 +251,7 @@ def _inventory_limits(controllers, session, now):
                            short_exposure=_decimal_string(exposure[3]) if known else None,
                            exposure_observed_at=_stamp(exposure[0]) if known else None,
                            exposure_basis='engine_cap_assessment' if known else None,
-                           long_limit=encoded_limit("max_long_base") if market == "perpetual" else None,
-                           short_limit=encoded_limit("max_short_base") if market == "perpetual" else None,
-                           gross_limit=encoded_limit("max_gross_base") if market == "perpetual" else None))
+                           long_limit=long_limit, short_limit=short_limit, gross_limit=gross_limit))
     return limits
 
 

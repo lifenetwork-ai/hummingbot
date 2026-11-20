@@ -1,5 +1,6 @@
 """Strict opt-in policy, preserved disabled hashes and unsupported rollback."""
 import random
+from decimal import Decimal
 from pathlib import Path
 from test.hummingbot.strategy_v2.controllers.test_life_mm import configuration, make_controller
 
@@ -28,10 +29,14 @@ async def test_disabled_policy_preserves_the_pre_reduction_catalogue_hash(path, 
     for template in raw['markets'].values():
         template.pop('inventory_reduction', None)
     if Path(path) == DEMO:
-        # This is a historical compatibility fixture. The reviewed Demo policy
-        # has since changed; reconstruct its original thresholds too, without
-        # changing the current catalogue or accepting a new golden hash.
+        # Reconstruct the Demo settings from the pre-reduction catalogue.
         raw.update(max_global_drawdown_quote='2000', max_controller_drawdown_quote='1000')
+        perpetual = raw['markets']['perpetual']
+        perpetual.pop('perpetual_exposure_budget', None)
+        perpetual.update(max_long_base='0.05', max_short_base='0.05')
+        skew = raw['markets']['spot']['inventory_skew']
+        skew.pop('inventory_range_pct', None)
+        skew['inventory_range_multiplier'] = '1'
     catalogue = MMProfilesConfig.model_validate(raw)
     assert catalogue.catalogue_hash() == expected
     raw = catalogue.model_dump(mode='json')
@@ -70,12 +75,42 @@ async def test_enabled_policy_is_pinned_in_the_session_and_old_strict_market_sha
                                                            duration_mode='until_stopped'), rng=random.Random(1))
     saved = session.model_dump(mode='json')
     restored = MMSession.model_validate(saved)
-    assert restored.catalogue.markets['perpetual'].inventory_reduction.price_mode == 'breakeven'
+    perpetual = restored.catalogue.markets['perpetual']
+    assert perpetual.inventory_reduction.price_mode == 'breakeven'
     for template in (raw['markets']['perpetual'], saved['catalogue']['markets']['perpetual']):
         with pytest.raises(ValidationError) as error:
             old_market.model_validate(template)
         assert any(item['loc'] == ('inventory_reduction',) and item['type'] == 'extra_forbidden'
                    for item in error.value.errors())
+
+
+@pytest.mark.asyncio
+async def test_perpetual_exposure_budget_is_optional_and_stays_pinned_after_reload():
+    catalogue = await MMProfilesConfig.load(DEMO)
+    raw = catalogue.model_dump(mode='json')
+    perpetual = raw['markets']['perpetual']
+    budget = perpetual['perpetual_exposure_budget']
+    fixed = {**perpetual, 'max_long_base': '0.1', 'max_short_base': '0.05'}
+    fixed.pop('perpetual_exposure_budget')
+    fixed_catalogue = MMProfilesConfig.model_validate({**raw, 'markets': {**raw['markets'], 'perpetual': fixed}})
+    assert fixed_catalogue.catalogue_hash() != catalogue.catalogue_hash()
+    request = MMSessionRequest(market_mode='both', profile_id='follow_market', duration_mode='until_stopped')
+    session = MMSession.create(catalogue, request, rng=random.Random(1))
+    restored = MMSession.model_validate(session.model_dump(mode='json'))
+    pinned = restored.catalogue.markets['perpetual']
+    assert pinned.perpetual_exposure_budget.model_dump(mode='json') == dict(
+        allocated_capital_quote='10000', max_long_pct='0.50', max_short_pct='0.25', max_gross_pct='0.75', max_mark_age_seconds=15)
+    assert pinned.max_gross_base == Decimal('0.1')
+    assert pinned.max_long_base is None and pinned.max_short_base is None
+    with pytest.raises(ValidationError, match='max_gross_base'):
+        MMProfilesConfig.model_validate({**raw, 'markets': {**raw['markets'], 'perpetual': {**perpetual, 'max_gross_base': None}}})
+    with pytest.raises(ValidationError, match='long, short and gross exposure caps'):
+        MMProfilesConfig.model_validate({**raw, 'markets': {**raw['markets'], 'perpetual': {**perpetual, 'perpetual_exposure_budget': None}}})
+    budget['max_gross_pct'] = '1.01'
+    with pytest.raises(ValidationError):
+        MMProfilesConfig.model_validate(raw)
+    with pytest.raises(ValidationError, match='requires close-first'):
+        configuration(connector_name='okx_perpetual', perpetual_exposure_budget={**budget, 'max_gross_pct': '.4'})
 
 
 @pytest.mark.parametrize('policy', [

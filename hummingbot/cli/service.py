@@ -444,7 +444,7 @@ class ServiceHost:
                     return False
             anchors = {controller.config.id: controller.reference_state() for controller in controllers}
         if anchors is not None or (bootstrap is not None and bootstrap.needs_start()):
-            self.mm_session = self.store.update_mm_session(
+            self.mm_session = await self._update_mm_session(
                 owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=self.applied_version,
                 session_id=self.mm_session.id, generation=self.mm_session.generation,
                 change=lambda session, now: session.ready(now=now, anchors=anchors) if anchors is not None else None,
@@ -456,6 +456,15 @@ class ServiceHost:
         for controller in controllers:
             controller.admit_session(self.mm_session.id, self.mm_session.generation)
         return True
+
+    async def _update_mm_session(self, **fields):
+        from contextlib import nullcontext
+
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+        recorder = MarketsRecorder._shared_instance
+        matches = recorder is not None and recorder.sql_manager.engine is self.engine
+        async with recorder.order_writes if matches else nullcontext():
+            return self.store.update_mm_session(**fields)
 
     def configure_logging(self):
         from hummingbot.logger.service_logging import configure_service_logging
@@ -758,7 +767,7 @@ class ServiceHost:
                     and (not (row["recovery_state"] or {}).get("halt") or session_expired)
                     and (session_expired or not self.mm_startup_pending())):
                 try:
-                    self.mm_session = self.store.update_mm_session(
+                    self.mm_session = await self._update_mm_session(
                         owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=row["control_version"],
                         session_id=self.mm_session.id, generation=self.mm_session.generation,
                         change=lambda session, now: session.advance(now=now, rng=SystemRandom()))
@@ -842,7 +851,7 @@ class ServiceHost:
                 else:
                     self.phase = "stopped"
                     if self.mm_session is not None and self.mm_session.status == "stopping":
-                        self.mm_session = self.store.update_mm_session(
+                        self.mm_session = await self._update_mm_session(
                             owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=version,
                             session_id=self.mm_session.id, generation=self.mm_session.generation,
                             change=lambda session, now: setattr(session, "status", "stopped"))
@@ -995,13 +1004,15 @@ class ServiceHost:
         try:
             zone_name = status.get("reporting_timezone", "Asia/Ho_Chi_Minh")
             zone = ZoneInfo(zone_name)
-            signature = frozenset((account["account_id"], account["environment"], balance["currency"], zone_name,
-                                   datetime.fromtimestamp(float(balance["observed_at"]), timezone.utc)
-                                   .astimezone(zone).date())
-                                  for account in (status.get("reporting") or {}).get("accounts", [])
-                                  if account.get("identity_verified")
-                                  for balance in account.get("balances", [])
-                                  if balance.get("present_in_latest_snapshot", True))
+            session = status.get("mm_session") or {}
+            balance_days = frozenset((account["account_id"], account["environment"], balance["currency"], zone_name,
+                                      datetime.fromtimestamp(float(balance["observed_at"]), timezone.utc)
+                                      .astimezone(zone).date())
+                                     for account in (status.get("reporting") or {}).get("accounts", [])
+                                     if account.get("identity_verified")
+                                     for balance in account.get("balances", [])
+                                     if balance.get("present_in_latest_snapshot", True))
+            signature = (session.get("id"), session.get("started_at"), balance_days)
         except (ValueError, TypeError, KeyError, OverflowError, OSError):
             # Leave malformed samples to the isolated writer; do not bypass its
             # retry deadline or turn optional projection into an owner failure.
@@ -1339,7 +1350,7 @@ async def run_service(*, settings=None, bind_host='0.0.0.0', admin_settings=None
                                                  "error_type": type(error).__name__,
                                                  **({'ownership_reason_code': error.reason_code,
                                                      **{key: value for key, value in error.diagnostic.items()
-                                                        if key in ('sqlstate', 'connection_invalidated')}}
+                                                        if key in ('sqlstate', 'connection_invalidated', 'ownership_backend_pid')}}
                                                     if isinstance(error, OwnershipLost) else {})})
         from hummingbot.cli.service_processes import failure_exit_code
         code = failure_exit_code(error)

@@ -119,7 +119,7 @@ class SQLConnectionManager(TransactionBase):
         if use_postgres:
             # PubSub logs listener exceptions. Latch persistence failure independently
             # so a service send gate cannot miss a recorder/commit exception.
-            # Only a proven prewrite intent-lock rollback is exempt.
+            # Only a proven prewrite ownership-lock rollback is exempt.
             event.listen(self._session_cls, "after_soft_rollback", self._record_rollback)
             event.listen(self._session_cls, "before_flush", self._fence_flush)
             event.listen(self._session_cls, "do_orm_execute", self._fence_bulk_write)
@@ -148,8 +148,8 @@ class SQLConnectionManager(TransactionBase):
         return self._session_cls()
 
     def _record_rollback(self, session, previous_transaction) -> None:
-        from hummingbot.model.intent_admission import confirmed_unsent_rollback
-        if confirmed_unsent_rollback(session, previous_transaction):
+        from hummingbot.model.intent_admission import confirm_prewrite_rollback
+        if confirm_prewrite_rollback(session, previous_transaction):
             return
         self.persistence_healthy = False
 
@@ -162,15 +162,36 @@ class SQLConnectionManager(TransactionBase):
             raise RuntimeError("Persistence failed; ownership and exchange reconciliation are required before new orders.")
 
     def _fence_flush(self, session, flush_context, instances):
+        self._fence_write(session)
+
+    def _fence_write(self, session):
         from hummingbot.core.order_submission_guard import fence_session
         self.assert_persistence_healthy()
-        fence_session(session)
+        deferred_owner = session.info.pop("recorder_prewrite_owner", None)
+        if deferred_owner is not None:
+            from hummingbot.model.intent_admission import capture_prewrite_lock_failure
+
+            # The first flush or bulk write asks for the original fence
+            # without making the reporting loop wait for a conflicting row.
+            with capture_prewrite_lock_failure(session):
+                deferred_owner.fence_session(session, nowait=True)
+            return
+        recorder_owner = session.info.get("worker_order_owner")
+        if recorder_owner is None:
+            fence_session(session)
+        else:
+            from hummingbot.model.intent_admission import capture_prewrite_lock_failure
+
+            # The first flush or bulk write is still before any SQL mutation.
+            # Once the row is held, all later fences only verify the physical owner.
+            if session.info.get("ownership_fenced_transaction") is not session.get_transaction():
+                with capture_prewrite_lock_failure(session):
+                    recorder_owner.lock_owner_row(session, nowait=True)
+            recorder_owner.fence_recorder_session(session)
 
     def _fence_bulk_write(self, execute_state):
         if execute_state.is_update or execute_state.is_delete or getattr(execute_state, "is_insert", False):
-            from hummingbot.core.order_submission_guard import fence_session
-            self.assert_persistence_healthy()
-            fence_session(execute_state.session)
+            self._fence_write(execute_state.session)
 
     def get_local_db_version(self, session: Session):
         query: Query = (session.query(LocalMetadata)

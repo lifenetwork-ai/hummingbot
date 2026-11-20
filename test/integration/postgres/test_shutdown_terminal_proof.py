@@ -1,7 +1,6 @@
 """Shutdown reuses one strong proof per phase, never across the checkpoint."""
 import asyncio
 import copy
-import time
 from decimal import Decimal
 from test.integration.postgres.test_ownership import owned as _owned, reconciliation_core
 from test.integration.postgres.test_spot_outflow import buy, setup
@@ -25,7 +24,9 @@ def canceled_buy(owned, monkeypatch, *, delayed=False):
     order = buy(owned, session)
     order.update_exchange_order_id('42')
     order.current_state = OrderState.CANCELED
-    stamp = str(int(time.time() * 1000) - 100)
+    # Use the projection's database clock so setup latency cannot move the
+    # simulated fill ahead of the end of its observed cashflow window.
+    stamp = str(owned.owner.spot_outflow.projection.now_ms - 100)
     state = dict(ordId='42', clOrdId='a', instId='LIFE-USDT', side='buy', sz='5', px='10',
                  state='canceled', accFillSz='2', uTime=stamp)
     fills = [dict(tradeId='1', billId='1', ordId='42', fillSz='2', fillPx='10', fee='-.2', feeCcy='USDT', ts=stamp)]
@@ -57,7 +58,7 @@ def canceled_buy(owned, monkeypatch, *, delayed=False):
         setattr(owned.market, name, MethodType(getattr(OkxExchange, name), owned.market))
     owned.market.trade_fee_schema.return_value = TradeFeeSchema()
     monkeypatch.setattr(RateOracle.get_instance(), '_prices', {'LIFE-USDT': Decimal('10')})
-    owned.market._order_tracker.process_trade_update.side_effect = order.update_with_trade_update
+    owned.market._order_tracker.start_tracking_order(order)
 
     async def terminal(update):
         order.update_with_order_update(update)

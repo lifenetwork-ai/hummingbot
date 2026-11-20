@@ -23,7 +23,7 @@ OPERATIONS = frozenset({
     'strategy.tick', 'strategy.reports', 'controller.cycle', 'controller.indicator', 'order.submit', 'order.admission', 'order.place',
     'controller.reference', 'controller.proposals', 'controller.actions', 'controller.policy',
     'order.cancel', 'order.terminal', 'order.intent', 'order.created', 'position.checkpoint', 'owner.read',
-    'db.sql', 'db.commit', 'db.ping', 'service.observe', 'executor.terminal', 'order.proof',
+    'db.sql', 'db.commit', 'db.ping', 'service.observe', 'executor.terminal', 'executor.archive', 'order.proof',
     'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
     'shutdown.cancel', 'shutdown.proof_before', 'shutdown.proof_after',
 })
@@ -32,13 +32,18 @@ SLOW_MS = {
     'controller.reference': 250, 'controller.proposals': 250, 'controller.actions': 250, 'controller.policy': 100,
     'order.submit': 1000, 'order.admission': 1000, 'order.place': 1000,
     'order.intent': 100, 'order.created': 100, 'order.cancel': 1000, 'order.proof': 1000,
-    'order.terminal': 250, 'executor.terminal': 250, 'position.checkpoint': 250,
+    'order.terminal': 250, 'executor.terminal': 250, 'executor.archive': 100, 'position.checkpoint': 250,
     'owner.read': 100, 'db.sql': 100, 'db.commit': 100, 'db.ping': 100, 'service.observe': 1000,
     'shutdown.total': 1000, 'shutdown.core': 1000, 'shutdown.strategy': 1000,
     'shutdown.hold': 1000, 'shutdown.cancel': 1000,
     'shutdown.proof_before': 1000, 'shutdown.proof_after': 1000,
 }
 SUBMISSION_OPERATIONS = frozenset({'order.submit', 'order.admission', 'order.intent', 'order.place', 'order.created'})
+_QUOTE_LIMIT = 64
+_QUOTE_LINK_TTL_NS = 120_000_000_000
+_HEARTBEAT_INTERVAL_S = .05
+_HEARTBEAT_INTERVAL_NS = 50_000_000
+_CPU_STAT_FIELDS = frozenset({'usage_usec', 'nr_periods', 'nr_throttled', 'throttled_usec'})
 _ACTIVE = None
 _PARENT = ContextVar('engine_diagnostic_parent', default=None)
 
@@ -78,6 +83,76 @@ def _identity(value):
     if isinstance(value, str) and len(value) <= 256:
         return hashlib.sha256(value.encode()).hexdigest()[:16]
     return None
+
+
+def _spot_sell_lane(config):
+    read = config.get if isinstance(config, dict) else lambda key: getattr(config, key, None)
+    if (read('type') != 'position_executor' or read('connector_name') != 'okx'
+            or read('use_configured_entry_price') is not True):
+        return None
+    generation = read('mm_generation')
+    identifiers = tuple(read(key) for key in ('mm_session_id', 'controller_id', 'trading_pair', 'level_id'))
+    if (type(generation) is not int or generation < 0
+            or any(not isinstance(value, str) or not 0 < len(value) <= 128 for value in identifiers)
+            or not identifiers[-1].startswith('sell_')):
+        return None
+    return hashlib.sha256(json.dumps((*identifiers, generation), separators=(',', ':')).encode()).hexdigest()[:16]
+
+
+def observe_spot_sell_fill(executor, order_id):
+    tracer = _ACTIVE
+    if tracer is not None:
+        try:
+            lane = _spot_sell_lane(executor.config)
+            order = _identity(order_id)
+            if lane and order and executor._completed_entry_fill_timestamp() is not None:
+                tracer.record_quote_marker('quote.sell_fill', order, lane=lane)
+        except Exception:
+            pass
+
+
+def observe_spot_sell_dispatch(request):
+    tracer = _ACTIVE
+    if tracer is None:
+        return None
+    try:
+        if (request.throttler_limit_id != '/api/v5/trade/order' or request.method.value != 'POST'
+                or not request.is_auth_required or not isinstance(request.data, str) or len(request.data) > 2048):
+            return None
+        from hummingbot.core.order_submission_guard import current_executor_scope
+        lane = _spot_sell_lane(current_executor_scope())
+        if lane:
+            data = json.loads(request.data)
+            order = _identity(data.get('clOrdId'))
+            if order and data.get('side') == 'sell' and data.get('ordType') == 'post_only':
+                marker = tracer.record_quote_marker('quote.sell_send', order, lane=lane)
+                if marker is not None:
+                    return tracer, marker
+    except Exception:
+        pass
+    return None
+
+
+def observe_spot_sell_response(dispatch):
+    if dispatch is not None:
+        try:
+            tracer, sent = dispatch
+            tracer.record_quote_marker('quote.sell_response', sent['order'], sent=sent)
+        except Exception:
+            pass
+
+
+def observe_spot_sell_open(connector, order):
+    tracer = _ACTIVE
+    if tracer is not None:
+        try:
+            if (connector.name == 'okx' and order.exchange_order_id
+                    and 0 <= order.executed_amount_base < order.amount):
+                identity = _identity(order.client_order_id)
+                if identity:
+                    tracer.record_quote_marker('quote.sell_open', identity)
+        except Exception:
+            pass
 
 
 def trace_runtime(operation, *, order_parameter=None):
@@ -152,6 +227,7 @@ class EngineDiagnostics:
         self.recent, self.active, self.operations = deque(maxlen=capacity), {}, {}
         self._shutdown_recent = deque(maxlen=32)
         self._submission_recent = deque(maxlen=64)
+        self._quote_fills, self._quote_sends = {}, {}
         self._submission_completed = self._submission_published = 0
         self._last_submission_emitted_ns = -2_000_000_000
         self.sequence = self.dropped_spans = self.sink_errors = 0
@@ -159,6 +235,14 @@ class EngineDiagnostics:
         self.loop_thread_id = self.worker = self.heartbeat_task = None
         self._started = self._closed = False
         self._beat_ns = 0
+        self._heartbeat_due_ns = None
+        self._late_heartbeat_timer = None
+        self._observed_late_timer_due_ns = None
+        self._last_missed_timer_emitted_ns = -5_000_000_000
+        self._loop_native_tid = None
+        self._scheduler_samples = deque(maxlen=4)
+        self._scheduler_baseline = None
+        self._last_scheduler_sample_ns = -200_000_000
         self._last_emitted_ns = -30_000_000_000
         self._last_slow_emitted_ns = -30_000_000_000
         self._slow, self._slow_dirty = deque(maxlen=8), False
@@ -217,9 +301,7 @@ class EngineDiagnostics:
                 if row['operation'].startswith('shutdown.'):
                     self._shutdown_recent.append(dict(row, end_ns=now, duration_ms=duration))
                 if row['operation'] in SUBMISSION_OPERATIONS and row['order'] is not None:
-                    self._submission_completed += 1
-                    self._submission_recent.append(dict(row, end_ns=now, duration_ms=duration, error=bool(error),
-                                                        completion_sequence=self._submission_completed))
+                    self._retain_submission(dict(row, end_ns=now, duration_ms=duration, error=bool(error)))
                 stats = self.operations[row['operation']]
                 stats['completed'] += 1
                 stats['errors'] += bool(error)
@@ -230,6 +312,52 @@ class EngineDiagnostics:
                     self._slow_dirty = True
         except Exception:
             pass
+
+    def _retain_submission(self, row):
+        self._submission_completed += 1
+        row['completion_sequence'] = self._submission_completed
+        self._submission_recent.append(row)
+
+    def record_quote_marker(self, operation, order, *, lane=None, sent=None):
+        """Retain opaque quote milestones on the existing watchdog stream."""
+        now = self.clock()
+        with self.lock:
+            if self._closed:
+                return None
+            evidence = dict(lane=lane, replaces=None)
+            if operation == 'quote.sell_fill':
+                previous = self._quote_fills.get(lane)
+                if previous and previous[0] == order:
+                    return None
+                if lane not in self._quote_fills and len(self._quote_fills) >= _QUOTE_LIMIT:
+                    del self._quote_fills[next(iter(self._quote_fills))]
+                self._quote_fills[lane] = (order, now)
+            elif operation == 'quote.sell_send':
+                fill = self._quote_fills.get(lane)
+                evidence.update(fill_at_ns=None, sent_at_ns=now, http_response_at_ns=None)
+                if fill and 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS and fill[0] != order:
+                    evidence.update(replaces=fill[0], fill_at_ns=fill[1])
+                if order not in self._quote_sends and len(self._quote_sends) >= _QUOTE_LIMIT:
+                    del self._quote_sends[next(iter(self._quote_sends))]
+                self._quote_sends[order] = evidence
+            elif operation == 'quote.sell_open':
+                evidence = self._quote_sends.pop(order, None)
+                if evidence is None or not 0 <= now - evidence['sent_at_ns'] <= _QUOTE_LINK_TTL_NS:
+                    return None
+                fill = self._quote_fills.get(evidence['lane'])
+                if fill and fill[0] == evidence['replaces']:
+                    del self._quote_fills[evidence['lane']]
+            elif operation == 'quote.sell_response':
+                evidence = {key: sent[key] for key in ('lane', 'replaces', 'fill_at_ns', 'sent_at_ns')}
+                evidence['http_response_at_ns'] = now
+                pending = self._quote_sends.get(order)
+                if pending is not None and pending['sent_at_ns'] == sent['sent_at_ns']:
+                    pending['http_response_at_ns'] = now
+            else:
+                return None
+            row = dict(operation=operation, at_ns=now, order=order, **evidence)
+            self._retain_submission(row)
+            return row
 
     @contextmanager
     def span(self, operation, **fields):
@@ -318,10 +446,83 @@ class EngineDiagnostics:
             with self.lock:
                 self._submission_published = last
 
+    def _read_scheduler(self):
+        if self._loop_native_tid is None:
+            return {}
+        sample = {}
+        try:
+            with open('/sys/fs/cgroup/cpu.stat') as source:
+                counters = {}
+                for line in source:
+                    key, value = line.split()
+                    if key in _CPU_STAT_FIELDS:
+                        counters[key] = int(value)
+                if counters:
+                    sample['cgroup_cpu'] = counters
+        except (OSError, ValueError):
+            pass
+        try:
+            with open(f'/proc/self/task/{self._loop_native_tid}/schedstat') as source:
+                running_ns, runqueue_wait_ns, slices = map(int, source.read().split())
+                sample['loop_thread'] = dict(running_ns=running_ns, runqueue_wait_ns=runqueue_wait_ns, slices=slices)
+        except (OSError, ValueError):
+            pass
+        return sample
+
+    def _sample_scheduler(self, now):
+        if now - self._last_scheduler_sample_ns >= 200_000_000:
+            self._last_scheduler_sample_ns = now
+            sample = self._read_scheduler()
+            if sample:
+                self._scheduler_samples.append(dict(at_ns=now, **sample))
+
+    def _loop_recovery_evidence(self, detected_at):
+        evidence = {}
+        late_timer = self._late_heartbeat_timer
+        if late_timer is not None:
+            due, callback = late_timer
+            if due <= detected_at <= callback:
+                self._observed_late_timer_due_ns = due
+                evidence['heartbeat_timer'] = dict(due_ns=due, callback_ns=callback,
+                                                   overdue_ms=round((callback - due) / 1e6, 3))
+        samples = list(self._scheduler_samples)
+        if self._scheduler_baseline is not None:
+            samples = [self._scheduler_baseline] + [sample for sample in samples[-3:]
+                                                    if sample['at_ns'] > self._scheduler_baseline['at_ns']]
+        if samples:
+            evidence['scheduler_samples'] = samples
+        self._scheduler_baseline = None
+        return evidence
+
+    def _publish_missed_heartbeat(self, now):
+        late_timer = self._late_heartbeat_timer
+        if late_timer is None:
+            return
+        due, callback = late_timer
+        if due == self._observed_late_timer_due_ns or callback > now:
+            return
+        self._observed_late_timer_due_ns = due
+        if callback - due < 250_000_000 or now - self._last_missed_timer_emitted_ns < 5_000_000_000:
+            return
+        # The watchdog may also have been delayed. Preserve the actual timer
+        # delay without attributing it to an unrelated stack after recovery.
+        self._last_missed_timer_emitted_ns = now
+        self._deliver(dict(event='engine_heartbeat_late', at_ns=now, wall_time_ns=time.time_ns(),
+                           process_id=os.getpid(), scheduler_samples=list(self._scheduler_samples),
+                           heartbeat_timer=dict(due_ns=due, callback_ns=callback,
+                                                overdue_ms=round((callback - due) / 1e6, 3))))
+
     def _capture_loop(self, now, beat, gap_ms, event):
         self._last_stack_sample_ns, self._sampled_heartbeat = now, beat
         payload = dict(event=event, at_ns=now, heartbeat_ns=beat, wall_time_ns=time.time_ns(),
                        heartbeat_gap_ms=gap_ms, process_id=os.getpid(), **self.snapshot())
+        due = self._heartbeat_due_ns
+        if due is not None and beat < due <= now:
+            payload['heartbeat_timer'] = dict(due_ns=due, overdue_ms=round((now - due) / 1e6, 3))
+        if self._scheduler_samples:
+            payload['scheduler_samples'] = list(self._scheduler_samples)
+            self._scheduler_baseline = next(
+                (row for row in reversed(self._scheduler_samples) if row['at_ns'] <= (due or beat)), None)
         payload['stacks'] = self._stacks(payload['active'])
         payload['stack_sampled_at_ns'] = self.clock()
         payload['heartbeat_advanced_during_capture'] = self._beat_ns != beat
@@ -331,6 +532,7 @@ class EngineDiagnostics:
         if not self._started or self._closed:
             return
         beat, now = self._beat_ns, self.clock()
+        self._sample_scheduler(now)
         self._publish_submissions(now)
         if beat != self._beat_ns:
             return  # The loop advanced while this diagnostic thread was descheduled.
@@ -341,13 +543,15 @@ class EngineDiagnostics:
                     slow = list(self._slow)
                 self._deliver(dict(event='engine_loop_recovered', at_ns=now, heartbeat_ns=beat,
                                    wall_time_ns=time.time_ns(), detected_at_ns=self._episode, process_id=os.getpid(),
-                                   slow=slow, **self.snapshot()))
+                                   slow=slow, **self.snapshot(), **self._loop_recovery_evidence(self._episode)))
                 self._episode = None
             if self._sample_episode is not None:
                 self._deliver(dict(event='engine_loop_sample_recovered', at_ns=now, heartbeat_ns=beat,
                                    wall_time_ns=time.time_ns(), detected_at_ns=self._sample_episode,
-                                   process_id=os.getpid(), **self.snapshot()))
+                                   process_id=os.getpid(), **self.snapshot(),
+                                   **self._loop_recovery_evidence(self._sample_episode)))
                 self._sample_episode = None
+            self._publish_missed_heartbeat(now)
             if now - self._last_slow_emitted_ns >= 30_000_000_000:
                 with self.lock:
                     slow = list(self._slow) if self._slow_dirty else []
@@ -373,12 +577,30 @@ class EngineDiagnostics:
         if self._started or self._closed or _ACTIVE is not None:
             return False
         self.loop_thread_id, self._beat_ns = threading.get_ident(), self.clock()
+        if sys.platform == 'linux':
+            self._loop_native_tid = threading.get_native_id()
         self._started, _ACTIVE = True, self
+        loop = asyncio.get_running_loop()
+
+        def heartbeat_callback(due, ready):
+            now = self.clock()
+            if now - due >= 100_000_000:
+                self._late_heartbeat_timer = (due, now)
+            self._beat_ns = now
+            if not ready.done():
+                ready.set_result(None)
 
         async def heartbeat():
             while True:
-                await asyncio.sleep(.05)
-                self._beat_ns = self.clock()
+                ready = loop.create_future()
+                deadline = loop.time() + _HEARTBEAT_INTERVAL_S
+                due = self.clock() + _HEARTBEAT_INTERVAL_NS
+                self._heartbeat_due_ns = due
+                timer = loop.call_at(deadline, heartbeat_callback, due, ready)
+                try:
+                    await ready
+                finally:
+                    timer.cancel()
 
         def watch():
             while not self.stopping.wait(.05):

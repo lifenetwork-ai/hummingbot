@@ -1,10 +1,12 @@
-from sqlalchemy import Column, Date, DateTime, Numeric, Text
+from sqlalchemy import Column, Date, DateTime, Index, Numeric, Text
 
 from hummingbot.model import HummingbotBase
 
 
 class DailyBalanceSnapshot(HummingbotBase):
     __tablename__ = "daily_balance_snapshots"
+    __table_args__ = (Index("idx_daily_balance_snapshots_scope_day", "account_id", "environment",
+                            "reporting_timezone", "day"),)
     account_id = Column(Text, primary_key=True, nullable=False)
     environment = Column(Text, primary_key=True, nullable=False)
     currency = Column(Text, primary_key=True, nullable=False)

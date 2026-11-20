@@ -142,7 +142,15 @@ if os.environ.get('HBOT_OFFLINE_RECOVERY_EMPTY') == 'true':
             orders = json.loads(pathlib.Path(os.environ['HBOT_OFFLINE_RECOVERY_ORDERS']).read_text())
             identity = (kwargs.get('params') or {}).get('clOrdId')
             return {'code': '0', 'data': [orders[identity]]} if identity in orders else {'code': '51603', 'data': []}
-        if path_url in ('/api/v5/trade/orders-pending', '/api/v5/trade/fills', '/api/v5/account/positions'):
+        if path_url in ('/api/v5/trade/fills', '/api/v5/trade/fills-history') and os.environ.get('HBOT_OFFLINE_RECOVERY_FILLS'):
+            fills = json.loads(pathlib.Path(os.environ['HBOT_OFFLINE_RECOVERY_FILLS']).read_text())
+            params = kwargs.get('params') or {}
+            if 'ordId' in params:
+                fills = [row for row in fills if row['ordId'] == params['ordId']]
+            if 'after' in params:
+                fills = [row for row in fills if int(row['billId']) < int(params['after'])]
+            return {'code': '0', 'data': fills[:int(params.get('limit', 100))]}
+        if path_url in ('/api/v5/trade/orders-pending', '/api/v5/trade/orders-history', '/api/v5/trade/fills', '/api/v5/account/positions'):
             return {'code': '0', 'data': []}
         raise RuntimeError('Unexpected recovery exchange read')
     async def forbidden_write(self, *args, **kwargs):

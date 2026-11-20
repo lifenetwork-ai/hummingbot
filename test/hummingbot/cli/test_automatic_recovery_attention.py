@@ -15,6 +15,7 @@ def test_prolonged_automatic_recovery_requests_review_without_reset_or_start(pha
         phase=phase, operator_required=True, reason_code='order_not_found_inconclusive'))
     result = operator_view(row, {'trading_environment': 'demo'})
     assert result['operator']['state'] == 'needs_attention'
+    assert 'verify the exact order and its fills' in result['operator']['detail']
     assert result['operator']['next_action'] == 'contact_support'
     assert not result['recovery']['halted']
     assert result['recovery']['next_action'] == 'contact_support'

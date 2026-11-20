@@ -101,15 +101,16 @@ def test_attempt_is_durable_before_transport_and_contains_no_auth_headers(owned)
 
 
 @pytest.fixture
-def managed_native(owned, expiry_code=None):
+def managed_native(owned, expiry_code=None, *, perpetual=False):
     from test.integration.postgres.test_ownership import assistant
 
     from bidict import bidict
 
+    from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
     from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
     from hummingbot.connector.markets_recorder import MarketsRecorder
     from hummingbot.connector.trading_rule import TradingRule
-    from hummingbot.core.data_type.common import OrderType
+    from hummingbot.core.data_type.common import OrderType, PositionAction
     from hummingbot.core.order_submission_guard import session_order_scope
     session = dict(id='mm-auto', generation=0, status='running', started_at=time.time() - 1,
                    expires_at=time.time() + 120, step_expires_at=time.time() + 120)
@@ -117,19 +118,26 @@ def managed_native(owned, expiry_code=None):
         connection.execute(text("UPDATE bot_state SET config_type='mm-session', mm_session=CAST(:value AS jsonb)"),
                            {'value': json.dumps(session)})
     owned.owner.mm_ready_check = lambda: True
-    exchange = OkxExchange(okx_api_key='offline', okx_secret_key='offline', okx_passphrase='offline',
-                           trading_pairs=['BTC-USDT'])
+    if perpetual:
+        exchange = OkxPerpetualDerivative(okx_perpetual_api_key='offline', okx_perpetual_secret_key='offline',
+                                          okx_perpetual_passphrase='offline', trading_pairs=['BTC-USDT'])
+        exchange._contract_sizes['BTC-USDT'] = Decimal('.01')
+    else:
+        exchange = OkxExchange(okx_api_key='offline', okx_secret_key='offline', okx_passphrase='offline',
+                               trading_pairs=['BTC-USDT'])
+    symbol = 'BTC-USDT-SWAP' if perpetual else 'BTC-USDT'
     exchange._set_current_timestamp(1700000000)
-    exchange._set_trading_pair_symbol_map(bidict({'BTC-USDT': 'BTC-USDT'}))
+    exchange._set_trading_pair_symbol_map(bidict({symbol: 'BTC-USDT'}))
     exchange._trading_rules['BTC-USDT'] = TradingRule('BTC-USDT', min_order_size=Decimal('.00001'),
                                                       min_price_increment=Decimal('.1'),
                                                       min_base_amount_increment=Decimal('.00001'))
     recorder = MarketsRecorder(owned.manager, [exchange], 'test.yml', 'pure_market_making',
                                owned.recorder._market_data_collection_config)
     recorder.start()
-    owned.owner.connectors = {'okx': exchange}
+    owned.owner.connectors = {exchange.name: exchange}
     assert recorder.ensure_runtime_checkpoint()
-    config = executor_info('auto').config.model_copy(update={'mm_session_id': 'mm-auto', 'mm_generation': 0})
+    config = executor_info('auto').config.model_copy(
+        update={'mm_session_id': 'mm-auto', 'mm_generation': 0, 'connector_name': exchange.name})
     rest, transport = assistant()
     response = transport.call.return_value
     rest._auth = exchange.authenticator
@@ -140,9 +148,10 @@ def managed_native(owned, expiry_code=None):
     response.json = AsyncMock(return_value=body)
 
     async def create():
+        extra = {'position_action': PositionAction.OPEN} if perpetual else {}
         with session_order_scope('mm-auto', 0, executor=config.model_dump(mode='json')):
             await exchange._create_order(TradeType.BUY, 'auto-order', 'BTC-USDT', Decimal('.1'),
-                                         OrderType.LIMIT_MAKER, Decimal('100'))
+                                         OrderType.LIMIT_MAKER, Decimal('100'), **extra)
         await asyncio.sleep(0)
 
     with patch.object(exchange._web_assistants_factory, 'get_rest_assistant', AsyncMock(return_value=rest)):

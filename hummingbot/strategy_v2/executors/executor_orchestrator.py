@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import math
+import time
 import uuid
 from contextlib import closing
 from copy import deepcopy
@@ -14,6 +15,7 @@ from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.data_type.common import PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.engine_diagnostics import trace_runtime
+from hummingbot.core.operational_warnings import ExecutorArchiveBusy, PositionCheckpointBusy
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.executors import Executors
 from hummingbot.model.position import Position
@@ -266,6 +268,7 @@ class ExecutorOrchestrator:
     Orchestrator for various executors.
     """
     _logger = None
+    _POSITION_CHECKPOINT_RETRY_SECONDS = 4.0
     _executor_mapping = {
         "position_executor": PositionExecutor,
         "grid_executor": GridExecutor,
@@ -301,6 +304,8 @@ class ExecutorOrchestrator:
         self.initial_positions_by_controller = initial_positions_by_controller or {}
         self._initial_positions_initialized = False
         self._checkpoint_candidates = []
+        self._position_checkpoint_busy_since = None
+        self._executor_archive_retry_at = 0.0
         self._initialize_cached_performance(startup_performance)
 
     def reduction_runtime(self, controller_id):
@@ -917,7 +922,7 @@ class ExecutorOrchestrator:
             return
         executor.early_stop(action.keep_position)
 
-    def _update_positions_from_done_executors(self, executor_reports=None):
+    def _update_positions_from_done_executors(self, executor_reports=None, *, defer_ownership_contention=False):
         recorder = MarketsRecorder._shared_instance
         reports = executor_reports if executor_reports is not None else self.get_executors_report()
         # Session durability is independent of the optional drawdown policy.
@@ -933,6 +938,7 @@ class ExecutorOrchestrator:
                       if info.is_done and info.close_type == CloseType.POSITION_HOLD
                       and info.id not in self.executors_ids_position_held]
         if not candidates:
+            self._position_checkpoint_busy_since = None
             return self._apply_position_updates(reports)
         applied = recorder.applied_position_executors([info.id for info in candidates])
         old_positions, old_ids = self.positions_held, self.executors_ids_position_held
@@ -953,7 +959,18 @@ class ExecutorOrchestrator:
                 bases = {(controller_id, hold.connector_name, hold.trading_pair, hold.side.name): hold.reduction_basis
                          for controller_id, holds in self.positions_held.items() for hold in holds
                          if hold.reduction_basis is not None}
-                recorder.checkpoint_held_positions(snapshots, fresh, reduction_bases=bases)
+                try:
+                    recorder.checkpoint_held_positions(
+                        snapshots, fresh, reduction_bases=bases, defer_ownership_contention=defer_ownership_contention)
+                except PositionCheckpointBusy:
+                    now = time.monotonic()
+                    if self._position_checkpoint_busy_since is None:
+                        self._position_checkpoint_busy_since = now
+                    if now - self._position_checkpoint_busy_since >= self._POSITION_CHECKPOINT_RETRY_SECONDS:
+                        recorder.sql_manager.persistence_healthy = False
+                        raise RuntimeError('Position checkpoint still blocked by the ownership row.') from None
+                    raise
+            self._position_checkpoint_busy_since = None
         except BaseException:
             self.positions_held, self.executors_ids_position_held = old_positions, old_ids
             raise
@@ -1098,6 +1115,9 @@ class ExecutorOrchestrator:
         """
         Store executor data based on the action details and update cached performance.
         """
+        retry_at = getattr(self, '_executor_archive_retry_at', 0.0)
+        if time.monotonic() < retry_at:
+            return  # The clock will propose the retained records again.
         controller_id = action.controller_id
         executor_id = action.executor_id
 
@@ -1113,6 +1133,14 @@ class ExecutorOrchestrator:
         try:
             MarketsRecorder.get_instance().store_or_update_executor(executor)
             self._update_cached_performance(controller_id, executor.executor_info)
+            self._executor_archive_retry_at = 0.0
+        except ExecutorArchiveBusy:
+            if not retry_at:
+                self.logger().warning(
+                    'Executor archive waiting for the ownership row',
+                    extra={'event': 'executor_archive_waiting', 'reason_code': 'executor_archive_busy'})
+            self._executor_archive_retry_at = time.monotonic() + .1
+            return
         except Exception as e:
             self.logger().error(f"Error storing executor id {executor_id}: {str(e)}.")
             self.logger().error(f"Executor info: {executor.executor_info} | Config: {executor.config}")
@@ -1166,7 +1194,7 @@ class ExecutorOrchestrator:
         # A synchronous report uses one DTO per resident executor for hold
         # transitions, display and PnL. Nothing is retained for the next call.
         executors_report = self.get_executors_report()
-        self._update_positions_from_done_executors(executors_report)
+        self._update_positions_from_done_executors(executors_report, defer_ownership_contention=True)
         positions_report = self.get_positions_report()
 
         # Get all controller IDs

@@ -21,6 +21,29 @@ from hummingbot.strategy_v2.utils.perpetual_reduction_runtime import ExecutorQuo
 D = Decimal
 
 
+@pytest.mark.asyncio
+async def test_controller_tick_respects_scoped_recovery_without_leaking_queued_levels(monkeypatch):
+    from hummingbot.core import order_submission_guard
+
+    recovery = SimpleNamespace(active=True, isolated=True)
+    owner = SimpleNamespace(scoped_recovery_enabled=True, automatic_recovery=recovery)
+    monkeypatch.setattr(order_submission_guard, '_guard', owner)
+    monkeypatch.setattr(order_submission_guard, 'postgres_requested', lambda: True)
+
+    controller, _, _ = maker('1', '0')
+    assert controller.determine_executor_actions() == []
+    assert not controller._reduction_queued
+    assert controller.quote_diagnostics['reasons'] == {
+        'BUY': ['uncertain_order_risk_paused'], 'SELL': ['uncertain_order_risk_paused']}
+    spot, _ = make_controller(configuration())
+    await spot.update_processed_data()
+    spot_actions = spot.determine_executor_actions()
+    assert spot_actions and all(action.executor_config.side == TradeType.SELL for action in spot_actions)
+    recovery.active = False
+    assert any(effect(action.executor_config) == PositionAction.CLOSE
+               for action in controller.determine_executor_actions())
+
+
 def maker(long='0', short='0', *, levels=1, **updates):
     values = dict(id='maker', connector_name='okx_perpetual', trading_pair='BTC-USDT', initial_anchor='100',
                   min_price='1', max_price='1000', total_amount_quote='100',
@@ -32,6 +55,7 @@ def maker(long='0', short='0', *, levels=1, **updates):
     values.update(updates)
     controller, _ = make_controller(configuration(**values))
     connector = controller.market_data_provider.get_connector_with_fallback.return_value
+    controller.market_data_provider.connectors = {'okx_perpetual': connector}
     connector.name, connector.position_mode = 'okx_perpetual', PositionMode.HEDGE
     from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
     connector._poll_notifier = asyncio.Event()
@@ -104,6 +128,77 @@ def test_two_levels_cannot_close_the_same_quantity_or_grow_exposure_at_caps():
     for side in (TradeType.BUY, TradeType.SELL):
         assert sum((a.executor_config.amount for a in actions if a.executor_config.side == side), D(0)) == D('.1')
     assert controller.create_actions_proposal() == []  # Queue handoff has not happened yet.
+
+
+@pytest.mark.parametrize('long,short,long_cap,short_cap,gross_cap,opening_side,amounts', [
+    ('.0498', '0', '.05', '.05', '.1', TradeType.BUY, ['.0002']),
+    ('0', '.04985', '.1', '.06', '.05', TradeType.SELL, ['.0001']),
+    ('.04995', '0', '.05', '.05', '.1', TradeType.BUY, []),
+    ('.0498', '0', '.1', '.05', '.1', TradeType.BUY, ['.0003', '.0003']),
+])
+def test_close_first_sizes_openings_to_remaining_side_and_gross_capacity(
+        long, short, long_cap, short_cap, gross_cap, opening_side, amounts):
+    controller, connector, state = maker(long, short, levels=2, total_amount_quote='.13',
+                                         max_long_base=long_cap, max_short_base=short_cap, max_gross_base=gross_cap)
+    rule = connector.trading_rules['BTC-USDT']
+    rule.min_order_size = rule.min_base_amount_increment = D('.0001')
+    connector.quantize_order_amount.side_effect = lambda pair, amount: amount.quantize(D('.0001'), rounding=ROUND_DOWN)
+
+    configs = [action.executor_config for action in controller.create_actions_proposal()]
+    openings = [config for config in configs if effect(config) == PositionAction.OPEN]
+    assert all(config.side == opening_side for config in openings)
+    assert [config.amount for config in openings] == list(map(D, amounts))
+    closing = [config for config in configs if effect(config) == PositionAction.CLOSE]
+    basis = state[0].long if opening_side == TradeType.BUY else state[0].short
+    assert len(closing) == 2 and all(
+        basis.covers(config.price, config.amount, ClosingFeeBound(D('.001'), D(0))) for config in closing)
+    assert controller.exposure_within_caps()
+    assert controller.create_actions_proposal() == []
+
+
+@pytest.mark.parametrize('mark,opened,reason', [
+    ((D('100'), 1_000_000), ['.1'], 'inventory_limit'),
+    ((D('120'), 1_000_000), [], 'inventory_limit'),
+    ((D('100'), 984_999), [], 'perpetual_mark_price_unavailable'),
+    (None, [], 'perpetual_mark_price_unavailable'),
+])
+def test_percentage_opening_budget_respects_fresh_mark_and_keeps_close_quotes(mark, opened, reason):
+    controller, connector, _ = maker('.7', '0', levels=2, max_long_base=None, max_short_base=None,
+                                     max_gross_base='.85', perpetual_exposure_budget=dict(
+                                         allocated_capital_quote='100', max_long_pct='.8', max_short_pct='.4', max_gross_pct='.9'))
+    connector.mark_price_observation.return_value = mark
+    if opened:
+        assert controller.perpetual_opening_caps() == (D('.8'), D('.4'), D('.85'))
+    assert controller.exposure_within_caps()
+    configs = [action.executor_config for action in controller.create_actions_proposal()]
+    assert [config.amount for config in configs if effect(config) == PositionAction.OPEN] == list(map(D, opened))
+    assert len([config for config in configs if effect(config) == PositionAction.CLOSE]) == 2
+    assert reason in controller.quote_diagnostics['reasons']['BUY']
+
+
+def test_mark_change_rejects_the_queued_open_at_transport_and_withdraws_only_opening_quotes():
+    controller, connector, state = maker('.7', '0', max_long_base='.75', perpetual_exposure_budget=dict(
+        allocated_capital_quote='100', max_long_pct='.8', max_short_pct='.4', max_gross_pct='.9'))
+    connector.mark_price_observation.return_value = (D('100'), 1_000_000)
+    opening, closing = [action.executor_config for action in controller.create_actions_proposal()]
+    assert opening.amount == D('.05')  # BTC ceiling is tighter than the percentage limit.
+    # The orchestrator binds the proposal to its controller before native execution.
+    opening = opening.model_copy(update={'controller_id': controller.config.id})
+    order = InFlightOrder(client_order_id='open', trading_pair='BTC-USDT', trade_type=TradeType.BUY,
+                          order_type=OrderType.LIMIT_MAKER, amount=opening.amount, price=opening.entry_price,
+                          creation_timestamp=1000, position=PositionAction.OPEN, initial_state=OrderState.PENDING_CREATE)
+    state[0] = ReductionRuntime(state[0].long, state[0].short, (
+        ExecutorQuoteState(opening, RunnableStatus.RUNNING, False, ('open',), (order,)),
+        ExecutorQuoteState(closing, RunnableStatus.RUNNING, False)), True)
+    scope = opening.model_dump(mode='json')
+    assert controller.reduction_order_valid(order, scope), controller._reduction_rejection
+
+    connector.mark_price_observation.return_value = (D('120'), 1_000_000)
+    controller.update_reference = lambda: None
+    assert controller.prepare_reduction_quote(opening) is None
+    assert not controller.reduction_order_valid(order, scope)
+    assert controller._reduction_rejection == 'inventory_limit'
+    assert [action.executor_id for action in controller._reduction_refresh_actions()] == [opening.id]
 
 
 @pytest.mark.parametrize('defect,reason', [

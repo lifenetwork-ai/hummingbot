@@ -10,11 +10,21 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, localcontext
 from fractions import Fraction
 from typing import Literal, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from hummingbot.core.data_type.common import PositionAction, TradeType
 
 ZERO = Decimal('0')
+
+
+class PerpetualExposureBudget(BaseModel):
+    model_config = ConfigDict(extra='forbid', frozen=True)
+    allocated_capital_quote: Decimal = Field(gt=0, allow_inf_nan=False)
+    max_long_pct: Decimal = Field(gt=0, le=1, allow_inf_nan=False)
+    max_short_pct: Decimal = Field(gt=0, le=1, allow_inf_nan=False)
+    max_gross_pct: Decimal = Field(gt=0, le=1, allow_inf_nan=False)
+    # OKX can wait ten seconds between updates when the mark is unchanged.
+    max_mark_age_seconds: int = Field(default=15, gt=0, le=60, strict=True)
 
 
 class InventoryReductionConfig(BaseModel):

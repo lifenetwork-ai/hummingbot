@@ -35,10 +35,11 @@ async def eventually(predicate):
 
 
 @asynccontextmanager
-async def replay(monkeypatch, side):
-    state = await setup_lifecycle(
-        monkeypatch, 'okx', side, initial=(2000, 0), executor_refresh_time=60,
-        runtime_config_managed=True, mm_session_id='offline-replay', mm_generation=1)
+async def replay(monkeypatch, side, *, state=None, peers=None):
+    if state is None:
+        state = await setup_lifecycle(
+            monkeypatch, 'okx', side, initial=(2000, 0), executor_refresh_time=60,
+            runtime_config_managed=True, mm_session_id='offline-replay', mm_generation=1)
     controller, strategy, executor = state.controller, state.strategy, state.executor
     # Cloud's enabled spread policy seeds configured-price maker entries. The
     # shared lifecycle fixture defaults to the legacy (unconfigured) variant.
@@ -63,18 +64,21 @@ async def replay(monkeypatch, side):
     recorder.applied_position_executors.return_value = set()
     monkeypatch.setattr(MarketsRecorder, '_shared_instance', recorder)
     # Keep the opposite quote resident, so only the replayed level needs replacing.
-    opposite = TradeType.SELL if side == TradeType.BUY else TradeType.BUY
-    config = controller.get_executor_config('sell_0' if opposite == TradeType.SELL else 'buy_0',
-                                            Decimal('.101') if opposite == TradeType.SELL else Decimal('.099'),
-                                            Decimal('600'))
-    other = PositionExecutor(strategy, config)
-    other.config.controller_id = controller.config.id
-    other._status = RunnableStatus.RUNNING
-    other._open_order = TrackedOrder('opposite')
-    other._open_order.order = InFlightOrder(
-        'opposite', 'LIFE-USDT', state.order.order_type, opposite, config.amount, 1000,
-        config.entry_price, exchange_order_id='opposite-exchange', initial_state=OrderState.OPEN)
-    state.orchestrator.active_executors[controller.config.id].append(other)
+    if peers is None:
+        opposite = TradeType.SELL if side == TradeType.BUY else TradeType.BUY
+        peers = [controller.get_executor_config('sell_0' if opposite == TradeType.SELL else 'buy_0',
+                                                Decimal('.101') if opposite == TradeType.SELL else Decimal('.099'),
+                                                Decimal('600'))]
+    for config in peers:
+        other = PositionExecutor(strategy, config)
+        other.config.controller_id = controller.config.id
+        other._status = RunnableStatus.RUNNING
+        order_id = f'peer-{config.level_id}'
+        other._open_order = TrackedOrder(order_id)
+        other._open_order.order = InFlightOrder(
+            order_id, config.trading_pair, state.order.order_type, config.side, config.amount, strategy.current_timestamp,
+            config.entry_price, exchange_order_id=f'{order_id}-exchange', initial_state=OrderState.OPEN)
+        state.orchestrator.active_executors[controller.config.id].append(other)
     executor.get_in_flight_order = lambda *args: state.order
     executor.validate_sufficient_balance = AsyncMock()
     controller.on_start = AsyncMock()  # The already admitted fixture has no network startup.

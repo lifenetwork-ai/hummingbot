@@ -120,6 +120,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/balances/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compare observed account cash by asset and period */
+        get: operations["getBalanceChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/commands": {
         parameters: {
             query?: never;
@@ -861,6 +878,59 @@ export interface components {
              * @default null
              */
             started_at: number | null;
+        };
+        /** BalanceChange */
+        BalanceChangeOutput: {
+            /** Closing Cash */
+            closing_cash: string | null;
+            /** Closing Observed At */
+            closing_observed_at: string | null;
+            /** Currency */
+            currency: string;
+            /** Delta Cash */
+            delta_cash: string | null;
+            /** Opening Cash */
+            opening_cash: string | null;
+            /** Opening Observed At */
+            opening_observed_at: string | null;
+            /** Reason Code */
+            reason_code: ("opening_missing" | "closing_missing" | "closing_stale") | null;
+        };
+        /** BalanceChangesResponse */
+        BalanceChangesResponseOutput: {
+            /** Account Id */
+            account_id: string | null;
+            /** End Day */
+            end_day: string | null;
+            /** Environment */
+            environment: ("live" | "demo") | null;
+            /**
+             * Flow History
+             * @constant
+             */
+            flow_history: "unverified";
+            /**
+             * Period
+             * @enum {string}
+             */
+            period: "days" | "session";
+            /** Reason Code */
+            reason_code: ("account_identity_unavailable" | "session_unavailable" | "opening_missing" | "closing_missing") | null;
+            /** Reporting Timezone */
+            reporting_timezone: string;
+            /** Rows */
+            rows: components["schemas"]["BalanceChangeOutput"][];
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /** Session Id */
+            session_id: string | null;
+            /** Session Started At */
+            session_started_at: string | null;
+            /** Start Day */
+            start_day: string | null;
         };
         /** BalanceObservation */
         BalanceObservationOutput: {
@@ -2175,6 +2245,7 @@ export interface components {
              * @default null
              */
             mm_session_id: string | null;
+            perpetual_exposure_budget?: components["schemas"]["PerpetualExposureBudgetOutput"] | null;
             /** @default HEDGE */
             position_mode: components["schemas"]["PositionModeOutput"];
             /**
@@ -3723,6 +3794,22 @@ export interface components {
              */
             server_time: string;
         };
+        /** PerpetualExposureBudget */
+        PerpetualExposureBudgetOutput: {
+            /** Allocated Capital Quote */
+            allocated_capital_quote: string;
+            /** Max Gross Pct */
+            max_gross_pct: string;
+            /** Max Long Pct */
+            max_long_pct: string;
+            /**
+             * Max Mark Age Seconds
+             * @default 15
+             */
+            max_mark_age_seconds: number;
+            /** Max Short Pct */
+            max_short_pct: string;
+        };
         /** PositionMarket */
         PositionMarketOutput: {
             /** Connector */
@@ -4406,6 +4493,11 @@ export interface components {
         RecoveryCheckRequest: {
             /** Expected Version */
             expected_version: number;
+            /**
+             * Uncertain Order Id
+             * @description Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.
+             */
+            uncertain_order_id?: string | null;
         };
         /** RecoveryOperation */
         RecoveryOperationOutput: {
@@ -4443,10 +4535,12 @@ export interface components {
             proposed_changes?: components["schemas"]["RecoveryPositionRepairOutput"][];
             /** Proposed Order Changes */
             proposed_order_changes?: components["schemas"]["RecoveryOrderRepairOutput"][];
+            proposed_uncertain_order?: components["schemas"]["RecoveryUncertainOrderRepairOutput"] | null;
             /** Repaired Orders */
             repaired_orders?: components["schemas"]["RecoveryOrderRepairOutput"][];
             /** Repaired Positions */
             repaired_positions?: components["schemas"]["RecoveryPositionRepairOutput"][];
+            repaired_uncertain_order?: components["schemas"]["RecoveryUncertainOrderRepairOutput"] | null;
             /** Stage */
             stage: string;
             /**
@@ -4589,7 +4683,7 @@ export interface components {
             check_id: string;
             /**
              * Confirm Order Changes
-             * @description Must be true after explicitly reviewing nonempty proposed_order_changes. Omit/false cannot authorize order metadata repair.
+             * @description True after reviewing proposed_order_changes, proposed_uncertain_order or pending fill application.
              * @default false
              */
             confirm_order_changes: boolean;
@@ -4597,6 +4691,11 @@ export interface components {
             confirmation_token: string;
             /** Expected Version */
             expected_version: number;
+            /**
+             * Uncertain Order Id
+             * @description Exact client order ID for reviewing one expired uncertain OKX Spot BUY on a stopped session.
+             */
+            uncertain_order_id?: string | null;
         };
         /** RecoverySummary */
         RecoverySummaryOutput: {
@@ -4628,6 +4727,47 @@ export interface components {
              * @default /api/v1/admin/recovery
              */
             status_url: string;
+        };
+        /** RecoveryUncertainOrderRepair */
+        RecoveryUncertainOrderRepairOutput: {
+            /**
+             * After
+             * @constant
+             */
+            after: "OrderFailure";
+            /** Amount */
+            amount: string;
+            /**
+             * Before
+             * @constant
+             */
+            before: "PendingBuy";
+            /**
+             * Connector
+             * @constant
+             */
+            connector: "okx";
+            /**
+             * Deadline Ms
+             * @description Original authenticated request deadline in epoch milliseconds.
+             */
+            deadline_ms: number;
+            /**
+             * Evidence
+             * @constant
+             */
+            evidence: "expired_submission_and_reconciled_exchange";
+            /** Id */
+            id: string;
+            /** Pair */
+            pair: string;
+            /** Price */
+            price: string;
+            /**
+             * Side
+             * @constant
+             */
+            side: "BUY";
         };
         /** ReferenceAnchors */
         ReferenceAnchorsOutput: {
@@ -6485,6 +6625,157 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BalancesResponseOutput"];
+                };
+            };
+            /** @description Invalid JSON */
+            400: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Basic authentication required */
+            401: {
+                headers: {
+                    "WWW-Authenticate"?: string;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Origin not permitted */
+            403: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Control or retry identity conflict */
+            409: {
+                headers: {
+                    /** @description Seconds until a new check may be requested, when present */
+                    "Retry-After"?: number;
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "control_version_changed",
+                     *       "error": "control_or_idempotency_conflict",
+                     *       "fields": [],
+                     *       "request_id": "example-request",
+                     *       "retry": "refresh_state"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported content type */
+            415: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "code": "yaml_configuration_read_only",
+                     *       "error": "validation_failed",
+                     *       "fields": [
+                     *         {
+                     *           "code": "yaml_configuration_read_only",
+                     *           "path": "references"
+                     *         }
+                     *       ],
+                     *       "request_id": "example-request",
+                     *       "retry": "fix_request"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unexpected server error */
+            500: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service/data unavailable */
+            503: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getBalanceChanges: {
+        parameters: {
+            query?: {
+                period?: "days" | "session";
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    /** @description Server-generated diagnostic identifier */
+                    "X-Request-ID"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalanceChangesResponseOutput"];
                 };
             };
             /** @description Invalid JSON */
@@ -9945,7 +10236,9 @@ export interface operations {
     };
     getRecovery: {
         parameters: {
-            query?: never;
+            query?: {
+                uncertain_order_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;

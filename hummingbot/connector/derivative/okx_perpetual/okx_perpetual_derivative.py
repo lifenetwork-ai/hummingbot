@@ -186,6 +186,9 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             domain=self._domain,
         )
 
+    def mark_price_observation(self, trading_pair):
+        return self._orderbook_ds.mark_price_observation(trading_pair)
+
     def _create_user_stream_data_source(self) -> UserStreamTrackerDataSource:
         return OkxPerpetualUserStreamDataSource(
             auth=self._auth,
@@ -308,7 +311,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         data = exchange_order_id["data"][0]
         if data["sCode"] != "0":
-            if str(data["sCode"]) in ("50036", "50037"):
+            if str(data["sCode"]) in ("50036", "50037", "51006"):
                 check_order_submission(exchange_order_id, order_id)
             raise IOError(f"Error submitting order {order_id}: {data['sMsg']}")
         return str(data["ordId"]), self.current_timestamp
@@ -589,7 +592,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                         await self._process_account_position_event(position_msg)
                 elif endpoint == CONSTANTS.WS_ORDERS_CHANNEL:
                     for order_msg in payload:
-                        self._process_order_event_message(order_msg)
+                        await self._process_order_event_message(order_msg)
                 elif endpoint == CONSTANTS.WS_ACCOUNT_CHANNEL:
                     for wallet_msg in payload:
                         self._process_wallet_event_message(wallet_msg)
@@ -687,7 +690,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Trade updates must be handled before any order status updates.
         for trade in parsed_history_resps:
-            self._process_trade_event_message(trade)
+            await self._process_trade_event_message(trade)
 
     async def _update_positions(self):
         # Startup/recovery callers share the same native reader as polling.
@@ -896,7 +899,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             self._record_position_observation(trading_pair, position_msg)
             # safe_ensure_future(self._update_balances())
 
-    def _process_trade_event_message(self, trade_msg: Dict[str, Any]):
+    async def _process_trade_event_message(self, trade_msg: Dict[str, Any]):
         """
         Updates in-flight order and trigger order filled event for trade message received. Triggers order completed
         event if the total executed amount equals to the specified order amount.
@@ -908,9 +911,9 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         if fillable_order is not None:
             trade_update = self._parse_trade_update(trade_msg=trade_msg, tracked_order=fillable_order)
-            self._order_tracker.process_trade_update(trade_update)
+            await self._order_tracker.apply_trade_update(trade_update)
 
-    def _process_order_event_message(self, order_msg: Dict[str, Any]):
+    async def _process_order_event_message(self, order_msg: Dict[str, Any]):
         """
         Updates in-flight order and triggers cancellation or failure event if needed.
         :param order_msg: The order event message payload
@@ -925,18 +928,6 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                            else PositionAction.CLOSE)
         fill_fee_currency = order_msg.get("fillFeeCcy")
         fill_fee = -Decimal(order_msg.get("fillFee", "0"))
-
-        updatable_order = self._order_tracker.all_updatable_orders.get(client_order_id)
-        if updatable_order is not None:
-            new_order_update: OrderUpdate = OrderUpdate(
-                trading_pair=updatable_order.trading_pair,
-                update_timestamp=self.current_timestamp,
-                new_state=order_status,
-                client_order_id=client_order_id,
-                exchange_order_id=order_msg["ordId"],
-                misc_updates={'venue_order': order_msg} if getattr(updatable_order, '_managed_recovery_order', False) else None,
-            )
-            self._order_tracker.process_order_update(new_order_update)
 
         fillable_order = self._order_tracker.all_fillable_orders.get(client_order_id)
         if fillable_order is not None and order_status in [OrderState.PARTIALLY_FILLED, OrderState.FILLED]:
@@ -958,7 +949,19 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
                 fill_price=Decimal(order_msg["fillPx"]),
                 fill_timestamp=int(order_msg["uTime"]) / 1000,
             )
-            self._order_tracker.process_trade_update(trade_update)
+            await self._order_tracker.apply_trade_update(trade_update)
+
+        updatable_order = self._order_tracker.all_updatable_orders.get(client_order_id)
+        if updatable_order is not None:
+            new_order_update: OrderUpdate = OrderUpdate(
+                trading_pair=updatable_order.trading_pair,
+                update_timestamp=self.current_timestamp,
+                new_state=order_status,
+                client_order_id=client_order_id,
+                exchange_order_id=order_msg["ordId"],
+                misc_updates={'venue_order': order_msg} if getattr(updatable_order, '_managed_recovery_order', False) else None,
+            )
+            self._order_tracker.process_order_update(new_order_update)
 
     def _process_wallet_event_message(self, wallet_msg: Dict[str, Any]):
         """

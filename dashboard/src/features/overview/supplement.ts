@@ -7,7 +7,7 @@
  * Quy ước: thiếu dữ liệu → null/unavailable, không bao giờ biến thành 0 (UI-STRUCTURE-PLAN 5.3).
  */
 import type { OverviewSupplementSchemas } from './supplement-contract'
-import type { OverviewModel } from './model'
+import { quoteSideActivity, type OverviewModel } from './model'
 import { parseAmount } from './parseAmount'
 import { formatAmount, formatPairAmount, sumDecimalAmounts } from '../../shared/utils/formatters'
 import { summarizePositions } from './position-summary'
@@ -150,6 +150,7 @@ export interface CapitalRiskView {
 export interface GuardsSummary {
   status: 'ok' | 'attention' | 'stop'
   headline: string
+  perpetualBuyPaused?: boolean
   violationCount: number
   unknownCount?: number
   checkedCount?: number
@@ -160,7 +161,7 @@ export interface GuardsSummary {
 
 // ---------- derive ----------
 
-function guardsFromRules(rules: RiskRule[], complete: boolean): GuardsSummary {
+function guardsFromRules(rules: RiskRule[], complete: boolean, perpetualBuyBlocked: boolean): GuardsSummary {
   const active = rules.filter((rule) => rule.status !== 'disabled')
   const violated = active.filter((rule) => rule.status === 'violated')
   const unknown = active.filter((rule) => rule.status === 'unknown')
@@ -171,6 +172,8 @@ function guardsFromRules(rules: RiskRule[], complete: boolean): GuardsSummary {
   return {
     status: active.some((r) => r.status === 'violated') ? 'stop' : unknown.length > 0 || !complete ? 'attention' : 'ok',
     headline,
+    perpetualBuyPaused: perpetualBuyBlocked &&
+      violated.some((rule) => rule.market === 'perpetual' && rule.rule_id === 'inventory_long'),
     violationCount: violated.length,
     unknownCount: unknown.length,
     checkedCount: active.length - unknown.length,
@@ -312,6 +315,12 @@ export function deriveCapitalRisk(model: OverviewModel, supp: Supplement | null)
   const pnlSum = summary.observed && positions.every(p => p.pair.endsWith('-USDT'))
     ? positions.length ? sumDecimalAmounts(positions.map(p => p.pnlUsdt)) : '0' : null
   const pnlDisplay = pnlSum === null ? null : `${pnlSum.startsWith('-') ? '' : '+'}${formatAmount(pnlSum, 2).replaceAll(',', '')}`
+  const riskRules = supp?.risk_rules
+  const riskObserved = Boolean(riskRules?.observed_at && !riskRules.stale)
+  const perpetualBuy = quoteSideActivity(model.status.data?.quote_activity?.perpetual?.sides, 'buy')
+  const perpetualBuyBlocked = riskObserved && operationalStatus(model) === 'RUNNING' &&
+    perpetualBuy?.state === 'blocked' && perpetualBuy.order_count === 0 &&
+    perpetualBuy.reason_codes.includes('inventory_limit')
 
   return {
     positions,
@@ -329,8 +338,8 @@ export function deriveCapitalRisk(model: OverviewModel, supp: Supplement | null)
     fees: supp ? observe(supp.session.fees, true) : { available: false as const, reason: null },
     holdBenchmark: supp ? observe(supp.session.benchmark_hold, true) : { available: false as const, reason: null },
     balances: (supp?.balances.value ?? []).map((b) => ({ asset: b.asset, free: b.free, reservedForOrders: b.reserved_for_open_orders })),
-    guardsSummary: supp?.risk_rules.value ? guardsFromRules(supp.risk_rules.value,
-      supp.risk_rules.observed_at !== null && !supp.risk_rules.stale && supp.risk_rules.unavailable_reason === null) : EMPTY_GUARDS,
+    guardsSummary: riskRules?.value ? guardsFromRules(riskRules.value,
+      riskObserved && riskRules.unavailable_reason === null, perpetualBuyBlocked) : EMPTY_GUARDS,
   }
 }
 

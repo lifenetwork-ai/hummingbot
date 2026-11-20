@@ -13,6 +13,7 @@ from hummingbot.cli.admin_models import InventorySkewStatus
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core.data_type.common import TradeType
+from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.strategy_v2.models.base import RunnableStatus
 from hummingbot.strategy_v2.utils.inventory_skew import InventorySkewConfig
 
@@ -95,6 +96,119 @@ def test_btc_demo_snapshot_proposes_both_sides_with_realistic_lots_inside_budget
     item.update_reference()
     assert item.processed_data['inventory_skew']['buy_multiplier'] == 0
     assert all(a.executor_config.side == TradeType.SELL for a in item.create_actions_proposal())
+
+
+def btc_edge_controller(pct, *, fee_floor=True, **updates):
+    from test.hummingbot.strategy_v2.controllers.test_quote_guard import book
+    item, prices = make_controller(configuration(
+        trading_pair='BTC-USDT', min_price='1', max_price='1000000', initial_anchor='63816.75',
+        total_amount_quote='100', max_base_inventory='2', buy_spreads=[.001, .002], sell_spreads=[.001, .002],
+        inventory_skew=dict(enabled=True, inventory_range_pct='.02'), spread_policy=dict(fee_floor=fee_floor), **updates))
+    prices['BTC-USDT'] = Decimal('63816.75')
+    connector = item.market_data_provider.get_connector_with_fallback.return_value
+    base = Decimal(pct) * 100000 / prices['BTC-USDT']
+    cash = (1 - Decimal(pct)) * 100000
+    connector.account_balance_observations = {
+        'BTC': dict(cash_balance=base, observed_at=1000), 'USDT': dict(cash_balance=cash, observed_at=1000)}
+    connector.get_balance.side_effect = lambda asset: base if asset == 'BTC' else cash
+    connector.get_available_balance.side_effect = connector.get_balance.side_effect
+    connector.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.0008'))
+    lot = Decimal('.00000001')
+    connector.quantize_order_price.side_effect = lambda trading_pair, price: (price // Decimal('.1')) * Decimal('.1')
+    connector.get_order_price_quantum.return_value = Decimal('.1')
+    connector.quantize_order_amount.side_effect = lambda trading_pair, amount: (amount // lot) * lot
+    connector.trading_rules['BTC-USDT'] = TradingRule('BTC-USDT', min_order_size=Decimal('.00002'),
+                                                      min_price_increment=Decimal('.1'), min_base_amount_increment=lot)
+    connector._order_tracker = SimpleNamespace(cached_orders={}, lost_orders={})
+    target = book(bids=[(63816.5, 10)], asks=[(63817, 10)], timestamp=1000)
+    connector.order_books['BTC-USDT'] = target
+    item.market_data_provider.get_order_book.side_effect = lambda *args: target
+    item.update_reference()
+    return item, connector
+
+
+@pytest.mark.parametrize('pct, borrows_from_buy', [('.4802', True), ('.4809', False)])
+def test_btc_edge_keeps_one_exchange_minimum_sell_within_allocation(pct, borrows_from_buy):
+    item, _ = btc_edge_controller(pct)
+    buy_multiplier, sell_multiplier, scale = item._inventory_factors
+    original_buy = sum(price * amount * buy_multiplier * scale for price, amount in (
+        item._baseline_price_and_amount(level) for level in ('buy_0', 'buy_1')))
+    original_sell = sum(price * amount * sell_multiplier * scale for price, amount in (
+        item._baseline_price_and_amount(level) for level in ('sell_0', 'sell_1')))
+    actions = [action.executor_config for action in item.create_actions_proposal()]
+    sell, = [config for config in actions if config.side == TradeType.SELL]
+    deficit = max(Decimal(0), sell.entry_price * sell.amount - original_sell)
+    proposed_buy = sum(price * amount for price, amount in (
+        item.get_price_and_amount(level) for level in ('buy_0', 'buy_1')))
+    assert (deficit > 0) is borrows_from_buy
+    assert abs(proposed_buy - (original_buy - deficit)) < Decimal('1e-20')
+    assert sell.amount == Decimal('.00002')
+    assert len([config for config in actions if config.side == TradeType.BUY]) == 2
+    assert sum(config.amount * config.entry_price for config in actions) <= 100
+    assert sell.use_configured_entry_price
+    queued = sell.model_copy(update={'controller_id': item.config.id})
+    assert item.prepare_entry_order(queued) == queued
+
+
+def test_btc_minimum_sell_uses_a_fixed_passive_price_without_a_fee_floor():
+    item, _ = btc_edge_controller('.4802', fee_floor=False)
+    sell, = [a.executor_config for a in item.create_actions_proposal() if a.executor_config.side == TradeType.SELL]
+    assert sell.entry_price >= max(Decimal('63817'), item._baseline_price_and_amount(sell.level_id)[0])
+    assert sell.use_configured_entry_price
+    queued = sell.model_copy(update={'controller_id': item.config.id})
+    assert item.prepare_entry_order(queued) == queued
+
+
+def test_btc_at_lower_inventory_band_does_not_restore_sell():
+    item, _ = btc_edge_controller('.48')
+    assert all(action.executor_config.side == TradeType.BUY for action in item.create_actions_proposal())
+    assert 'inventory_skew_sell_suppressed' in item.quote_diagnostics['reasons']['SELL']
+
+
+@pytest.mark.parametrize('reserved,expected', [('98', True), ('99', False)])
+def test_btc_minimum_sell_respects_existing_buy_reservations(reserved, expected):
+    item, _ = btc_edge_controller('.4802')
+    active_buy = SimpleNamespace(is_active=True, is_trading=False, status=RunnableStatus.RUNNING,
+                                 custom_info={'level_id': 'buy_0'}, config=SimpleNamespace(
+                                     side=TradeType.BUY, amount=Decimal(reserved) / 64000, entry_price=Decimal(64000)))
+    item.executors_info = [active_buy]
+    actions = [action.executor_config for action in item.create_actions_proposal()]
+    assert any(config.side == TradeType.SELL for config in actions) is expected
+    assert Decimal(reserved) + sum(config.amount * config.entry_price for config in actions) <= 100
+    if not expected:
+        assert 'allocation_limit' in item.quote_diagnostics['reasons']['SELL']
+
+
+def test_btc_minimum_sell_never_exceeds_available_base():
+    item, connector = btc_edge_controller('.4802')
+    available_quote = connector.get_available_balance('USDT')
+    connector.get_available_balance.side_effect = lambda asset: Decimal('.00001999') if asset == 'BTC' else available_quote
+    assert all(action.executor_config.side == TradeType.BUY for action in item.create_actions_proposal())
+    assert 'insufficient_base_balance' in item.quote_diagnostics['reasons']['SELL']
+
+
+@pytest.mark.parametrize('change', ['maker_price', 'inventory_boundary'])
+def test_btc_queued_minimum_sell_revalidates_original_budget_and_inventory(change):
+    from hummingbot.core.data_type.common import PriceType
+
+    item, connector = btc_edge_controller('.4802')
+    sell, = [a.executor_config for a in item.create_actions_proposal() if a.executor_config.side == TradeType.SELL]
+    queued = sell.model_copy(update={'controller_id': item.config.id})
+    if change == 'maker_price':
+        item.market_data_provider.get_price_by_type.side_effect = lambda name, pair, kind: (
+            sell.entry_price + Decimal('1') if kind == PriceType.BestAsk else Decimal('63816.75'))
+    else:
+        connector.account_balance_observations['BTC']['cash_balance'] *= Decimal('.99')
+    assert item.prepare_entry_order(queued) is None
+
+
+def test_btc_edge_floor_cannot_turn_an_unfunded_level_into_a_sell():
+    item, connector = btc_edge_controller('.4802')
+    connector.trading_rules['BTC-USDT'] = TradingRule(
+        'BTC-USDT', min_order_size=Decimal('.001'), min_base_amount_increment=Decimal('.00000001'))
+    item.update_reference()
+    assert not any(a.executor_config.side == TradeType.SELL for a in item.create_actions_proposal())
+    assert 'inventory_skew_sell_below_minimum' in item.quote_diagnostics['reasons']['SELL']
 
 
 @pytest.mark.parametrize('value', ['0', '-.01', '.50001', '2', 'NaN', 'Infinity'])

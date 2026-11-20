@@ -418,6 +418,10 @@ async def main(args):
                 for path in ("/commands?limit=100", "/sessions?limit=100", "/sessions/{session_id}/configuration"):
                     await queue.put((due, path, True))
                     auxiliary_requested += 1
+            if args.balance_changes and index % args.read_rate == 0:
+                for path in ("/balances/changes?period=days", "/balances/changes?period=session"):
+                    await queue.put((due, path, True))
+                    auxiliary_requested += 1
             if time.monotonic() - origin >= next_minute:
                 summaries.append(dict(elapsed_seconds=time.monotonic() - origin, requested=requested, completed=completed,
                                       valid_fills=valid_fills, queued=queue.qsize(), p95_ms=percentile(latencies[-1200:], .95),
@@ -533,4 +537,5 @@ if __name__ == "__main__":
     parser.add_argument("--controls", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--random-soak", action="store_true", help="Stop injecting synthetic fills in the five-second scheduled handover window; rates remain recorded")
     parser.add_argument("--operations", action="store_true", help="Add one command, session and pinned-configuration read/s; preserve original workload and budgets")
+    parser.add_argument("--balance-changes", action="store_true", help="Add one read per period per second for the balance comparison panel")
     asyncio.run(main(parser.parse_args()))

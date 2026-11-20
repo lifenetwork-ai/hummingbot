@@ -73,6 +73,25 @@ def test_owner_loss_preserves_specific_safe_code_and_closes_admission(kind, code
         assert caught.value.diagnostic['connection_invalidated'] is True
 
 
+def test_followup_ownership_checks_report_first_connection_failure():
+    owner = BotOwnership(MagicMock(), 'offline')
+    owner.connection = MagicMock(closed=False, invalidated=False)
+    owner.backend_pid = 123
+    original = RuntimeError('private-dsn')
+    original.pgcode = '08006'
+    owner.connection.execute.side_effect = OperationalError('private query', {}, original, connection_invalidated=True)
+    with patch('hummingbot.core.bot_ownership._ownership_read', lambda connection: nullcontext()):
+        with pytest.raises(OwnershipLost) as first:
+            owner.check_owner()
+        with pytest.raises(OwnershipLost) as later:
+            owner.check_owner()
+    assert owner.connection.execute.call_count == 1
+    assert later.value.reason_code == first.value.reason_code == 'ownership_database_error'
+    assert later.value.diagnostic == first.value.diagnostic == {
+        'reason_code': 'ownership_database_error', 'sqlstate': '08006',
+        'connection_invalidated': True, 'ownership_backend_pid': 123}
+
+
 def test_public_cause_handles_legacy_runtime_reason_and_rejects_private_metadata():
     from hummingbot.core.halt_diagnostics import halt_cause
     state = dict(halt=True, reason='A required runtime task failed; inspect service availability status.')
@@ -94,6 +113,8 @@ def test_safe_owner_failure_fields_survive_structured_logging():
     record = logging.LogRecord('service', logging.ERROR, '', 0, 'Service stopped', (), None)
     record.ownership_reason_code = 'ownership_database_error'
     record.sqlstate, record.connection_invalidated = '08006', True
+    record.ownership_backend_pid = 123
     result = json.loads(ServiceFormatter('json', {}).format(record))
     assert result['ownership_reason_code'] == 'ownership_database_error'
     assert result['sqlstate'] == '08006' and result['connection_invalidated'] is True
+    assert result['ownership_backend_pid'] == 123

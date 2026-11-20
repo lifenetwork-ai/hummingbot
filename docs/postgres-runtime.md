@@ -458,8 +458,22 @@ owner/control/actor/risk/ledger fences. OrderCancelled metadata, terminal attemp
 state, exact tracker removal, cancel history and per-order audit commit atomically
 with technical HALT removal. Receipts/context, financial fills/positions/costs,
 credentials, risk limits and peaks remain unchanged; success stays stopped.
-Unknown/pending sends, not-found, any execution or incomplete/changed evidence
-remain blocked. This is not permission to infer order absence or resubmit a POST.
+The generic terminal-metadata route requires a venue order ID and positive
+cancellation evidence. For a stopped, non-halted session, an admin may review
+one exact expired Spot BUY with `uncertain_order_id` on Check and Reset. The
+bound order intent, original OKX deadline and 50013 receipt must agree with the
+current tracker and account. The reviewed checkpoint must precede the send.
+Two full checkpoint fill scans plus open-order and position checks cover
+exchange effects. Exact-order and bounded order-history reads are repeated
+around the final proof. Any order record or conflicting financial evidence
+blocks retirement.
+
+Preview and Reset use the same owner, control version, actor, ledger and
+confirmation token. Reset repeats venue verification and writes the order
+failure metadata, terminal submission attempt, tracker removal and audit in
+one transaction. The original receipt, risk state and financial checkpoint are
+retained. The engine keeps its ownership lock and the session remains stopped.
+See the [scoped API flow](fe-integration.md#review-one-uncertain-spot-buy).
 
 Migration021 adds immutable submission attempts, a fill/application journal and
 verified runtime checkpoints, plus `orders.position_applied`. Apply it through

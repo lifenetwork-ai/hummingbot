@@ -12,7 +12,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select, update
 
-from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, is_expired_rejection_receipt, order_status_data
+from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, order_rejection_reason, order_status_data
 from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
 from hummingbot.core.order_submission_guard import MarketReadinessBlocked, SessionSubmissionBlocked, SubmissionBlocked
 from hummingbot.model.order import Order
@@ -81,14 +81,42 @@ def decode_order_evidence(connector, order, actual):
     return state, filled
 
 
-async def read_order_proof(connector, order):
+async def _spot_terminal_history(connector, order):
+    response = await connector._request_recovery_order_history(order)
+    rows = response.get('data')
+    if (str(response.get('code')) != '0' or not isinstance(rows, list) or len(rows) > PAGE_SIZE
+            or any(not isinstance(row, dict) for row in rows)):
+        raise IOError('recovery_order_history_unavailable')
+    matches = [row for row in rows if row.get('clOrdId') == order.client_order_id]
+    if not matches:
+        raise OKXOrderNotFoundError('No positive order evidence in the bounded OKX history read')
+    if len(matches) != 1:
+        raise SubmissionBlocked('recovery_order_identity_mismatch')
+    actual = matches[0]
+    if (actual.get('tdMode') != 'cash' or actual.get('state') not in ('filled', 'canceled')
+            or abs(int(actual['cTime']) - int(order.creation_timestamp * 1000)) > 60000
+            or int(actual['uTime']) < int(actual['cTime'])):
+        raise SubmissionBlocked('recovery_order_identity_mismatch')
+    return actual
+
+
+async def read_order_proof(connector, order, *, spot_history=False):
     """Use native authenticated reads/parsers; validate identity and full fills."""
+    history_used = False
+
     async def status():
-        actual = order_status_data(await connector._request_order_update(order))
+        nonlocal history_used
+        try:
+            actual = order_status_data(await connector._request_order_update(order))
+        except OKXOrderNotFoundError:
+            if not spot_history or connector.name != 'okx':
+                raise
+            actual = await _spot_terminal_history(connector, order)
+            history_used = True
         state, filled = decode_order_evidence(connector, order, actual)
         return actual, state, filled
 
-    first, _, _ = await status()
+    first, first_state, first_filled = await status()
     # The identity is positive evidence; the tracker still receives state only
     # after complete trade proof. This also enables the native fills endpoint.
     order.update_exchange_order_id(str(first['ordId']))
@@ -125,6 +153,8 @@ async def read_order_proof(connector, order):
     else:
         raise SubmissionBlocked('recovery_fill_scope_limit')
     last, state, filled = await status()
+    if history_used and (first_state, first_filled) != (state, filled):
+        raise IOError('recovery_order_history_changed')
     if str(first['ordId']) != str(last['ordId']) or sum((t.fill_base_amount for t in observed.values()), Decimal(0)) != filled:
         raise IOError('recovery_fill_coverage_incomplete')
     return (OrderUpdate(order.trading_pair, int(last['uTime']) / 1000, state,
@@ -149,21 +179,10 @@ def durable_fills(connection, identity, trades, *, missing_ok=False):
     return True
 
 
-def persist_proved_trades(recorder, connector, order, trades):
-    from hummingbot.core.event.events import MarketEvent, OrderFilledEvent
-    from hummingbot.model.trade_fill import TradeFill
+async def persist_proved_trades(recorder, connector, order, trades):
     recorder.sql_manager.assert_persistence_healthy()
     for trade in trades:
-        connector._order_tracker.process_trade_update(trade)
-    with recorder.sql_manager.get_new_session() as session:
-        recorded = set(session.execute(select(TradeFill.exchange_trade_id).where(TradeFill.order_id == order.client_order_id)).scalars())
-    for trade in trades:
-        if trade.trade_id not in recorded:
-            recorder._did_fill_order(MarketEvent.OrderFilled.value, connector, OrderFilledEvent(
-                timestamp=trade.fill_timestamp, order_id=order.client_order_id, trading_pair=order.trading_pair,
-                trade_type=order.trade_type, order_type=order.order_type, price=trade.fill_price,
-                amount=trade.fill_base_amount, trade_fee=trade.fee, exchange_trade_id=trade.trade_id,
-                leverage=order.leverage, position=order.position.value, exchange_order_id=trade.exchange_order_id))
+        await connector._order_tracker.persist_proved_trade(recorder, order, trade)
     recorder.sql_manager.assert_persistence_healthy()
 
 
@@ -216,7 +235,8 @@ class AutomaticOrderRecovery:
         self.quarantined = {attempt['order_id']: attempt for attempt in pending}
         self.attempt_retry = {identity: retry for identity, retry in self.attempt_retry.items() if identity in self.quarantined}
         self.status.update(isolated=True, quarantined_orders=len(self.quarantined), admission_mode='funded_spot_sell',
-                           reserved_base={key: str(value) for key, value in holds.items()}, reserved_quote_worst_case=str(quote))
+                           reserved_base={key: str(value) for key, value in holds.items()}, reserved_quote_worst_case=str(quote),
+                           order_id=pending[0]['order_id'])
         return True
 
     def authorize_isolated_order(self, connector, order, *, payload=None):
@@ -371,9 +391,9 @@ class AutomaticOrderRecovery:
             order._cash_sell_reserved_base = Decimal(cost)
         return order
 
-    async def _reject_saved_expiry(self, core, connector, attempt, order):
+    async def _reject_saved_submission(self, core, connector, attempt, order):
         receipt = attempt.get('receipt')
-        if not is_expired_rejection_receipt(receipt, attempt['order_id']):
+        if not order_rejection_reason(receipt, attempt['order_id']):
             return False
         self.owner.check_owner()
         context = attempt['context']
@@ -384,8 +404,12 @@ class AutomaticOrderRecovery:
             raise SubmissionBlocked('recovery_account_binding_changed')
         if order.exchange_order_id or order.executed_amount_base or order.order_fills:
             raise SubmissionBlocked('recovery_order_identity_mismatch')
-        core.markets_recorder.reject_unsent_order(connector, order.client_order_id,
-                                                  require_existing=True, expiry_receipt=receipt)
+        async with self.owner.order_write_scope():
+            self.owner.check_owner()
+            if order.exchange_order_id or order.executed_amount_base or order.order_fills:
+                raise SubmissionBlocked('recovery_order_identity_mismatch')
+            core.markets_recorder.reject_unsent_order(connector, order.client_order_id,
+                                                      require_existing=True, rejection_receipt=receipt)
         await connector._order_tracker.process_order_update(OrderUpdate(
             order.trading_pair, time.time(), OrderState.FAILED, order.client_order_id))
         self.owner.sent_intents.discard(order.client_order_id)
@@ -409,17 +433,21 @@ class AutomaticOrderRecovery:
         self.owner._mutate_recovery(settled)
 
     async def _merge(self, core, connector, attempt, order):
-        status, trades = await asyncio.wait_for(read_order_proof(connector, order), timeout=10)
+        spot_history = self.isolated and attempt['state'] == 'uncertain'
+        status, trades = await asyncio.wait_for(read_order_proof(connector, order, spot_history=spot_history), timeout=10)
         self.owner.check_owner()
         if (attempt['context'].get('environment') != environment_identity()
                 or attempt['context']['credential_fingerprint'] != credential_fingerprint(connector)
                 or sorted(attempt['context']['bindings'], key=digest) != sorted(self._bindings(), key=digest)):
             raise SubmissionBlocked('recovery_account_binding_changed')
-        proof_covers_local(order, status, trades)
-        persist_proved_trades(core.markets_recorder, connector, order, trades)
+        async with self.owner.order_write_scope():
+            self._terminal_fence(core.markets_recorder)
+            proof_covers_local(order, status, trades)
+            await persist_proved_trades(core.markets_recorder, connector, order, trades)
         await connector._order_tracker.process_order_update(status)
         proof_covers_local(order, status, trades)
-        self._record_verified(core, attempt, status, trades)
+        async with self.owner.order_write_scope():
+            self._record_verified(core, attempt, status, trades)
         return status, trades
 
     def _terminal_fence(self, recorder):
@@ -490,8 +518,10 @@ class AutomaticOrderRecovery:
                 self.owner.check_owner()
                 proof, trades = await asyncio.wait_for(read_order_proof(connector, order), timeout=10)
                 self.owner.check_owner()
-                proof_covers_local(order, proof, trades)
-                persist_proved_trades(recorder, connector, order, trades)
+                async with self.owner.order_write_scope():
+                    self._terminal_fence(recorder)
+                    proof_covers_local(order, proof, trades)
+                    await persist_proved_trades(recorder, connector, order, trades)
                 _, snapshot = await self._read_durable_fills(order.client_order_id, trades)
                 self._terminal_fence(recorder)
                 proof_covers_local(order, proof, snapshot)
@@ -551,7 +581,7 @@ class AutomaticOrderRecovery:
                     order.trading_pair, time.time(), OrderState.FAILED, order.client_order_id))
                 self.owner.sent_intents.discard(order.client_order_id)
                 continue
-            if await self._reject_saved_expiry(core, connector, attempt, order):
+            if await self._reject_saved_submission(core, connector, attempt, order):
                 continue
             if self.isolated and attempt['order_id'] in self.quarantined:
                 continue  # Restore its reservation now; the existing GET worker resolves it in background.
@@ -703,6 +733,10 @@ class AutomaticOrderRecovery:
         self.status.update(phase='settled_stopped', reason_code='uncertain_effects_retained')
         return set(records)
 
+    async def _write_recovery_state(self, change, **options):
+        async with self.owner.order_write_scope():
+            return self.owner._mutate_recovery(change, **options)
+
     async def step(self, core, *, force=False):
         if not self.active or not force and time.monotonic() < self.next_poll:
             return
@@ -716,7 +750,8 @@ class AutomaticOrderRecovery:
                                                and not self.owner.shutdown_requested and row['desired_state'] == 'running'
                                                and row['control_version'] == self.owner.version)
         if len(pending) > MAX_ATTEMPTS:
-            self.owner.require_recovery('automatic_recovery_scope_limit')
+            async with self.owner.order_write_scope():
+                self.owner.require_recovery('automatic_recovery_scope_limit')
             self.status.update(phase='manual_required', operator_required=True, reason_code='automatic_recovery_scope_limit')
             return
         try:
@@ -732,7 +767,7 @@ class AutomaticOrderRecovery:
                 if self.isolated and not force and time.monotonic() < self.attempt_retry.get(attempt['order_id'], (0, 0))[0]:
                     continue
                 try:
-                    if not await self._reject_saved_expiry(core, connector, attempt, order):
+                    if not await self._reject_saved_submission(core, connector, attempt, order):
                         await asyncio.wait_for(self._merge(core, connector, attempt, order), timeout=10)
                 except (IOError, asyncio.TimeoutError) as error:
                     if not self.isolated:
@@ -761,7 +796,7 @@ class AutomaticOrderRecovery:
                 now = time.monotonic()
                 self.next_poll = min(self.attempt_retry.get(attempt['order_id'], (now + 1, 0))[0] for attempt in remaining)
                 self.status['next_retry_at'] = time.time() + max(0, self.next_poll - now)
-                self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+                await self._write_recovery_state(lambda state: state.update(automatic_recovery=dict(self.status)))
                 return
             if not remaining:
                 self.quarantined.clear()
@@ -774,23 +809,23 @@ class AutomaticOrderRecovery:
                     or row['desired_state'] != 'running' or row['control_version'] != self.owner.version
                     or row['config_file_path'] != self.owner.config_file_path):
                 self.status.update(phase='settled_stopped', reason_code='current_control_blocks_resume')
-                self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+                await self._write_recovery_state(lambda state: state.update(automatic_recovery=dict(self.status)))
                 return
             if self.resume_scope is not None:
                 self.owner._check_mm_authority(row, self.resume_scope, submission=False)
             elif self.owner.mm_ready_check is not None and not self.owner.mm_ready_check():
                 raise SubmissionBlocked('recovery_readiness_pending')
             self.owner._check_intents(core.markets_recorder)
+            identity = self.status.pop('order_id', None) or 'runtime'
             self.status.update(phase='idle', reason_code=None, operator_required=False)
 
             def resume(state):
                 if state.get('halt') or state.get('pending_mutations'):
                     raise SessionSubmissionBlocked('Current safety state blocks resume')
                 state.update(automatic_recovery=dict(self.status))
-                self._audit('automatic_recovery_resumed', self.status.get('order_id', 'runtime'),
-                            'succeeded', 'current_authority_verified')
+                self._audit('automatic_recovery_resumed', identity, 'succeeded', 'current_authority_verified')
 
-            if self.owner._mutate_recovery(resume, expected_version=self.owner.version):
+            if await self._write_recovery_state(resume, expected_version=self.owner.version):
                 self.owner.allow_new_orders = True
             self.failures = 0
         except asyncio.CancelledError:
@@ -799,9 +834,10 @@ class AutomaticOrderRecovery:
             self.owner.check_owner()  # Never hide loss of the physical fence.
             core.trade_fill_db.assert_persistence_healthy()
             if isinstance(error, SubmissionBlocked) and str(error) in MANUAL_PROOFS:
-                self.owner.require_recovery('Automatic recovery evidence conflicts with its durable account/financial scope.')
+                async with self.owner.order_write_scope():
+                    self.owner.require_recovery('Automatic recovery evidence conflicts with its durable account/financial scope.')
                 self.status.update(phase='manual_required', reason_code=str(error), operator_required=True)
-                self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+                await self._write_recovery_state(lambda state: state.update(automatic_recovery=dict(self.status)))
                 return
             self.failures = min(self.failures + 1, 10)
             delay = min(15, 2 ** min(self.failures - 1, 4)) * random.uniform(.8, 1.2)
@@ -814,7 +850,7 @@ class AutomaticOrderRecovery:
                 phase, reason = 'settled_stopped', 'session_authority_changed'
             self.status.update(phase=phase, reason_code=reason, next_retry_at=time.time() + delay,
                                operator_required=time.time() - self.status.get('started_at', time.time()) >= 300)
-            self.owner._mutate_recovery(lambda state: state.update(automatic_recovery=dict(self.status)))
+            await self._write_recovery_state(lambda state: state.update(automatic_recovery=dict(self.status)))
 
     def poll(self, core):
         if self.task is not None and self.task.done():

@@ -1,5 +1,6 @@
 import asyncio
 import math
+import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -42,6 +43,7 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         self._nonce_provider = NonceCreator.for_microseconds()
         self._last_index_price = None
         self._last_mark_price = None
+        self._mark_price_observations = {}
         self._last_next_funding_utc_timestamp = None
         self._last_rate = None
         self._trading_rules = {}
@@ -299,6 +301,15 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 ping_request = WSJSONRequest(payload="ping")
                 await websocket_assistant.send(ping_request)
 
+    async def _process_message_for_unknown_channel(self, event_message: Dict[str, Any], websocket_assistant: WSAssistant):
+        # The tracker has no mark-price queue consumer. Keep the latest sample
+        # on receipt so marks stay fresh without the funding task or queue.
+        if event_message.get("data") and (event_message.get("arg") or {}).get("channel") == CONSTANTS.WS_MARK_PRICE_CHANNEL:
+            try:
+                await self._parse_mark_price_message(event_message, None)
+            except (KeyError, ValueError, TypeError, ArithmeticError):
+                pass  # Invalid venue updates cannot refresh the last valid mark.
+
     # 5 - Listen for Specific Channels
     async def listen_for_mark_price_info(self, output: asyncio.Queue):
         """
@@ -420,11 +431,22 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                                         rate=self._last_rate)
         message_queue.put_nowait(info_update)
 
-    async def _parse_mark_price_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
+    async def _parse_mark_price_message(self, raw_message: Dict[str, Any], message_queue: Optional[asyncio.Queue]):
         symbol = raw_message["arg"]["instId"]
         trading_pair = await self._connector.trading_pair_associated_to_exchange_symbol(symbol)
         mark_price_data = raw_message["data"][0]
-        self._last_mark_price = Decimal(str(mark_price_data["markPx"]))
+        price = Decimal(str(mark_price_data["markPx"]))
+        stamp = mark_price_data.get("ts")
+        if (mark_price_data.get("instId") == symbol and isinstance(stamp, str) and stamp.isascii() and stamp.isdecimal()
+                and len(stamp) <= 16 and price.is_finite() and price > 0):
+            timestamp_ms = int(stamp)
+            previous = self._mark_price_observations.get(trading_pair)
+            if (0 < timestamp_ms <= time.time_ns() // 1_000_000 + 1_000
+                    and (previous is None or timestamp_ms >= previous[1])):
+                self._mark_price_observations[trading_pair] = (price, timestamp_ms)
+        if message_queue is None:
+            return
+        self._last_mark_price = price
         info_update = FundingInfoUpdate(trading_pair=trading_pair,
                                         index_price=self._last_index_price,
                                         mark_price=self._last_mark_price,
@@ -432,13 +454,15 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                                         rate=self._last_rate)
         message_queue.put_nowait(info_update)
 
+    def mark_price_observation(self, trading_pair):
+        return self._mark_price_observations.get(trading_pair)
+
     def _get_messages_queue_keys(self) -> List[str]:
         return [
             self._snapshot_messages_queue_key,
             self._diff_messages_queue_key,
             self._trade_messages_queue_key,
             self._funding_info_messages_queue_key,
-            self._mark_price_queue_key,
             self._index_price_queue_key,
         ]
 
@@ -456,8 +480,6 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 channel = self._snapshot_messages_queue_key
             elif event_channel == CONSTANTS.WS_INSTRUMENTS_INFO_CHANNEL:
                 channel = self._funding_info_messages_queue_key
-            elif event_channel == CONSTANTS.WS_MARK_PRICE_CHANNEL:
-                channel = self._mark_price_queue_key
             elif event_channel == CONSTANTS.WS_INDEX_TICKERS_CHANNEL:
                 channel = self._index_price_queue_key
         return channel

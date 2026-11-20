@@ -12,6 +12,7 @@ from hummingbot.core import engine_diagnostics as diagnostic, order_submission_g
 from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.engine_diagnostics import EngineDiagnostics
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 
 
 def test_completed_submission_phases_survive_sql_churn_and_publish_on_watchdog():
@@ -34,6 +35,73 @@ def test_completed_submission_phases_survive_sql_churn_and_publish_on_watchdog()
     assert len(json.dumps(receipt).encode()) <= 24000
     tracer.watch_once()
     assert len([r for r in records if r['event'] == 'order_submission_stages']) == 1
+
+
+def test_spot_sell_milestones_keep_scope_and_record_ws_evidence_before_http(monkeypatch):
+    now, records = [10_000_000_000], []
+    tracer = EngineDiagnostics(clock=lambda: now[0], emit=records.append)
+    tracer._started, tracer.loop_thread_id = True, threading.get_ident()
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    config = dict(type='position_executor', connector_name='okx', use_configured_entry_price=True,
+                  mm_session_id='private-session', mm_generation=1, controller_id='private-controller',
+                  trading_pair='BTC-USDT', level_id='sell_0')
+    order = SimpleNamespace(client_order_id='private-replacement', exchange_order_id='private-native-id',
+                            amount=1, executed_amount_base=0)
+    request = SimpleNamespace(throttler_limit_id='/api/v5/trade/order', method=RESTMethod.POST, is_auth_required=True,
+                              data=json.dumps(dict(clOrdId=order.client_order_id, side='sell', ordType='post_only')))
+    executor = SimpleNamespace(config=config, _completed_entry_fill_timestamp=lambda: 1)
+
+    diagnostic.observe_spot_sell_fill(executor, 'private-filled')
+    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), order)  # Unobserved transport.
+    now[0] += 10_000_000
+    with gates.session_order_scope('private-session', 2, executor=dict(config, mm_generation=2)):
+        unrelated = diagnostic.observe_spot_sell_dispatch(request)
+    assert unrelated[1]['replaces'] is None
+    order.client_order_id = 'private-same-level'
+    request.data = json.dumps(dict(clOrdId=order.client_order_id, side='sell', ordType='post_only'))
+    with gates.session_order_scope('private-session', 1, executor=config):
+        dispatched = diagnostic.observe_spot_sell_dispatch(request)
+
+    assert not records
+    now[0] += 12_000_000
+    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx_perpetual'), order)
+    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), SimpleNamespace(**{**vars(order), 'executed_amount_base': 1}))
+    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), order)
+    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), order)
+    now[0] += 15_000_000
+    diagnostic.observe_spot_sell_response(dispatched)
+    tracer._beat_ns = now[0]
+    tracer.watch_once()
+
+    batch, = records
+    fill, other_send, send, opened, response = batch['completed']
+    assert batch['dropped_since_previous'] == 0
+    assert other_send['lane'] != fill['lane'] == send['lane'] == opened['lane'] == response['lane']
+    assert send['replaces'] == opened['replaces'] == response['replaces'] == fill['order']
+    assert send['order'] == opened['order'] == response['order']
+    assert opened['at_ns'] - send['at_ns'] == 12_000_000
+    assert response['at_ns'] > opened['at_ns']
+    assert opened['fill_at_ns'] == fill['at_ns']
+    assert opened['sent_at_ns'] == send['at_ns']
+    assert opened['http_response_at_ns'] is None
+    assert response['fill_at_ns'] == fill['at_ns']
+    assert response['sent_at_ns'] == send['at_ns']
+    assert 'private-' not in json.dumps(batch)
+
+
+def test_quote_milestones_bound_pending_state_and_do_not_link_stale_fills():
+    now = [10_000_000_000]
+    tracer = EngineDiagnostics(clock=lambda: now[0])
+    tracer.record_quote_marker('quote.sell_fill', 'old-fill', lane='stale-lane')
+    now[0] += 121_000_000_000
+    assert tracer.record_quote_marker('quote.sell_send', 'new-order', lane='stale-lane')['replaces'] is None
+    for index in range(80):
+        lane = f'lane-{index}'
+        tracer.record_quote_marker('quote.sell_fill', f'fill-{index}', lane=lane)
+        tracer.record_quote_marker('quote.sell_send', f'order-{index}', lane=lane)
+    assert len(tracer._quote_fills) == len(tracer._quote_sends) == len(tracer.snapshot()['submission_recent']) == 64
+    assert tracer.record_quote_marker('quote.sell_open', 'order-0') is None
+    assert tracer.record_quote_marker('quote.sell_open', 'order-79')['replaces'] == 'fill-79'
 
 
 def test_eight_order_burst_retains_all_five_phases_before_next_batch():

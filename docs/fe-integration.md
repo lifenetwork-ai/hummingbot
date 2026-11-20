@@ -1248,6 +1248,25 @@ are null. Unknown account identities are explicit and are not persisted as daily
 account snapshots. A currency omitted from a newer snapshot cannot look fresh.
 Configured budgets remain available separately in `/profiles`.
 
+`GET /balances/changes` requires read permission. It compares native
+`cash_balance` values for the verified account binding. Use `period=days`
+with the inclusive `from` and exclusive `to` reporting dates, or omit both
+dates for today. The opening observation comes from the day before `from`.
+The closing observation comes from the day before `to`, using the current
+projection when that day is today. Each row includes the actual timestamps.
+`period=session` uses the first fresh, verified snapshot stored for that
+session and account. Its observation time can fall just before
+`session_started_at` if the connector fetched balances during preparation,
+or later if the first reliable balance arrives after trading starts.
+Sessions that started before migration 024 may lack an opening snapshot.
+
+A row can report `currency: "BTC"`, `opening_cash: "0.1"`,
+`closing_cash: "0.08"` and `delta_cash: "-0.02"`. Amounts are decimal strings
+with no price conversion. Null amounts remain unknown. A missing or stale
+boundary leaves `delta_cash` null and includes a `reason_code`. The initial API
+reports `flow_history: "unverified"`. The observed cash change includes any
+deposits, withdrawals or account resets within the interval.
+
 `/positions` reports actual perpetual quantities, sides, leverage and available
 margin/liquidation fields from the connector's existing REST/WS loop. Spot
 positions are `not_applicable`. `/performance` reuses the existing V2 controller
@@ -1503,7 +1522,7 @@ production-account acceptance remain external delivery work.
 
 Recovery is available only to `admin` (`GET /access/me` exposes
 `permissions.manage_recovery`). It does not alter YAML or risk limits. When
-`halted=false`, hide manual Check/Recover and inspect `automatic_recovery`
+`halted=false`, hide the HALT recovery controls and inspect `automatic_recovery`
 before showing **No recovery needed**; `recovery_not_halted` is an availability reason, not a new
 service fault. Stop the session first and wait for its control version to be
 acknowledged before checking an existing HALT. Recovery never
@@ -1520,9 +1539,40 @@ proof that the request had no effect. Supported PostgreSQL MM maker entries use
 the automatic flow below. A replacement engine with durable manual HALT
 keeps its owner/control API alive without constructing a new strategy: startup
 and live may be200 while ready remains503. This does not mean trading resumed.
-After Stop, Check returns `recovery_pending_intents` before position replay or
-credential loading when a pending send exists. Keep Recover disabled and show
-the supplied technical-review action; no force/reset or automatic Start.
+After Stop, a generic HALT Check returns `recovery_pending_intents` before
+position replay or credential loading when a pending send exists. An admin can
+request a review for a specific uncertain Spot BUY using the flow below.
+
+### Review one uncertain Spot BUY
+
+Wait for Stop to be acknowledged. Use the exact client order ID from
+`automatic_recovery.order_id` or Orders. Read
+`GET /recovery?uncertain_order_id=<client-order-id>` for the scoped availability
+and latest reviewed operation. Use the returned control version and pass the
+same `uncertain_order_id` to Check and Reset.
+
+1. Send `POST /recovery/check` with an `Idempotency-Key` and
+   `{"expected_version":16,"uncertain_order_id":"<client-order-id>"}`.
+2. Poll `GET /recovery/operations/{id}`. When `stage=review_required` and
+   `can_recover=true`, show `proposed_uncertain_order` to the admin. The preview
+   describes a local `PendingBuy` to `OrderFailure` transition based on the
+   expired submission and reconciled exchange history.
+3. After explicit review, send `POST /recovery/reset` with a new key and the
+   original control version, the same order ID, the Check operation
+   `check_id`, the returned `confirmation_token`, and
+   `confirm_order_changes=true`.
+4. Poll for `status=succeeded` and `stage=recovered`. Verify the exact ID in
+   `repaired_uncertain_order`. Start is a separate operation.
+
+This scope is for one managed OKX cash post-only BUY with an expired
+authenticated request deadline and a durable 50013 response. The service
+requires a reviewed financial checkpoint predating the send, waits through a
+60-second settlement grace period, and limits the attempt age to less than
+six days. Check and Reset each verify open orders, journaled fills, exposure,
+the exchange order history and the exact order ID. Existing or conflicting
+evidence, incomplete pages, different credentials, active runtime work and
+risk stops block the operation. Operators can use Swagger to review and
+confirm this scope.
 
 ### Automatic order reconciliation
 
@@ -1649,14 +1699,21 @@ checkpoint still reports `recovery_checkpoint_invalid` and blocks recovery.
    connector/pair, side/position, exact amount/price, native cancellation time
    and before/after status, attempt state and tracker membership. An empty
    position list does not mean that no order metadata change is proposed.
+   When `verification.pending_fill_ids` is present, it lists the journal IDs
+   of committed Spot fills to apply exactly once. Show the Spot position
+   before/after preview alongside `verification.pending_fill_orders`, which
+   links each journal and trade ID to a client and venue order ID. Recovery
+   verifies the terminal order and fills on OKX and preserves the original
+   trade and fee history.
 4. POST `/recovery/reset` with a new Idempotency-Key and the returned fields:
 
    ```json
    {"expected_version":16,"check_id":"<check operation id>","confirmation_token":"<returned 32-character token>"}
    ```
 
-   When `proposed_order_changes` is nonempty, include `"confirm_order_changes":true`
-   only after explicit admin review of that list. Omission/false returns409
+   When `proposed_order_changes` or `verification.pending_fill_ids` is nonempty,
+   include `"confirm_order_changes":true` only after explicit admin review.
+   Omission or false returns HTTP 409
    `recovery_order_review_required`; strings/numbers are validation errors.
    Older clients cannot silently authorize metadata repairs using only the
    existing token. Do not retry with true automatically.

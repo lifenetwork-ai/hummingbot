@@ -9,6 +9,7 @@ from hummingbot.core.admin_identity import AccessDenied
 from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.recovery import RECOVERY_TIMEOUT_SECONDS, RecoveryBlocked, recovery_blockers, replay_positions
 from hummingbot.core.recovery_exchange import verify_exchange
+from hummingbot.core.recovery_pending_fills import fill_ids, verify_pending_fills
 from hummingbot.core.recovery_terminal import verify_terminal_orders
 from hummingbot.core.segmented_recovery import verify_segment
 from hummingbot.model.bot_state_store import ControlConflict
@@ -17,7 +18,8 @@ from hummingbot.model.recovery_store import RecoveryStore
 
 class RecoveryReader:
     PATHS = frozenset({'/api/v5/account/config', '/api/v5/public/instruments', '/api/v5/trade/order',
-                      '/api/v5/trade/orders-pending', '/api/v5/trade/fills', '/api/v5/trade/fills-history', '/api/v5/account/positions'})
+                       '/api/v5/trade/orders-history', '/api/v5/trade/orders-pending', '/api/v5/trade/fills',
+                       '/api/v5/trade/fills-history', '/api/v5/account/positions'})
 
     def __init__(self, connector):
         self.connector = connector
@@ -110,8 +112,10 @@ class RecoveryCoordinator:
                 or isinstance(automatic, AutomaticOrderRecovery) and automatic.task is not None and not automatic.task.done()):
             raise RecoveryBlocked('recovery_stop_incomplete')
         owner.allow_new_orders = False
-        snapshot = await self.call(self.store.snapshot)
-        blockers = recovery_blockers(snapshot['state'])
+        payload = row['payload']
+        snapshot = await self.call(self.store.operation_snapshot, payload)
+        uncertain = snapshot.get('uncertain_order')
+        blockers = recovery_blockers(snapshot['state'], uncertain_order=uncertain is not None)
         if blockers:
             if row['action'] == 'recovery_check':
                 await self.finish(self.store.finish_check, row, snapshot, [], dict(verified=False), blockers=blockers)
@@ -123,7 +127,7 @@ class RecoveryCoordinator:
             # negative order lookup into proof of no exchange effects.
             raise RecoveryBlocked('recovery_pending_intents')
         checkpoint = snapshot.get('mode') == 'verified_checkpoint'
-        plan = [] if checkpoint else await self.call(replay_positions, snapshot)
+        plan = snapshot.get('pending_fill_plan', []) if checkpoint else await self.call(replay_positions, snapshot)
         if host.managed_credentials is None:
             raise RecoveryBlocked('recovery_credentials_unavailable')
         await host.funding.credentials_changed()
@@ -135,9 +139,10 @@ class RecoveryCoordinator:
             self.readers[name] = RecoveryReader(read_only_connector(name, config))
         if checkpoint:
             self.segmented = True
+            pending = fill_ids(snapshot)
 
             async def lookup(keys, watermark):
-                return await self.call(self.store.checkpoint_fill_rows, keys, watermark)
+                return await self.call(self.store.checkpoint_fill_rows, keys, watermark, pending_ids=pending)
             progress = ((row.get('result') or {}).get('_private') or {}).get('proof')
 
             async def save(before, after, entries):
@@ -145,8 +150,13 @@ class RecoveryCoordinator:
             proof = await verify_segment(snapshot, self.readers, lookup, progress, save)
             if proof is None:
                 return  # Same durable operation resumes on the next observer tick.
-            if snapshot.get('terminal_orders'):
-                changes = await verify_terminal_orders(snapshot, self.readers)
+            if snapshot.get('terminal_orders') or uncertain or pending:
+                if uncertain:
+                    from hummingbot.core.recovery_uncertain import verify_uncertain_order
+                    change = await verify_uncertain_order(snapshot, self.readers)
+                else:
+                    changes = await verify_terminal_orders(snapshot, self.readers)
+                proved_fills = await verify_pending_fills(snapshot, self.readers)
                 # Metadata reads are another exchange-observation window. The
                 # completed durable scans stay fixed; recheck account heads,
                 # open orders and exposure after those reads before finalizing.
@@ -155,8 +165,17 @@ class RecoveryCoordinator:
                 proof = await verify_segment(snapshot, self.readers, lookup, progress, save)
                 if proof is None:
                     raise RecoveryBlocked('recovery_check_unavailable')
-                proof['terminal_order_changes'] = changes
-                proof['orders_checked'] = len(changes)
+                if uncertain:
+                    proof['uncertain_order_change'], proof['orders_checked'] = change, 1
+                else:
+                    proof['terminal_order_changes'], proof['orders_checked'] = changes, len(changes)
+                if proved_fills:
+                    proof['pending_fill_ids'] = proved_fills
+                    proof['pending_fill_orders'] = [
+                        {key: item[key] for key in ('id', 'exchange_order_id', 'pair', 'fills')}
+                        for item in snapshot['pending_fill_transfers']
+                    ]
+                    proof['orders_checked'] += len(snapshot['pending_fill_transfers'])
         else:
             proof = await verify_exchange(snapshot, plan, self.readers)
         owner.check_owner()

@@ -155,6 +155,7 @@ class BotStateStore:
         """
         from sqlalchemy.exc import DataError, IntegrityError
 
+        from hummingbot.model.account_balance_changes import save_session_cash_baseline
         from hummingbot.model.admin_reporting import save_daily_balances
         from hummingbot.model.admin_store import AdminStore
         from hummingbot.model.mm_event import record_guards
@@ -216,6 +217,7 @@ class BotStateStore:
                     with connection.begin_nested():
                         save_daily_balances(connection, (status.get("reporting") or {}).get("accounts", []),
                                             status.get("reporting_timezone", "Asia/Ho_Chi_Minh"))
+                        save_session_cash_baseline(connection, self.bot_id, previous["mm_session"], status)
             except (ValueError, TypeError, KeyError, OverflowError, DataError, IntegrityError, OperationalError) as error:
                 if isinstance(error, OperationalError) and not _optional_statement_timeout(error):
                     raise

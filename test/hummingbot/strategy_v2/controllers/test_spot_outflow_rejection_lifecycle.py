@@ -16,7 +16,7 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.event.events import MarketOrderFailureEvent, OrderCancelledEvent
-from hummingbot.core.order_submission_guard import SubmissionBlocked
+from hummingbot.core.order_submission_guard import SpotOutflowPending, SubmissionBlocked
 from hummingbot.core.spot_outflow import SpotOutflowProjection
 from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
 from hummingbot.strategy_v2.models.base import RunnableStatus
@@ -70,6 +70,60 @@ async def test_outflow_denial_retires_one_unsent_entry_and_controller_waits_for_
     guard.projection.advance(1010000)
     actions = await controller_actions(controller, executor)
     assert any(isinstance(a, CreateExecutorAction) and a.executor_config.side == TradeType.BUY for a in actions)
+
+
+@pytest.mark.asyncio
+async def test_queued_buy_waits_for_existing_terminal_proof_without_retries(monkeypatch, caplog):
+    state = await setup_lifecycle(monkeypatch, 'okx', TradeType.BUY, mm_session_id='session', mm_generation=1)
+    state.controller.config = state.controller.config.model_copy(update={'runtime_config_managed': True})
+    state.connector.name = 'okx'
+    state.connector.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.001'))
+    guard = SpotOutflowGuard(SimpleNamespace(require_recovery=MagicMock()),
+                             dict(trading_pair='LIFE-USDT', window_seconds=10,
+                                  max_net_outflow_quote='100', fee_allowance_rate='.01'))
+    guard.identity = lambda: {'account_id': 'same'}
+    guard.binding, guard.reason_code = guard.identity(), None
+    guard.projection = SpotOutflowProjection(guard.config, 'LIFE-USDT', coverage_start_ms=0)
+    guard.projection.advance(1000000)
+    prior = InFlightOrder('prior-buy', 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
+                          Decimal('1'), 999, Decimal('.1'), exchange_order_id='venue-buy',
+                          initial_state=OrderState.CANCELED)
+    assert guard.projection.reserve(prior)
+    guard.orders[prior.client_order_id] = (state.connector, prior)
+    guard._confirm = AsyncMock(return_value=False)
+    monkeypatch.setattr('hummingbot.core.order_submission_guard.spot_buy_preview', guard.preview)
+
+    queued = state.order
+    queued.exchange_order_id, queued.current_state = None, OrderState.FAILED
+    with pytest.raises(SpotOutflowPending, match='spot_outflow_reconciling') as denied:
+        guard.before_order(state.connector, queued, {'database_now': 1000})
+    with caplog.at_level(logging.DEBUG):
+        state.executor.process_order_failed_event(None, state.connector, MarketOrderFailureEvent(
+            1000, queued.client_order_id, OrderType.LIMIT_MAKER, str(denied.value), type(denied.value).__name__))
+    assert caplog.records[-1].reason_code == 'spot_outflow_reconciling'
+    assert state.executor.status == RunnableStatus.SHUTTING_DOWN
+    assert state.executor._current_retries == 0
+    state.executor.place_open_order = MagicMock()
+    await state.executor.control_task()
+    assert state.executor.status == RunnableStatus.TERMINATED
+    state.executor.place_open_order.assert_not_called()
+
+    await guard.reconcile_terminal()
+    assert set(guard.projection.reservations) == set(guard.terminal_pending) == {'prior-buy'}
+    actions = await controller_actions(state.controller, state.executor)
+    assert not any(isinstance(a, CreateExecutorAction) and a.executor_config.side == TradeType.BUY for a in actions)
+    assert any(isinstance(a, CreateExecutorAction) and a.executor_config.side == TradeType.SELL for a in actions)
+
+    async def confirmed(client_id):
+        guard.projection.confirm_terminal(client_id, Decimal(0))
+        return True
+
+    guard._confirm = confirmed
+    await guard.reconcile_terminal()
+    assert not guard.projection.reservations and not guard.terminal_pending
+    actions = await controller_actions(state.controller, state.executor)
+    assert any(isinstance(a, CreateExecutorAction) and a.executor_config.side == TradeType.BUY for a in actions)
+    guard.owner.require_recovery.assert_not_called()
 
 
 @pytest.mark.asyncio

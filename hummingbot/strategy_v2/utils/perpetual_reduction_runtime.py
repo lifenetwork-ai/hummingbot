@@ -10,6 +10,7 @@ from typing import Optional, Tuple
 from hummingbot.connector.okx_reduction_fee import FEE_POLL_SECONDS, FeeObservation, read_reduction_fee
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder
+from hummingbot.core.order_submission_guard import recovery_side_permitted
 from hummingbot.strategy_v2.executors.data_types import ExecutorConfigBase
 from hummingbot.strategy_v2.executors.order_executor.data_types import ExecutionStrategy, OrderExecutorConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
@@ -290,7 +291,37 @@ class PerpetualReductionMixin:
             rounded = connector.quantize_order_price(self.config.trading_pair, rounded + tick)
         return rounded
 
-    def _make_reduction_config(self, level_id, price, amount, *, reservation_id=None):
+    def perpetual_opening_caps(self):
+        """Resolve caps from the pinned budget and the resident OKX mark."""
+        hard = (self.config.max_long_base, self.config.max_short_base, self.config.max_gross_base)
+        budget = self.config.perpetual_exposure_budget
+        if budget is None:
+            return hard
+        connector = self.market_data_provider.connectors.get(self.config.connector_name)
+        observation = connector.mark_price_observation(self.config.trading_pair) if connector is not None else None
+        if observation is None:
+            return None
+        price, stamp_ms = observation
+        age_ms = self.market_data_provider.time() * 1000 - stamp_ms
+        if not price.is_finite() or price <= 0 or not 0 <= age_ms <= budget.max_mark_age_seconds * 1000:
+            return None
+        with localcontext() as context:
+            context.rounding = ROUND_DOWN
+            fractions = (budget.max_long_pct, budget.max_short_pct, budget.max_gross_pct)
+            return tuple(
+                min(limit if limit is not None else hard[2], budget.allocated_capital_quote * fraction / price)
+                for limit, fraction in zip(hard, fractions)
+            )
+
+    def _opening_cap_blocker(self):
+        limits = self.perpetual_opening_caps()
+        if limits is None:
+            return 'perpetual_mark_price_unavailable'
+        if not self._within_caps(*self._exposure(), limits=limits):
+            return 'inventory_limit'
+        return None
+
+    def _make_reduction_config(self, level_id, price, amount, *, reservation_id=None, opening_exposure=None, opening_caps=None):
         side = self.get_trade_type_from_level_id(level_id)
         try:
             view = self._reduction_view()
@@ -299,6 +330,17 @@ class PerpetualReductionMixin:
                 self._reduction_wait(decision.reason, side)
                 return None
             if decision.effect == PositionAction.OPEN:
+                if opening_exposure is not None:
+                    if opening_caps is None:
+                        self._quote_reason('perpetual_mark_price_unavailable', side)
+                        return None
+                    long, short = opening_exposure
+                    long_cap, short_cap, gross_cap = opening_caps
+                    side_remaining = long_cap - long if side == TradeType.BUY else short_cap - short
+                    amount = min(amount, side_remaining, gross_cap - (long + short))
+                    if amount <= 0:
+                        self._quote_reason('inventory_limit', side)
+                        return None
                 return self._get_open_executor_config(level_id, price, amount)
             fee = self._closing_fee()
             basis = view.short if side == TradeType.BUY else view.long
@@ -352,13 +394,17 @@ class PerpetualReductionMixin:
 
     def _create_reduction_actions(self):
         self._reset_quote_diagnostics()
+        if not recovery_side_permitted(self.config.connector_name, TradeType.SELL):
+            self._quote_reason('uncertain_order_risk_paused')
+            return []
         if self._control_error or not self._session_admitted or not self.processed_data.get('ready') or not self.market_data_provider.ready:
             self._quote_reason(self._quote_readiness_reason() or 'readiness_unavailable')
             return []
         created = []
         try:
             state = self._reduction_runtime()
-            long, short = self._reduction_exposure()
+            long, short = self._exposure()
+            caps = self.perpetual_opening_caps()
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
             available = Decimal(str(connector.get_available_balance('USDT')))
             if not available.is_finite() or available < 0:
@@ -369,7 +415,8 @@ class PerpetualReductionMixin:
                 if sum(not row.applied for row in state.executors) + len(self._reduction_queued) >= MAX_LIVE_REDUCTION_EXECUTORS:
                     self._quote_reason('reduction_reservation_limit')
                     break
-                config = self.get_executor_config(level, *self.get_price_and_amount(level))
+                config = self._make_reduction_config(level, *self.get_price_and_amount(level),
+                                                     opening_exposure=(long, short), opening_caps=caps)
                 if config is None:
                     continue
                 price = quote_price(config)
@@ -379,7 +426,7 @@ class PerpetualReductionMixin:
                 closing = quote_effect(config) == PositionAction.CLOSE
                 proposed_long = long + (config.amount if not closing and config.side == TradeType.BUY else ZERO)
                 proposed_short = short + (config.amount if not closing and config.side == TradeType.SELL else ZERO)
-                if not closing and not self._within_caps(proposed_long, proposed_short):
+                if not closing and not self._within_caps(proposed_long, proposed_short, limits=caps):
                     self._quote_reason('inventory_limit', config.side)
                     continue
                 fee = self._closing_fee() if closing else None
@@ -392,6 +439,7 @@ class PerpetualReductionMixin:
                 created.append(config.id)
                 available -= required
                 allocation += config.amount * price
+                # Reserve new openings immediately. A queued close frees no exposure.
                 long, short = proposed_long, proposed_short
                 self._quote_diagnostics['proposed'][config.side.name] += 1
             self._cache_reduction_status(state)
@@ -454,6 +502,8 @@ class PerpetualReductionMixin:
                 if (not available.is_finite() or available < 0
                         or reserved + order.amount * order.price * fee.rate + fee.flat_quote > available):
                     return reject('reduction_fee_balance_unavailable')
+            elif self.config.perpetual_exposure_budget is not None and (reason := self._opening_cap_blocker()):
+                return reject(reason)
             if not self.quote_price_valid(order.price) or not self.spread_quote_valid(
                     config.side, order.price, order.amount, level_id=config.level_id):
                 return reject('reduction_price_rejected')
@@ -472,7 +522,8 @@ class PerpetualReductionMixin:
             self.update_reference()
             if not self.processed_data.get('ready') or not self.market_data_provider.ready:
                 return None
-            if quote_effect(original) == PositionAction.OPEN and not self.exposure_within_caps():
+            if quote_effect(original) == PositionAction.OPEN and (reason := self._opening_cap_blocker()):
+                self._quote_reason(reason, original.side)
                 return None
             price, amount = self.get_price_and_amount(original.level_id)
             self._fresh_price(self.config.connector_name, self.config.trading_pair)
@@ -501,6 +552,10 @@ class PerpetualReductionMixin:
         state = self._reduction_runtime()
         view = self._reduction_view(state)
         self._cache_reduction_status(state)
+        opening_blocker = None
+        if self.config.perpetual_exposure_budget is not None and any(
+                quote_effect(config) == PositionAction.OPEN for config in self._reduction_configs(state)):
+            opening_blocker = self._opening_cap_blocker()
         actions = []
         for row in state.executors:
             config = row.config
@@ -508,6 +563,9 @@ class PerpetualReductionMixin:
                 continue
             decision = view.decide(config.side, reservation_id=config.id)
             invalid = decision.effect != quote_effect(config) or decision.reason is not None
+            if quote_effect(config) == PositionAction.OPEN and opening_blocker:
+                self._quote_reason(opening_blocker, config.side)
+                invalid = True
             if not invalid and quote_effect(config) == PositionAction.CLOSE:
                 native = next((order for order in row.orders if not order.is_done), None)
                 amount = native.amount - native.executed_amount_base if native is not None else config.amount

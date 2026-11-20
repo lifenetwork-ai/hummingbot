@@ -934,6 +934,18 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.mm_command(port, 'start', market_mode='both', selection='fixed', profile_id='sideways', duration_seconds=600)
         session = self.state()['mm_session']
 
+        def session_cash():
+            status, report = self.admin(port, '/balances/changes?period=session')
+            if status == 200 and report['session_id'] == session['id']:
+                return {row['currency']: row for row in report['rows']}
+            return {}
+
+        def opening_cash():
+            rows = session_cash()
+            return rows if all(rows.get(asset, {}).get('delta_cash') == '0' for asset in ('LIFE', 'USDT')) else None
+
+        opening = poll(opening_cash, description='verified session opening cash for Spot and Perpetual')
+
         def live_buys():
             orders = [x for x in self.ledger()['orders'] if x['side'] == 'buy' and x['state'] == 'live']
             return orders if {x['instId'] for x in orders} == {'LIFE-USDT', 'LIFE-USDT-SWAP'} else None
@@ -944,6 +956,21 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
             self.control(fill=dict(clOrdId=order['clOrdId'], amount=order['sz'], fee='0.001'), duplicate=True)
         poll(lambda: self.sql('SELECT count(*) FROM trade_fills') == '2', description='deduplicated spot/perpetual fills')
         exposure = position_exposure(self.ledger()['positions'])
+        expected_cash = {row['ccy']: Decimal(row['cashBal']) for row in self.ledger()['balances']}
+        assert all(expected_cash[asset] != Decimal(opening[asset]['opening_cash']) for asset in ('LIFE', 'USDT'))
+
+        def settled_cash():
+            rows = session_cash()
+            return rows if all(rows.get(asset, {}).get('delta_cash') is not None
+                               and Decimal(rows[asset]['closing_cash']) == expected_cash[asset]
+                               for asset in ('LIFE', 'USDT')) else None
+
+        poll(settled_cash, description='session cash reflects the simulated fills')
+        poll(lambda: sum(order['state'] in ('live', 'partially_filled') for order in self.ledger()['orders']) == 8
+             and self.sql("SELECT count(*) FROM orders WHERE id IN (SELECT order_id FROM trade_fills) "
+                          "AND last_status IN ('BuyOrderCompleted','SellOrderCompleted')") == '2'
+             and not (self.state().get('recovery_state') or {}).get('pending_mutations'),
+             timeout=30, description='settled fill handoffs and replacement ACKs before restart')
         self.terminate(first)
         snapshot_sql = "SELECT controller_id,side,amount,breakeven_price,cum_fees_quote FROM positions ORDER BY controller_id,side"
         stored = self.sql(snapshot_sql)
@@ -952,6 +979,11 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.wait_running(port)
         restored = self.state()['mm_session']
         assert all(restored[key] == session[key] for key in ('id', 'anchors', 'started_at', 'expires_at', 'generation'))
+        after_restart = poll(settled_cash, description='session cash resumes after process restart')
+        for asset in ('LIFE', 'USDT'):
+            assert after_restart[asset]['opening_observed_at'] == opening[asset]['opening_observed_at']
+            assert after_restart[asset]['opening_cash'] == opening[asset]['opening_cash']
+            assert Decimal(after_restart[asset]['delta_cash']) == expected_cash[asset] - Decimal(opening[asset]['opening_cash'])
         assert not self.state()['recovery_state'].get('halt')
         assert self.sql(snapshot_sql) == stored
         self.mm_command(port, 'stop')
@@ -962,7 +994,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         path.write_text(original)
         self.metrics['managed_initial_position_restart'] = dict(durable_seed_once=True, filled_restart=True,
                                                                 exact_quantity_cost_fees=True, unique_fills=2,
-                                                                session_pinned=True, clean_stop=True)
+                                                                session_pinned=True, session_cash_verified=True,
+                                                                clean_stop=True)
 
     def mm_scenario(self, *, matrix=True):
         print("Offline E2E: LIFE admin three scenarios x spot/perpetual/both", flush=True)

@@ -730,6 +730,43 @@ class BalancesResponse(APIModel):
     owner_available: bool
 
 
+class BalanceChangesQuery(APIModel):
+    period: Literal["days", "session"] = "days"
+    start_day: Optional[date] = Field(default=None, alias="from", description="Inclusive local reporting date.")
+    end_day: Optional[date] = Field(default=None, alias="to", description="Exclusive local reporting date.")
+
+    @model_validator(mode="after")
+    def validate_period(self):
+        if self.period == "session" and (self.start_day is not None or self.end_day is not None):
+            raise ValueError("Session balance comparisons do not accept reporting dates")
+        return self
+
+
+class BalanceChange(APIModel):
+    currency: str
+    opening_cash: Optional[str]
+    opening_observed_at: Optional[UTCDateTime]
+    closing_cash: Optional[str]
+    closing_observed_at: Optional[UTCDateTime]
+    delta_cash: Optional[str]
+    reason_code: Optional[Literal["opening_missing", "closing_missing", "closing_stale"]]
+
+
+class BalanceChangesResponse(APIModel):
+    period: Literal["days", "session"]
+    start_day: Optional[date]
+    end_day: Optional[date]
+    reporting_timezone: str
+    session_id: Optional[str]
+    session_started_at: Optional[UTCDateTime]
+    account_id: Optional[str]
+    environment: Optional[Literal["demo", "live"]]
+    server_time: UTCDateTime
+    flow_history: Literal["unverified"]
+    reason_code: Optional[Literal["account_identity_unavailable", "session_unavailable", "opening_missing", "closing_missing"]]
+    rows: List[BalanceChange]
+
+
 class PositionObservation(APIModel):
     pair: str
     side: Literal["LONG", "SHORT"]

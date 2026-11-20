@@ -6,7 +6,7 @@ import { cn } from '../../shared/utils/cn'
 import { formatAssetAmount } from '../../shared/utils/formatters'
 import { BackendGapChip } from './BackendGapChip'
 import { parseAmount } from './parseAmount'
-import { formatPriceForDisplay, formatQuantityForDisplay, formatRiskValueForDisplay, formatUsdtForDisplay } from './formatNumbers'
+import { formatPriceForDisplay, formatRiskValueForDisplay, formatUsdtForDisplay } from './formatNumbers'
 import type { DetailMode } from './LiquidityVerdictCard'
 import type { CapitalRiskView, MandateLimitRow } from './supplement'
 

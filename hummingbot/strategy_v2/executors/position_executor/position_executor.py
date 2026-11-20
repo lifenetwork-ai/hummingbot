@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Union
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.order_candidate import OrderCandidate, PerpetualOrderCandidate
+from hummingbot.core.engine_diagnostics import observe_spot_sell_fill
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
     BuyOrderCreatedEvent,
@@ -778,6 +779,7 @@ class PositionExecutor(ExecutorBase):
 
         if (self._is_managed_maker_entry and self._open_order
                 and self._open_order.order_id == event.order_id):
+            observe_spot_sell_fill(self, event.order_id)
             notify = getattr(self._strategy, 'notify_executor_entry_filled', None)
             if callable(notify):
                 notify(self)
@@ -868,7 +870,7 @@ class PositionExecutor(ExecutorBase):
     def _log_order_failure(self, role: str, event: MarketOrderFailureEvent, *, reprice: bool = False,
                            outflow_wait: bool = False, session_closed: bool = False):
         from hummingbot.core.order_submission_guard import submission_block_log_context
-        context = submission_block_log_context(event.error_type)
+        context = submission_block_log_context(event.error_type, event.error_message)
         if context is None:
             self.logger().error(f"{role} order failed {event.order_id}. Retrying {self._current_retries}/{self._max_retries}")
             return

@@ -49,8 +49,9 @@ def test_creation_metadata_is_grouped_before_authoritative_tracking_snapshot(own
     assert len(flushed) == 2, flushed
     assert {'Order', 'OrderStatus', 'SubmissionAttempt'} <= flushed[0], flushed
     assert flushed[1] == {'MarketState'}, flushed
-    # Intent has one initial admission read in addition to the two write fences.
-    assert owner_reads.call_count == (3 if stage == 'intent' else 2)
+    # Intent checks admission and acquires its NOWAIT fence before staging,
+    # then checks physical ownership at both flushes.
+    assert owner_reads.call_count == (4 if stage == 'intent' else 2)
     assert any('orders.creation_pending' in sql for sql in statements)  # Never skip fresh admission proof.
     with owned.manager.get_new_session() as db:
         order = db.get(Order, 'order-1')

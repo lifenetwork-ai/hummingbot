@@ -1,0 +1,159 @@
+import asyncio
+import json
+import threading
+from decimal import Decimal
+from test.integration.postgres.test_automatic_recovery import executor_info, orchestrator
+from test.integration.postgres.test_ownership import owned as owned_fixture
+from test.integration.postgres.test_recorder import fill
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+from aiohttp import web
+from sqlalchemy import event, text
+from sqlalchemy.exc import OperationalError
+
+from hummingbot.cli.service import ServiceHost
+from hummingbot.cli.service_processes import probe_health
+from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
+from hummingbot.core.event.events import MarketEvent
+from hummingbot.core.operational_warnings import PositionCheckpointBusy
+from hummingbot.model.runtime_journal import RuntimeJournal
+from hummingbot.strategy.strategy_v2_base import StrategyV2Base
+from hummingbot.strategy_v2.executors import executor_orchestrator
+
+owned = owned_fixture
+
+
+def pending_checkpoint(owned):
+    runtime = orchestrator()
+    runtime.strategy.config.mm_drawdown_scope = None
+    info = executor_info('hold-probe')
+    info.config.mm_session_id = 'hold-probe-session'
+    info.config.mm_generation = 0
+    owned.recorder._did_fill_order(
+        MarketEvent.OrderFilled.value, owned.market,
+        fill(order_id='hold-probe-order', amount=Decimal('.1'), price=Decimal('100'),
+             trade_fee=AddedToCostTradeFee(flat_fees=[TokenAmount('USDT', Decimal('.01'))])),
+    )
+    runtime.active_executors['maker'] = [SimpleNamespace(config=info.config, executor_info=info)]
+    return runtime
+
+
+@pytest.mark.parametrize('locked_seconds', [.45, 1.25])
+def test_live_during_held_position_checkpoint(owned, locked_seconds):
+    runtime = pending_checkpoint(owned)
+    controller = SimpleNamespace(executors_update_event=asyncio.Event())
+    controller.executors_update_event.set()
+    strategy = SimpleNamespace(
+        _managed_report_handle=None, _managed_report_pending={}, executor_orchestrator=runtime,
+        controllers={'maker': controller}, logger=MagicMock(), controller_reports={'previous': True},
+    )
+    row_locked, fence_started = threading.Event(), threading.Event()
+    queries = []
+
+    def lock_row():
+        with owned.engine.begin() as connection:
+            connection.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
+            row_locked.set()
+            assert fence_started.wait(2)
+            threading.Event().wait(locked_seconds)
+
+    def detect_fence(connection, cursor, statement, parameters, context, executemany):
+        if 'FROM bot_state' in statement and 'FOR SHARE' in statement and row_locked.is_set():
+            queries.append(statement)
+            fence_started.set()
+
+    async def exercise():
+        host = SimpleNamespace(stop=asyncio.Event(), phase='running', observer_progress_at=None)
+
+        async def live(request):
+            return await ServiceHost.health(host, request)
+
+        app = web.Application()
+        app.router.add_get('/live', live)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        await web.TCPSite(runner, '127.0.0.1', 0).start()
+        port = runner.addresses[0][1]
+        loop = asyncio.get_running_loop()
+
+        def first_probe():
+            assert fence_started.wait(2)
+            return probe_health(port, '/live')
+
+        blocker = loop.run_in_executor(None, lock_row)
+        try:
+            assert await asyncio.to_thread(row_locked.wait, 2)
+            probing = loop.run_in_executor(None, first_probe)
+            StrategyV2Base.update_executors_info(strategy)
+            before = await probing
+            if before[0]:
+                assert not controller.executors_update_event.is_set()
+                assert strategy.controller_reports_error == 'position_checkpoint_waiting'
+                assert strategy.controller_reports == {'previous': True}
+                assert runtime.positions_held['maker'] == []
+                assert not runtime.executors_ids_position_held
+                assert owned.manager.persistence_healthy
+                assert owned.recorder.get_all_positions() == []
+            await blocker
+            if not controller.executors_update_event.is_set():
+                StrategyV2Base.update_executors_info(strategy)
+            after = await asyncio.to_thread(probe_health, port, '/live')
+        finally:
+            await blocker
+            await runner.cleanup()
+        return before, after
+
+    event.listen(owned.engine, 'before_cursor_execute', detect_fence)
+    try:
+        first, second = owned.loop.run_until_complete(exercise())
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', detect_fence)
+    assert queries and second[0]
+    assert strategy.controller_reports_error is None and controller.executors_update_event.is_set()
+    assert owned.recorder.get_all_positions()[0].amount == Decimal('.1')
+    with owned.manager.get_new_session() as session:
+        assert session.query(RuntimeJournal).filter_by(event_key='hold:hold-probe').count() == 1
+    print(json.dumps({'first_probe': first[1], 'next_probe': second[1],
+                      'one_durable_hold': True, 'initial_fence_nowait': 'NOWAIT' in queries[0]}))
+    assert first[0] and 'NOWAIT' in queries[0], first[1]
+
+
+def test_held_checkpoint_contention_expires_without_publishing_or_writing(owned, monkeypatch):
+    runtime = pending_checkpoint(owned)
+    now = [100.0]
+    monkeypatch.setattr(executor_orchestrator, 'time', SimpleNamespace(monotonic=lambda: now[0]))
+    with owned.engine.begin() as connection:
+        connection.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
+        with pytest.raises(PositionCheckpointBusy):
+            runtime.get_all_reports()
+        assert owned.manager.persistence_healthy
+        now[0] += runtime._POSITION_CHECKPOINT_RETRY_SECONDS
+        with pytest.raises(RuntimeError, match='Position checkpoint still blocked'):
+            runtime.get_all_reports()
+    assert not owned.manager.persistence_healthy
+    assert not runtime.positions_held['maker'] and not runtime.executors_ids_position_held
+    assert owned.recorder.get_all_positions() == []
+
+
+def test_held_checkpoint_commit_lock_error_cannot_be_retried_as_prewrite(owned):
+    runtime = pending_checkpoint(owned)
+    with owned.engine.begin() as connection:
+        connection.execute(text("""
+            CREATE FUNCTION reject_held_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                RAISE EXCEPTION 'deferred lock failure' USING ERRCODE = '55P03';
+            END $$;
+            CREATE CONSTRAINT TRIGGER reject_held_commit
+                AFTER INSERT ON runtime_journal DEFERRABLE INITIALLY DEFERRED
+                FOR EACH ROW WHEN (NEW.kind = 'hold') EXECUTE FUNCTION reject_held_commit();
+        """))
+    with pytest.raises(OperationalError) as failure:
+        runtime.get_all_reports()
+    assert failure.value.orig.pgcode == '55P03'
+    assert not owned.manager.persistence_healthy
+    assert not runtime.positions_held['maker'] and not runtime.executors_ids_position_held
+    assert owned.recorder.get_all_positions() == []
+    with owned.manager.get_new_session() as session:
+        assert session.query(RuntimeJournal).filter_by(event_key='hold:hold-probe').count() == 0

@@ -47,7 +47,7 @@ describe('LiquidityVerdictCard eligible coverage', () => {
       />,
     )
     expect(screen.getByText('ONE-SIDED')).toBeInTheDocument()
-    expect(screen.getByText('/ 8 bps')).toBeInTheDocument()
+    expect(screen.getByText('/ 8.00 bps')).toBeInTheDocument()
   })
 
   it('auto-expands why panel when diagnosis is present', () => {

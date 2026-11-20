@@ -91,6 +91,17 @@ async def setup_lifecycle(monkeypatch, connector_name, side, initial=(1000, 0), 
     await controller.update_processed_data()
     assert controller.processed_data['ready'], controller.processed_data
 
+    level = 'buy_0' if side == TradeType.BUY else 'sell_0'
+    price = Decimal('.099') if side == TradeType.BUY else Decimal('.101')
+    config = controller.get_executor_config(level, price, Decimal('600'))
+    assert config is not None
+    return seed_lifecycle(monkeypatch, controller, config, prices)
+
+
+def seed_lifecycle(monkeypatch, controller, config, prices=None):
+    """Seed a resting entry from an already prepared controller proposal."""
+    connector_name = config.connector_name
+    connector = controller.market_data_provider.get_connector_with_fallback.return_value
     recorder = MagicMock()
     recorder.iter_executor_performance.side_effect = lambda *args, **kwargs: (row for row in ())
     recorder.get_all_positions.return_value = []
@@ -99,16 +110,12 @@ async def setup_lifecycle(monkeypatch, connector_name, side, initial=(1000, 0), 
     strategy.config = SimpleNamespace(mm_drawdown_scope=None)
     strategy.controllers = {controller.config.id: controller}
     strategy.connectors = {connector_name: connector}
-    strategy.current_timestamp = 1000
-    level = 'buy_0' if side == TradeType.BUY else 'sell_0'
-    price = Decimal('.099') if side == TradeType.BUY else Decimal('.101')
-    config = controller.get_executor_config(level, price, Decimal('600'))
-    assert config is not None
+    strategy.current_timestamp = controller.market_data_provider.time()
     executor = PositionExecutor(strategy, config)
     order = InFlightOrder(client_order_id='entry', exchange_order_id='exchange-entry',
                           trading_pair=config.trading_pair, order_type=OrderType.LIMIT_MAKER,
-                          trade_type=side, amount=config.amount, price=price,
-                          creation_timestamp=1000, initial_state=OrderState.OPEN)
+                          trade_type=config.side, amount=config.amount, price=config.entry_price,
+                          creation_timestamp=strategy.current_timestamp, initial_state=OrderState.OPEN)
     executor._open_order = TrackedOrder(order.client_order_id)
     executor._open_order.order = order
     executor._status = RunnableStatus.RUNNING

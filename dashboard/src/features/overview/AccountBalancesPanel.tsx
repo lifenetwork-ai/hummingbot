@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowUpRight, BarChart3, ChevronDown, LayoutList, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react'
 import type { ReadResponse } from '../../core/api/admin'
@@ -8,6 +8,7 @@ import { cn } from '../../shared/utils/cn'
 import { formatQuantityForDisplay } from './formatNumbers'
 import type { Source } from './model'
 import { parseAmount } from './parseAmount'
+import { BalanceChangesTab, type BalanceChangesScope } from './BalanceChangesTab'
 import { AllocationBar } from './visuals/AllocationBar'
 
 type Props = {
@@ -15,6 +16,7 @@ type Props = {
   onClose: () => void
   source: Source<ReadResponse<'getBalances'>>
   onRefresh: () => unknown
+  changesScope?: BalanceChangesScope
 }
 
 type BalanceItem = ReadResponse<'getBalances'>['accounts'][number]['balances'][number]
@@ -55,26 +57,15 @@ function computeAccountSummary(balances: BalanceItem[]) {
   let totalCashUsdt = 0
   let totalAvailCashUsdt = 0
   let usdtFound = false
-  let netPnl = 0
-  let hasAnyPnl = false
 
   for (const b of balances) {
     const cash = parseAmount(b.cash_balance) ?? 0
     const avail = parseAmount(b.available_cash) ?? 0
-    const eq = parseAmount(b.equity)
 
     if (b.currency.toUpperCase() === 'USDT') {
       usdtFound = true
       totalCashUsdt += cash
       totalAvailCashUsdt += avail
-    }
-
-    if (eq !== null && b.cash_balance !== null) {
-      const diff = eq - cash
-      if (Math.abs(diff) > 0.00001) {
-        netPnl += diff
-        hasAnyPnl = true
-      }
     }
   }
 
@@ -86,15 +77,12 @@ function computeAccountSummary(balances: BalanceItem[]) {
     totalCashUsdt,
     totalAvailCashUsdt,
     usdtFreePct,
-    netPnl,
-    hasAnyPnl,
   }
 }
 
-export function AccountBalancesPanel({ open, onClose, source, onRefresh }: Props) {
-  const [viewMode, setViewMode] = useState<'visual' | 'table'>('visual')
-  const accounts = source.data?.accounts ?? []
-
+export function AccountBalancesPanel({ open, onClose, source, onRefresh, changesScope }: Props) {
+  const [viewMode, setViewMode] = useState<'visual' | 'table' | 'changes'>('visual')
+  const viewId = useId()
   return (
     <Dialog
       open={open}
@@ -104,6 +92,56 @@ export function AccountBalancesPanel({ open, onClose, source, onRefresh }: Props
       title="Account balances"
       description="Balances in each currency’s native units."
     >
+      <div className="flex flex-wrap border-b border-app-border" role="tablist" aria-label="Balance view tabs">
+        {([
+          ['visual', 'Visual bars', BarChart3],
+          ['table', 'Table', LayoutList],
+          ['changes', 'Balance changes', TrendingUp],
+        ] as const).map(([mode, label, Icon], index, tabs) => (
+          <button
+            key={mode}
+            id={`${viewId}-${mode}`}
+            type="button"
+            role="tab"
+            aria-selected={viewMode === mode}
+            aria-controls={`${viewId}-panel`}
+            tabIndex={viewMode === mode ? 0 : -1}
+            onClick={() => setViewMode(mode)}
+            onKeyDown={(event) => {
+              const navigation: Record<string, number | undefined> = {
+                ArrowRight: (index + 1) % tabs.length, ArrowLeft: (index + tabs.length - 1) % tabs.length,
+                Home: 0, End: tabs.length - 1,
+              }
+              const next = navigation[event.key]
+              if (next === undefined) return
+              event.preventDefault()
+              const nextMode = tabs[next][0]
+              setViewMode(nextMode)
+              document.getElementById(`${viewId}-${nextMode}`)?.focus()
+            }}
+            className={cn(
+              'inline-flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2 text-xs font-bold transition-colors',
+              viewMode === mode ? 'border-app-action text-app-action' : 'border-transparent text-app-muted hover:border-app-border hover:text-app-text',
+            )}
+          >
+            <Icon size={15} aria-hidden="true" />
+            {label}
+          </button>
+        ))}
+      </div>
+      <div id={`${viewId}-panel`} role="tabpanel" aria-labelledby={`${viewId}-${viewMode}`}>
+        {viewMode === 'changes'
+          ? open && <BalanceChangesTab scope={changesScope} />
+          : <BalanceSnapshot source={source} onRefresh={onRefresh} viewMode={viewMode} onClose={onClose} />}
+      </div>
+    </Dialog>
+  )
+}
+
+function BalanceSnapshot({ source, onRefresh, viewMode, onClose }: Pick<Props, 'source' | 'onRefresh' | 'onClose'> & { viewMode: 'visual' | 'table' }) {
+  const accounts = source.data?.accounts ?? []
+  return (
+    <>
       {/* Top Snapshot / Refresh inline trigger */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-app-muted">
         <button
@@ -125,44 +163,6 @@ export function AccountBalancesPanel({ open, onClose, source, onRefresh }: Props
         </button>
       </div>
 
-      {/* Common App Tab Navigation */}
-      {accounts.length > 0 && (
-        <div className="mt-2 border-b border-app-border">
-          <div className="flex space-x-2" role="tablist" aria-label="Balance view tabs">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={viewMode === 'visual'}
-              onClick={() => setViewMode('visual')}
-              className={cn(
-                'inline-flex items-center gap-2 border-b-2 px-4 py-2 text-xs font-bold transition-colors whitespace-nowrap',
-                viewMode === 'visual'
-                  ? 'border-app-action text-app-action'
-                  : 'border-transparent text-app-muted hover:border-app-border hover:text-app-text',
-              )}
-            >
-              <BarChart3 size={15} aria-hidden="true" />
-              <span>Visual bars</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={viewMode === 'table'}
-              onClick={() => setViewMode('table')}
-              className={cn(
-                'inline-flex items-center gap-2 border-b-2 px-4 py-2 text-xs font-bold transition-colors whitespace-nowrap',
-                viewMode === 'table'
-                  ? 'border-app-action text-app-action'
-                  : 'border-transparent text-app-muted hover:border-app-border hover:text-app-text',
-              )}
-            >
-              <LayoutList size={15} aria-hidden="true" />
-              <span>Table</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {source.phase === 'loading' && !source.data && <p role="status" className="mt-4 text-sm text-app-muted">Loading balances…</p>}
       {source.phase === 'error' && <p role="alert" className="mt-4 text-sm text-app-danger">Unable to refresh balances. {source.data ? 'Showing the last snapshot.' : 'Try refreshing again.'}</p>}
       {source.data && !source.data.owner_available && <p role="status" className="mt-4 text-sm text-app-muted">Balance source unavailable. Snapshot is unverified.</p>}
@@ -182,7 +182,7 @@ export function AccountBalancesPanel({ open, onClose, source, onRefresh }: Props
 
               {/* Account Quick Summary Cards */}
               {account.balances.length > 0 && (
-                <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="mb-4 grid grid-cols-2 gap-3">
                   <div className="rounded-button border border-app-border/80 bg-app-surface-muted/30 p-2.5">
                     <div className="text-[10px] font-medium uppercase tracking-wider text-app-muted">Reported Assets</div>
                     <div className="mt-1 flex items-baseline gap-1.5">
@@ -203,19 +203,6 @@ export function AccountBalancesPanel({ open, onClose, source, onRefresh }: Props
                         </>
                       ) : (
                         <span className="font-mono text-sm font-semibold text-app-text">Active</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 rounded-button border border-app-border/80 bg-app-surface-muted/30 p-2.5 sm:col-span-1">
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-app-muted">Net Pos. PnL (Equity - Cash)</div>
-                    <div className="mt-1 flex items-baseline gap-1.5">
-                      {summary.hasAnyPnl ? (
-                        <span className={cn('font-mono text-sm font-bold', summary.netPnl >= 0 ? 'text-app-success' : 'text-app-danger')}>
-                          {summary.netPnl >= 0 ? '+' : ''}{formatQuantityForDisplay(String(summary.netPnl))}
-                        </span>
-                      ) : (
-                        <span className="font-mono text-xs text-app-muted">Neutral / No open pos.</span>
                       )}
                     </div>
                   </div>
@@ -385,6 +372,6 @@ export function AccountBalancesPanel({ open, onClose, source, onRefresh }: Props
           </Link>
         </div>
       </div>
-    </Dialog>
+    </>
   )
 }

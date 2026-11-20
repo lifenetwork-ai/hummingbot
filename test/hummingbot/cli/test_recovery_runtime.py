@@ -13,10 +13,11 @@ from hummingbot.core.recovery import RecoveryBlocked
 
 def coordinator(monkeypatch, *, action='recovery_check'):
     store = MagicMock()
-    store.claim.return_value = {'id': 'op', 'action': action}
+    store.claim.return_value = {'id': 'op', 'action': action, 'payload': {}}
     store.snapshot.return_value = {'state': {'desired_state': 'stopped', 'control_version': 1, 'acknowledged_version': 1,
                                              'recovery_state': {'halt': True, 'reason': 'Strategy initialization/reconciliation failed; inspect sanitized logs.'}},
                                    'orders': [], 'fills': [], 'positions': [], 'bindings': []}
+    store.operation_snapshot.side_effect = lambda _: store.snapshot()
     monkeypatch.setattr(module, 'RecoveryStore', lambda _: store)
     core = SimpleNamespace(strategy=None, _is_running=False, connector_manager=SimpleNamespace(connectors={}))
     host = SimpleNamespace(store=None, owner=MagicMock(submission_tasks=set(), transport_tasks=set(), terminal_tasks=set()),

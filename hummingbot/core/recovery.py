@@ -41,7 +41,7 @@ def decimal(value):
     raise RecoveryBlocked('recovery_financial_data_invalid')
 
 
-def recovery_blockers(state):
+def recovery_blockers(state, *, uncertain_order=False):
     reasons = []
     if state.get('desired_state') != 'stopped':
         reasons.append('recovery_stop_required')
@@ -50,7 +50,12 @@ def recovery_blockers(state):
     recovery = state.get('recovery_state')
     if not isinstance(recovery, dict):
         return reasons + ['recovery_checkpoint_invalid']
-    if recovery.get('halt') is not True:
+    if uncertain_order:
+        if recovery.get('halt') or recovery.get('reason') or recovery.get('shutdown_incomplete'):
+            reasons.append('recovery_uncertain_order_scope')
+        if recovery.get('runtime_active'):
+            reasons.append('recovery_stop_incomplete')
+    elif recovery.get('halt') is not True:
         reasons.append('recovery_not_halted')
     if recovery.get('pending_mutations'):
         reasons.append('recovery_pending_mutations')
@@ -99,7 +104,7 @@ def recovery_blockers(state):
     elif defense.get('pauses'):
         reasons.append('recovery_risk_stop')
     reason = recovery.get('reason')
-    if not isinstance(reason, str) or reason not in TECHNICAL_HALTS:
+    if (not uncertain_order or reason) and (not isinstance(reason, str) or reason not in TECHNICAL_HALTS):
         reasons.append('recovery_risk_stop' if isinstance(reason, str) and any(
             word in reason.lower() for word in ('drawdown', 'risk', 'outflow', 'bootstrap', 'volatility')) else 'recovery_reason_unsupported')
     return sorted(set(reasons))
@@ -108,7 +113,8 @@ def recovery_blockers(state):
 def fingerprint(snapshot):
     data = {key: snapshot.get(key, []) for key in ('orders', 'fills', 'positions', 'bindings')}
     state = snapshot['state']
-    for key in ('mode', 'checkpoint', 'ledger_hash', 'pending_intents', 'terminal_orders'):
+    for key in ('mode', 'checkpoint', 'ledger_hash', 'pending_intents', 'terminal_orders', 'uncertain_order',
+                'pending_fill_transfers', 'pending_fill_plan'):
         if key in snapshot:
             data[key] = snapshot[key]
     data['state'] = {key: state.get(key) for key in (

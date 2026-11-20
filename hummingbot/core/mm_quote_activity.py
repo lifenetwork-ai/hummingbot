@@ -8,8 +8,12 @@ REASONS = {
     'insufficient_quote_balance': 'Available USDT does not cover the proposed order. Check balances and open-order reservations.',
     'insufficient_base_balance': 'Available token balance does not cover the proposed sell. Check balances and open-order reservations.',
     'inventory_limit': 'The configured exposure or inventory limit blocks new orders. Review exposure and managed limits.',
+    'perpetual_mark_price_unavailable': 'A fresh OKX mark price is required to size new perpetual exposure.',
     'spot_outflow_blocked': 'The spending guard did not approve this BUY. Check the spending-policy status.',
+    'uncertain_order_risk_paused': 'This side is paused while the bot verifies an unresolved exchange order.',
     'allocation_limit': 'The configured quote allocation is already reserved.',
+    'inventory_skew_sell_suppressed': 'Spot SELL is paused at the lower inventory skew boundary.',
+    'inventory_skew_sell_below_minimum': 'The Spot SELL size after inventory skew is below the exchange minimum.',
     'order_size_rejected': 'The rounded order did not pass size or allocation checks.',
     'quote_price_rejected': 'The proposed price does not pass the configured price checks.',
     'spread_policy_rejected': 'The proposed order does not pass the configured spread checks.',
@@ -85,6 +89,10 @@ def wait_diagnosis(observation, side, codes, *, proposal, fresh, previous, delta
     if stage == 'trading_conditions':
         if set(codes) & {'insufficient_quote_balance', 'insufficient_base_balance', 'account_balance_unavailable'}:
             action = 'Check available balances and open-order reservations.'
+        elif 'inventory_skew_sell_suppressed' in codes:
+            action = REASONS['inventory_skew_sell_suppressed']
+        elif 'inventory_skew_sell_below_minimum' in codes:
+            action = REASONS['inventory_skew_sell_below_minimum']
         elif set(codes) & {'inventory_limit', 'allocation_limit', 'spot_outflow_blocked'}:
             action = 'Review exposure and configured limits; do not reset protective state to bypass them.'
         else:

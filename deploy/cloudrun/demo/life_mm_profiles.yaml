@@ -103,10 +103,13 @@ markets:
     margin_mode: CROSS
     min_price: "1"
     max_price: "1000000"
-    # BTC base quantities, not numbers of contracts.
-    max_long_base: "0.05"
-    max_short_base: "0.05"
+    # The gross BTC ceiling applies to both legs and pending open orders.
     max_gross_base: "0.1"
+    perpetual_exposure_budget:
+      allocated_capital_quote: "10000"
+      max_long_pct: "0.50"
+      max_short_pct: "0.25"
+      max_gross_pct: "0.75"
     max_data_age_seconds: "10"
     # Existing nonflat ledgers need a verified remaining-cost baseline first.
     inventory_reduction:

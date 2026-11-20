@@ -1,5 +1,8 @@
 # Plans and remaining verification
 
+The [account balance changes TDD plan](ACCOUNT_BALANCE_CHANGES_TDD_PLAN.md) covers
+per-asset cash changes by reporting date and session in the Balances panel.
+
 The [HALT diagnostics and reconnect plan](MM_HALT_DIAGNOSTICS_TDD_PLAN.md)
 tracks the revision158 OKX user-stream reconnect failure, safe persisted cause
 metadata and API/banner explanations. The current Demo HALT predates revision159;
