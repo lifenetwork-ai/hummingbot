@@ -301,7 +301,9 @@ ACK interval. The HTTP interval includes local scheduling. A receipt transaction
 may combine up to four responses already waiting for the recorder. `order.receipt_write`
 measures that shared write once, including commit.
 
-On each `order.admission` span, `admission_slot_wait_ms`,
+`admission_ms` on `order.submit` retains the total admission time on the parent
+span, including lock waits and contention retries. On each `order.admission`
+span, `admission_slot_wait_ms`,
 `recorder_lock_wait_ms` and `ownership_backoff_ms` accumulate the actual time
 spent acquiring each local lock or sleeping between retries. The trace lists
 only phases that the order entered. Each `order.intent` attempt records

@@ -251,7 +251,7 @@ class BotOwnership:
         return connection
 
     @trace_runtime('owner.read')
-    def _read_owner(self, *, identity_only=False):
+    def _read_owner(self, *, identity_only=False, include_pending=False):
         """Fresh proof on the physical owner session; writes need no state JSON."""
         connection = self.require_owner_connection()
         try:
@@ -263,14 +263,24 @@ class BotOwnership:
                 b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,
                 b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,
                 EXTRACT(EPOCH FROM clock_timestamp()) AS database_now""".strip()
+            parameters = {"bot_id": self.store.bot_id, "owner": self.owner_uuid, "generation": self.generation,
+                          "namespace": OWNER_NAMESPACE, "key": OWNER_KEY}
+            if include_pending:
+                from hummingbot.core.automatic_recovery import MAX_ATTEMPTS
+
+                # Read the bounded unresolved set in the same fresh statement
+                # as authority. Admission and final send each take their own read.
+                columns += """, (SELECT COALESCE(jsonb_agg(jsonb_build_array(p.id, p.market)), '[]'::jsonb)
+                    FROM (SELECT id, market FROM public.orders
+                          WHERE creation_pending IS true LIMIT :pending_limit) p) AS pending_intents"""
+                parameters["pending_limit"] = MAX_ATTEMPTS + 1
             with _ownership_read(connection):
                 row = connection.execute(text(f"""
                     SELECT {columns} FROM public.bot_state b
                     WHERE bot_id=:bot_id AND owner_uuid=:owner AND owner_generation=:generation
                     AND EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
                         AND pid=pg_backend_pid() AND classid=:namespace AND objid=:key AND objsubid=2)
-                """), {"bot_id": self.store.bot_id, "owner": self.owner_uuid, "generation": self.generation,
-                       "namespace": OWNER_NAMESPACE, "key": OWNER_KEY}).mappings().first()
+                """), parameters).mappings().first()
                 connection.commit()
             if not row or row["backend_pid"] != self.backend_pid:
                 raise OwnershipLost("The bot ownership lock/generation no longer matches.", reason_code='ownership_identity_mismatch')
@@ -299,10 +309,10 @@ class BotOwnership:
             diagnostic['sqlstate'] = sqlstate
         return self._lose_ownership("The bot ownership session failed; submissions are closed.", code, **diagnostic)
 
-    def check_owner(self, *, new_risk=False, allow_setup=False):
+    def check_owner(self, *, new_risk=False, allow_setup=False, include_pending=False):
         if new_risk:
             self._check_shutdown()
-        row = self._read_owner()
+        row = self._read_owner(include_pending=True) if include_pending else self._read_owner()
         # A signal can arrive while the synchronous database check is in flight.
         if new_risk:
             self._check_shutdown()
@@ -378,16 +388,17 @@ class BotOwnership:
         except Exception as error:
             self._owner_error(error)
 
-    def _check_intents(self, recorder, *, admitting=False, staged=()):
+    def _check_intents(self, recorder, *, admitting=False, staged=(), pending=None):
         from hummingbot.core.automatic_recovery import MAX_ATTEMPTS
         recorder.sql_manager.assert_persistence_healthy()
-        try:
-            with recorder.sql_manager.get_new_session() as session:
-                pending = session.query(Order.id, Order.market).filter(Order.creation_pending.is_(True)).limit(MAX_ATTEMPTS + 1).all()
-        except Exception:
-            recorder.sql_manager.persistence_healthy = False
-            self.allow_new_orders = False
-            raise SubmissionBlocked("Recorder state is unavailable; reconciliation is required.") from None
+        if pending is None:
+            try:
+                with recorder.sql_manager.get_new_session() as session:
+                    pending = session.query(Order.id, Order.market).filter(Order.creation_pending.is_(True)).limit(MAX_ATTEMPTS + 1).all()
+            except Exception:
+                recorder.sql_manager.persistence_healthy = False
+                self.allow_new_orders = False
+                raise SubmissionBlocked("Recorder state is unavailable; reconciliation is required.") from None
         if len(pending) > MAX_ATTEMPTS:
             self.require_recovery('Pending order recovery exceeds its bounded scope.')
             raise SubmissionBlocked('Pending order recovery exceeds its bounded scope.')
@@ -622,7 +633,7 @@ class BotOwnership:
         from hummingbot.core.cleanup_authority import current_cleanup_scope, validate_close
         from hummingbot.core.order_submission_guard import current_session_scope
         cleanup = current_cleanup_scope()
-        row = self.check_owner(new_risk=cleanup is None)
+        row = self.check_owner(new_risk=cleanup is None, include_pending=True)
         if time.monotonic() < self._intent_admission_retry_at:
             raise IntentAdmissionBusy('Intent admission is backing off after ownership-row contention.')
         if (connector.in_flight_orders.get(order.client_order_id) is not order
@@ -642,7 +653,7 @@ class BotOwnership:
         if (recorder is None or recorder.sql_manager.engine is not self.engine
                 or recorder.config_file_path != self.config_file_path or connector not in recorder._markets):
             raise SubmissionBlocked("The active recorder/configuration does not match the service owner.")
-        self._check_intents(recorder, admitting=True, staged=staged)
+        self._check_intents(recorder, admitting=True, staged=staged, pending=row['pending_intents'])
         if cleanup is None and self.scoped_recovery_enabled and self.automatic_recovery.active:
             self.automatic_recovery.authorize_isolated_order(connector, order)
         try:
@@ -850,7 +861,13 @@ class BotOwnership:
             SubmissionAttempt.order_id == received.c.identity, self._physical_owner_exists()
         ).values(receipt=received.c.receipt)
         with connection.begin() as transaction:
-            if connection.execute(statement).rowcount == len(receipts):
+            try:
+                written = connection.execute(statement).rowcount
+            except DBAPIError as error:
+                if error.connection_invalidated or connection.invalidated:
+                    raise self._owner_error(error) from None
+                raise
+            if written == len(receipts):
                 return
             transaction.rollback()  # A partial batch must never publish an ACK.
         self._read_owner(identity_only=True)
@@ -1024,7 +1041,7 @@ class BotOwnership:
         except (TypeError, ValueError):
             raise SubmissionBlocked("Order submission requires a valid object payload.") from None
         cleanup = self.cleanup_intents.get(data.get("clOrdId")) if path == ORDER_PATH else None
-        row = self.check_owner(new_risk=path == ORDER_PATH and cleanup is None)
+        row = self.check_owner(new_risk=path == ORDER_PATH and cleanup is None, include_pending=path == ORDER_PATH)
         if path in CANCEL_PATHS:
             return None
         if path == ORDER_PATH:
@@ -1041,7 +1058,7 @@ class BotOwnership:
                 recorder = MarketsRecorder._shared_instance
                 if recorder is None or recorder.sql_manager.engine is not self.engine:
                     raise SubmissionBlocked("Disconnect close recorder is unavailable")
-                self._check_intents(recorder)
+                self._check_intents(recorder, pending=row['pending_intents'])
                 if client_id not in self.active_intents or client_id in self.sent_intents:
                     raise SubmissionBlocked("Disconnect close was already sent or needs reconciliation")
                 headers = dict(request.headers or {})
@@ -1066,7 +1083,7 @@ class BotOwnership:
             recorder = MarketsRecorder._shared_instance
             if recorder is None:
                 raise SubmissionBlocked("Order submission has no active recorder.")
-            self._check_intents(recorder)
+            self._check_intents(recorder, pending=row['pending_intents'])
             if client_id not in self.active_intents or client_id in self.sent_intents:
                 raise SubmissionBlocked("Order identity is absent or was already sent; reconcile instead of retrying.")
             if self.scoped_recovery_enabled and self.automatic_recovery.active:

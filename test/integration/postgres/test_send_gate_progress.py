@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from psycopg2 import OperationalError
-from sqlalchemy import event, update
+from sqlalchemy import event, insert, select, update
 from sqlalchemy.exc import DBAPIError
 
 from hummingbot.core.bot_ownership import ORDER_PATH, OwnershipLost
@@ -31,6 +31,44 @@ async def send(rest, identity):
         url='https://offline.invalid' + ORDER_PATH, method=RESTMethod.POST,
         throttler_limit_id='order', is_auth_required=True,
         data=dict(clOrdId=identity, instId='BTC-USDT', side='buy', sz='0.1'))
+
+
+def test_intent_and_send_read_pending_orders_with_fresh_owner_authority(owned):
+    with queries(owned.engine) as admission:
+        intent(owned)
+    rest, transport = assistant()
+    with queries(owned.engine) as placement:
+        owned.loop.run_until_complete(send(rest, 'order-1'))
+
+    for statements in (admission, placement):
+        pending_reads = [sql for sql in statements if sql.lstrip().upper().startswith('SELECT')
+                         and 'creation_pending IS true' in sql]
+        combined = [sql for sql in pending_reads if 'public.bot_state' in sql and 'pg_locks' in sql]
+        assert len(combined) == 1, pending_reads
+        assert 'LIMIT' in combined[0]  # Preserve the sentinel for an over-capacity recovery ledger.
+        assert not [sql for sql in pending_reads if 'orders.id AS orders_id, orders.market AS orders_market' in sql]
+
+    transport.call.assert_awaited_once()
+
+
+@pytest.mark.parametrize('over_capacity', [False, True])
+def test_final_owner_read_blocks_pending_orders_added_after_admission(owned, over_capacity):
+    from hummingbot.core.automatic_recovery import MAX_ATTEMPTS
+
+    intent(owned)
+    with owned.engine.begin() as connection:
+        pending = dict(connection.execute(select(Order).where(Order.id == 'order-1')).mappings().one())
+        count = MAX_ATTEMPTS if over_capacity else 1
+        connection.execute(insert(Order), [{**pending, 'id': f'unknown-{i}'} for i in range(count)])
+
+    rest, transport = assistant()
+    reason = 'exceeds its bounded scope' if over_capacity else 'Unresolved order submission'
+    with pytest.raises(SubmissionBlocked, match=reason):
+        owned.loop.run_until_complete(send(rest, 'order-1'))
+    transport.call.assert_not_awaited()
+    assert owned.store.read()['recovery_state']['halt']
+    with owned.manager.get_new_session() as db:
+        assert db.get(SubmissionAttempt, 'order-1').state == 'prepared'
 
 
 def test_send_transition_uses_one_journal_roundtrip_and_keeps_immutable_context(owned):

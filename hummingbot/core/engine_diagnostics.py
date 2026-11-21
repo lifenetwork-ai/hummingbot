@@ -44,6 +44,7 @@ SUBMISSION_OPERATIONS = frozenset({
     'order.submit', 'order.admission', 'order.intent', 'order.intent_batch', 'order.place', 'order.created', 'order.receipt_write',
 })
 _SUBMISSION_TIMING_OPERATIONS = {
+    'admission_ms': 'order.submit',
     'admission_slot_wait_ms': 'order.admission',
     'recorder_lock_wait_ms': 'order.admission',
     'ownership_backoff_ms': 'order.admission',

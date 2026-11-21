@@ -50,6 +50,9 @@ def test_native_submission_stages_preserve_owner_and_acknowledged_history(native
             assert snapshot['operations'][operation]['completed'] == 2
         assert snapshot['operations']['order.intent_batch']['completed'] == 1
         assert 1 <= snapshot['operations']['order.receipt_write']['completed'] <= 2
+        submits = [span for span in snapshot['submission_recent'] if span['operation'] == 'order.submit']
+        assert len(submits) == 2
+        assert all(0 < span['admission_ms'] <= span['duration_ms'] for span in submits)
         places = [span for span in snapshot['submission_recent'] if span['operation'] == 'order.place']
         assert len(places) == 2
         for span in places:
