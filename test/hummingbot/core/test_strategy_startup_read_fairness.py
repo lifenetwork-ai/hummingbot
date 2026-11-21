@@ -1,5 +1,6 @@
 """History fetches at a managed profile handoff must leave the engine responsive."""
 import asyncio
+import builtins
 import threading
 from decimal import Decimal
 from types import SimpleNamespace
@@ -62,12 +63,26 @@ async def wait_entered(event):
 @pytest.mark.asyncio
 async def test_managed_startup_fetch_allows_loop_progress_and_preserves_decimal_history(monkeypatch):
     core, entered, release, waits, threads, closed, constructed = setup(monkeypatch)
+    importing, release_import = threading.Event(), threading.Event()
+    import_waits = []
+    original_import = builtins.__import__
+
+    def slow_orchestrator_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == 'hummingbot.strategy_v2.executors.executor_orchestrator' and 'ExecutorOrchestrator' in fromlist:
+            importing.set()
+            import_waits.append(release_import.wait(.5))
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, '__import__', slow_orchestrator_import)
 
     async def probe():
+        await wait_entered(importing)
+        release_import.set()
         await wait_entered(entered)
         release.set()
 
     await asyncio.gather(core._initialize_v2_strategy(), probe())
+    assert import_waits == [True], 'Cold executor import blocked the engine loop'
     assert waits == [True], 'Historical fetchmany blocked the engine loop'
     assert threads == closed and threads[0] != threading.get_ident()
     assert constructed == [threading.get_ident()], 'Native strategy construction must stay on its loop'

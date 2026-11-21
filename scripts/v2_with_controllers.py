@@ -69,17 +69,21 @@ class V2WithControllers(StrategyV2Base):
         if not config.mm_drawdown_scope:
             return cls(connectors, config)
         from hummingbot.connector.markets_recorder import MarketsRecorder
-        from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
         recorder = MarketsRecorder.get_instance()
         recorder.sql_manager.assert_persistence_healthy()
         identities = tuple(config.mm_drawdown_scope)
         cancelled = Event()
-        job = asyncio.get_running_loop().run_in_executor(
-            None, copy_context().run, ExecutorOrchestrator.read_startup_performance, recorder, identities, None, cancelled)
+
+        def read_history():
+            # The cold executor import loads several native modules before any history I/O.
+            from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
+            return ExecutorOrchestrator.read_startup_performance(recorder, identities, cancelled=cancelled)
+
+        job = asyncio.get_running_loop().run_in_executor(None, copy_context().run, read_history)
         try:
             snapshot = await asyncio.shield(job)
         except asyncio.CancelledError:
-            # Do not detach an open streaming cursor during Stop/SIGTERM.
+            # Drain the worker during Stop/SIGTERM, including any open history cursor.
             cancelled.set()
             while not job.done():
                 try:
