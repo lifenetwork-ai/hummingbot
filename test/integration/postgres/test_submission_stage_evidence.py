@@ -46,8 +46,15 @@ def test_native_submission_stages_preserve_owner_and_acknowledged_history(native
         tracer._beat_ns = tracer.clock()
         tracer.watch_once()
         snapshot = tracer.snapshot()
-        for operation in ('order.submit', 'order.admission', 'order.intent', 'order.place', 'order.created'):
+        for operation in ('order.submit', 'order.admission', 'order.place', 'order.created'):
             assert snapshot['operations'][operation]['completed'] == 2
+        assert snapshot['operations']['order.intent_batch']['completed'] == 1
+        assert 1 <= snapshot['operations']['order.receipt_write']['completed'] <= 2
+        places = [span for span in snapshot['submission_recent'] if span['operation'] == 'order.place']
+        assert len(places) == 2
+        for span in places:
+            assert all(0 <= span[field] <= span['duration_ms'] for field in (
+                'final_authority_ms', 'wire_headers_ms', 'transport_receipt_ms', 'tracker_ack_ms'))
         native.owner.check_owner()
         assert (native.owner.owner_uuid, native.owner.generation, native.owner.backend_pid) == identity
         assert native.transport.call.await_count == 2 and not native.owner.submission_tasks

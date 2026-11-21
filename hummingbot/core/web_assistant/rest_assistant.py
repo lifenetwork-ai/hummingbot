@@ -1,10 +1,12 @@
 import json
 from asyncio import wait_for
+from contextlib import nullcontext
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlsplit
 
 from hummingbot.core.api_throttler.async_throttler_base import AsyncThrottlerBase
-from hummingbot.core.engine_diagnostics import observe_spot_sell_dispatch, observe_spot_sell_response
+from hummingbot.core.engine_diagnostics import observe_spot_sell_dispatch, observe_spot_sell_response, submission_timing
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest, RESTResponse
 from hummingbot.core.web_assistant.connections.rest_connection import RESTConnection
@@ -108,15 +110,20 @@ class RESTAssistant:
         request = await self._pre_process_request(request)
         request = await self._authenticate(request)
         from hummingbot.core.order_submission_guard import after_rest, before_rest, completed_rest, failed_rest
-        context = await before_rest(request)
+        trace_order = (request.is_auth_required and request.method is RESTMethod.POST
+                       and urlsplit(request.url).path == '/api/v5/trade/order')
+        with submission_timing('final_authority_ms') if trace_order else nullcontext():
+            context = await before_rest(request)
         try:
             if context is not None:
                 timeout = min(timeout, 5) if timeout is not None else 5
             dispatch = observe_spot_sell_dispatch(request)
-            resp = await wait_for(self._connection.call(request), timeout)
+            with submission_timing('wire_headers_ms') if trace_order else nullcontext():
+                resp = await wait_for(self._connection.call(request), timeout)
             observe_spot_sell_response(dispatch)
             resp = await self._post_process_response(resp)
-            await after_rest(context, resp)
+            with submission_timing('transport_receipt_ms') if trace_order else nullcontext():
+                await after_rest(context, resp)
             return resp
         except BaseException:
             await failed_rest(context)

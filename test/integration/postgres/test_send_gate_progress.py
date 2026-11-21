@@ -1,15 +1,17 @@
 """The final native send fence must leave loop turns without skipping durable proof."""
 import asyncio
+import json
 from copy import deepcopy
 from decimal import Decimal
 from test.integration.postgres.test_ownership import Throttler, assistant, intent, owned as owned_fixture
 from test.integration.postgres.test_performance import queries
 from test.integration.postgres.test_submission_admission_fairness import native as native_fixture
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from psycopg2 import OperationalError
-from sqlalchemy import update
+from sqlalchemy import event, update
 from sqlalchemy.exc import DBAPIError
 
 from hummingbot.core.bot_ownership import ORDER_PATH, OwnershipLost
@@ -69,6 +71,151 @@ def test_send_transition_checks_advisory_lock_after_final_authority_read(owned):
     with owned.manager.get_new_session() as db:
         row = db.get(SubmissionAttempt, 'order-1')
         assert row.state == 'prepared' and row.payload_hash is None and row.deadline_ms is None
+
+
+def test_pending_transport_receipts_share_a_write_and_preserve_native_evidence(owned):
+    identities = [f'receipt-{i}' for i in range(4)]
+    for identity in identities:
+        intent(owned, identity)
+        owned.owner._record_send_attempt(identity, {'clOrdId': identity}, 123456, {})
+
+    async def receive():
+        async with owned.recorder.order_writes:
+            tasks = []
+            for i, identity in enumerate(identities):
+                body = {'code': '0', 'data': [{'ordId': f'venue-{i}', 'sCode': '0', 'clOrdId': identity}]}
+                if i == 3:
+                    body = {'code': '50013', 'data': []}
+                response = SimpleNamespace(status=503 if i == 3 else 200, json=AsyncMock(return_value=body))
+                request = SimpleNamespace(url='https://offline.invalid' + ORDER_PATH, data=json.dumps({'clOrdId': identity}))
+                tasks.append(asyncio.create_task(owned.owner.record_transport_receipt(request, response)))
+            await asyncio.sleep(0)
+            assert all(not task.done() for task in tasks)
+        await asyncio.gather(*tasks)
+
+    with queries(owned.engine) as statements:
+        owned.loop.run_until_complete(receive())
+    writes = [sql for sql in statements if sql.startswith('UPDATE submission_attempts')]
+    assert len(writes) == 1
+    assert [sql for sql in statements if 'pg_locks' in sql] == writes
+    with owned.manager.get_new_session() as db:
+        for i, identity in enumerate(identities):
+            entry = db.get(SubmissionAttempt, identity)
+            assert entry.state == 'possibly_sent' and entry.deadline_ms == 123456
+            expected = {'http_status': 200, 'code': '0', 'order': {'ordId': f'venue-{i}', 'sCode': '0', 'clOrdId': identity}}
+            assert entry.receipt == (expected if i < 3 else {'http_status': 503, 'code': '50013'})
+
+
+def test_cancelled_transport_waits_until_its_received_evidence_is_durable(owned):
+    intent(owned)
+    response = SimpleNamespace(status=200, json=AsyncMock(return_value={'code': '0'}))
+    request = SimpleNamespace(url='https://offline.invalid' + ORDER_PATH, data='{"clOrdId":"order-1"}')
+    owned.owner._record_send_attempt('order-1', {'clOrdId': 'order-1'}, 123456, {})
+
+    async def receive():
+        async with owned.recorder.order_writes:
+            waiting = asyncio.create_task(owned.owner.record_transport_receipt(request, response))
+            await asyncio.sleep(0)
+            waiting.cancel()
+            await asyncio.sleep(0)
+            assert not waiting.done()
+        with pytest.raises(asyncio.CancelledError):
+            await waiting
+
+    owned.loop.run_until_complete(receive())
+    with owned.manager.get_new_session() as db:
+        assert db.get(SubmissionAttempt, 'order-1').receipt == {'http_status': 200, 'code': '0'}
+
+
+def test_receipt_writer_cancelled_before_first_turn_releases_transport(owned):
+    intent(owned)
+    owned.owner._record_send_attempt('order-1', {'clOrdId': 'order-1'}, 123456, {})
+    request = SimpleNamespace(url='https://offline.invalid' + ORDER_PATH, data='{"clOrdId":"order-1"}')
+    response = SimpleNamespace(status=200, json=AsyncMock(return_value={'code': '0'}))
+
+    async def receive():
+        pending = asyncio.create_task(owned.owner.record_transport_receipt(request, response))
+        await asyncio.sleep(0)
+        writer = owned.owner._order_receipt_writer
+        writer.cancel()
+        done, _ = await asyncio.wait({pending}, timeout=.2)
+        if not done:
+            # Unstick teardown if the writer never signals its waiting transports.
+            _, _, outcome = owned.owner._order_receipts.popleft()
+            outcome.set_result(None)
+            await pending
+        assert done
+        assert pending.cancelled()
+        assert owned.owner._order_receipt_writer is None
+
+    owned.loop.run_until_complete(receive())
+    with owned.manager.get_new_session() as db:
+        assert db.get(SubmissionAttempt, 'order-1').receipt is None
+
+
+@pytest.mark.parametrize('failure', ['missing-attempt', 'lost-owner'])
+def test_receipt_batch_rejects_partial_writes_and_lost_ownership(owned, failure):
+    intent(owned)
+    owned.owner._record_send_attempt('order-1', {'clOrdId': 'order-1'}, 123456, {})
+    if failure == 'lost-owner':
+        intent(owned, 'order-2')
+        owned.owner._record_send_attempt('order-2', {'clOrdId': 'order-2'}, 123456, {})
+
+    async def receive():
+        async with owned.recorder.order_writes:
+            requests = []
+            for identity in ('order-1', 'order-2'):
+                request = SimpleNamespace(url='https://offline.invalid' + ORDER_PATH, data=json.dumps({'clOrdId': identity}))
+                response = SimpleNamespace(status=200, json=AsyncMock(return_value={'code': '0'}))
+                requests.append(asyncio.create_task(owned.owner.record_transport_receipt(request, response)))
+            await asyncio.sleep(0)
+            if failure == 'lost-owner':
+                owned.owner.connection.exec_driver_sql('SELECT pg_advisory_unlock_all()')
+                owned.owner.connection.commit()
+        return await asyncio.gather(*requests, return_exceptions=True)
+
+    outcomes = owned.loop.run_until_complete(receive())
+    expected = OwnershipLost if failure == 'lost-owner' else SubmissionBlocked
+    assert len(outcomes) == 2 and all(type(result) is expected for result in outcomes)
+    assert owned.owner.lost is (failure == 'lost-owner')
+    with owned.manager.get_new_session() as db:
+        assert all(row.state == 'possibly_sent' and row.receipt is None for row in db.query(SubmissionAttempt))
+
+
+@pytest.mark.parametrize('committed', [False, True], ids=['receipt-rolled-back', 'receipt-commit-reply-lost'])
+def test_receipt_commit_failure_never_returns_an_ack_or_repeats_transport(owned, monkeypatch, committed):
+    intent(owned)
+    raw = owned.owner.connection.connection.driver_connection
+    commit = type(raw).commit
+    wrote_receipt = False
+
+    def observe(connection, cursor, statement, *_):
+        nonlocal wrote_receipt
+        if connection is owned.owner.connection and statement.startswith('UPDATE submission_attempts SET receipt='):
+            wrote_receipt = True
+
+    def disconnect(connection):
+        if connection is raw and wrote_receipt:
+            if committed:
+                commit(connection)
+            connection.close()
+            raise OperationalError('test lost receipt COMMIT response')
+        return commit(connection)
+
+    monkeypatch.setattr(type(raw), 'commit', disconnect)
+    event.listen(owned.engine, 'after_cursor_execute', observe)
+    rest, transport = assistant()
+    try:
+        with pytest.raises(DBAPIError):
+            owned.loop.run_until_complete(send(rest, 'order-1'))
+    finally:
+        event.remove(owned.engine, 'after_cursor_execute', observe)
+    assert wrote_receipt and owned.owner.lost and not owned.owner.transport_tasks
+    transport.call.assert_awaited_once()
+    with owned.manager.get_new_session() as db:
+        row = db.get(SubmissionAttempt, 'order-1')
+        assert row.state == 'possibly_sent'
+        assert (row.receipt is not None) is committed
 
 
 def test_final_send_burst_leaves_a_health_turn_between_durable_gates(owned):

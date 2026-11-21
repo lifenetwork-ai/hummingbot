@@ -27,7 +27,7 @@ from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTr
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.data_type.user_stream_tracker import UserStreamTracker
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
-from hummingbot.core.engine_diagnostics import trace_runtime
+from hummingbot.core.engine_diagnostics import submission_timing, trace_runtime
 from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.core.utils.async_utils import safe_ensure_future, safe_gather
 from hummingbot.core.web_assistant.auth import AuthBase
@@ -527,7 +527,8 @@ class ExchangePyBase(ExchangeBase, ABC):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         if MarketsRecorder.service_recorder_for(self) is not None:
             # Keep the managed submission in the shutdown drain until its venue ACK is durable.
-            await self._order_tracker._process_order_update(order_update)
+            with submission_timing('tracker_ack_ms'):
+                await self._order_tracker._process_order_update(order_update)
         else:
             self._order_tracker.process_order_update(order_update)
 

@@ -6,13 +6,15 @@ import re
 import time
 import uuid
 import weakref
+from collections import deque
 from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from decimal import Decimal
 from urllib.parse import urlparse
 
 from psycopg2 import Error as PostgreSQLError
-from sqlalchemy import func, select, text, update
+from sqlalchemy import Text, column, func, select, text, update, values
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import DBAPIError, OperationalError
 
 from hummingbot.core.data_type.common import OrderType, TradeType
@@ -43,6 +45,7 @@ CANCEL_PATHS = {"/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders
 ACCOUNT_PATHS = {"/api/v5/account/set-leverage", "/api/v5/account/set-position-mode"}
 INTENT_ADMISSION_RETRY_DELAYS = (.1, .15, .25, .5)
 MAX_INTENT_BATCH = 4
+MAX_ORDER_RECEIPT_BATCH = 4
 POSITION_CHECKPOINT_ORDER_WAIT_SECONDS = 1.0
 POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS = .1
 
@@ -126,6 +129,8 @@ class BotOwnership:
         self.submission_admission = SubmissionAdmission()
         self.terminal_tasks = set()
         self.transport_tasks = {}
+        self._order_receipts = deque()
+        self._order_receipt_writer = None
         self.account_lock = asyncio.Lock()
         self.account_token = None
         self.mm_ready_check = None
@@ -761,7 +766,6 @@ class BotOwnership:
     async def record_transport_receipt(self, request, response):
         if urlparse(request.url).path != ORDER_PATH:
             return
-        from hummingbot.model.runtime_journal import SubmissionAttempt
         identity = json.loads(request.data)['clOrdId']
         try:
             body = await response.json()
@@ -773,26 +777,102 @@ class BotOwnership:
             rows = body.get('data')
             if isinstance(rows, list) and len(rows) == 1 and isinstance(rows[0], dict):
                 receipt['order'] = {key: str(rows[0][key])[:128] for key in ('clOrdId', 'ordId', 'sCode') if key in rows[0]}
-        async with self.order_write_scope():
-            self.check_owner()
-            with self.connection.begin():
-                self.connection.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == identity).values(receipt=receipt))
+        loop = asyncio.get_running_loop()
+        stored = loop.create_future()
+        self._order_receipts.append((identity, receipt, stored))
+        if self._order_receipt_writer is None:
+            self._order_receipt_writer = loop.create_task(self._flush_order_receipts())
+            self._order_receipt_writer.add_done_callback(self._settle_receipt_writer)
+
+        # Keep the original transport task registered until its received
+        # evidence has a known durability outcome, even during shutdown.
+        cancelled = None
+        while not stored.done():
+            try:
+                await asyncio.shield(stored)
+            except asyncio.CancelledError as error:
+                cancelled = error
+        error = stored.result()
+        if error is not None:
+            raise error
+        if cancelled is not None:
+            raise cancelled
+
+    async def _flush_order_receipts(self):
+        active = []
+        try:
+            while self._order_receipts:
+                async with self.order_write_scope():
+                    receipts = {}
+                    # Only group responses already parsed while this writer
+                    # was waiting. A single reply never waits to fill a batch.
+                    while self._order_receipts and len(active) < MAX_ORDER_RECEIPT_BATCH:
+                        identity, receipt, stored = self._order_receipts[0]
+                        if identity in receipts:
+                            break
+                        self._order_receipts.popleft()
+                        receipts[identity] = receipt
+                        active.append(stored)
+                    self._write_order_receipts(receipts)
+                for stored in active:
+                    stored.set_result(None)
+                active.clear()
+                if self._order_receipts:
+                    await asyncio.sleep(0)
+        except BaseException as error:
+            # Send outcome was already possible. Every affected transport
+            # follows its existing recovery path before returning a response.
+            for stored in active:
+                stored.set_result(error)
+            self._fail_pending_receipts(error)
+        finally:
+            self._order_receipt_writer = None
+
+    def _settle_receipt_writer(self, writer):
+        # A task cancelled before its first turn never enters its finally block.
+        if writer is self._order_receipt_writer and writer.cancelled():
+            self._order_receipt_writer = None
+            self._fail_pending_receipts(asyncio.CancelledError())
+
+    def _fail_pending_receipts(self, error):
+        while self._order_receipts:
+            _, _, stored = self._order_receipts.popleft()
+            stored.set_result(error)
+
+    @trace_runtime('order.receipt_write')
+    def _write_order_receipts(self, receipts):
+        from hummingbot.model.runtime_journal import SubmissionAttempt
+
+        connection = self.require_owner_connection()
+        received = values(column('identity', Text), column('receipt', JSONB),
+                          name='received_orders').data(list(receipts.items()))
+        statement = update(SubmissionAttempt).where(
+            SubmissionAttempt.order_id == received.c.identity, self._physical_owner_exists()
+        ).values(receipt=received.c.receipt)
+        with connection.begin() as transaction:
+            if connection.execute(statement).rowcount == len(receipts):
+                return
+            transaction.rollback()  # A partial batch must never publish an ACK.
+        self._read_owner(identity_only=True)
+        raise SubmissionBlocked('A transport receipt has no durable submission attempt.')
+
+    def _physical_owner_exists(self):
+        return select(BotState.bot_id).where(
+            BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
+            BotState.owner_generation == self.generation, func.pg_backend_pid() == self.backend_pid,
+            self._advisory_lock_exists()).exists()
 
     def _record_send_attempt(self, client_id, data, deadline, headers):
         """A committed, immutable transport identity precedes any network call."""
         from hummingbot.model.runtime_journal import SubmissionAttempt, digest
         connection = self.require_owner_connection()
-        owner_exists = select(BotState.bot_id).where(
-            BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
-            BotState.owner_generation == self.generation, func.pg_backend_pid() == self.backend_pid,
-            self._advisory_lock_exists()).exists()
         # A lost COMMIT reply is ambiguous even though this coroutine will not
         # deliberately invoke transport after the exception.
         with connection.begin():
             # Recheck physical ownership at the journal write. The earlier
             # authority read alone cannot authorize this transition.
             row = connection.execute(update(SubmissionAttempt).where(
-                SubmissionAttempt.order_id == client_id, SubmissionAttempt.state == 'prepared', owner_exists).values(
+                SubmissionAttempt.order_id == client_id, SubmissionAttempt.state == 'prepared', self._physical_owner_exists()).values(
                 state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline).returning(
                 SubmissionAttempt.context)).mappings().one_or_none()
             if row is not None:

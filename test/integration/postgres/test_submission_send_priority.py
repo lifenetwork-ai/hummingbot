@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import event, update
 
+from hummingbot.core import bot_ownership
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.order_submission_guard import session_order_scope
 from hummingbot.model.bot_state import BotState
@@ -28,7 +29,9 @@ class FIFOAdmission(asyncio.Lock):
 
 
 @pytest.mark.parametrize('trial,fifo', [(i, fifo) for i in range(3) for fifo in (True, False)])
-def test_fresh_twelve_order_enqueue_to_acceptance(native, trial, fifo):
+def test_fresh_twelve_order_enqueue_to_acceptance(native, trial, fifo, monkeypatch):
+    # Compare scheduling alone. The legacy FIFO lock cannot admit intent batches.
+    monkeypatch.setattr(bot_ownership, 'MAX_INTENT_BATCH', 1)
     if fifo:
         native.owner.submission_admission = FIFOAdmission()
     original_record, original_reply = native.recorder.persist_order_intent, native.transport.call.side_effect

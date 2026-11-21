@@ -292,6 +292,14 @@ or pure wire latency. A placement return alone does not prove Created was
 published; private WS can publish before a REST return. IDs remain hashed and
 no batch is logged from the trading writer or while holding its diagnostic lock.
 
+For an authenticated OKX order, `order.place` records separate durations for
+final send authorization (`final_authority_ms`), dispatch through receipt of
+HTTP headers (`wire_headers_ms`), body read and durable receipt storage
+(`transport_receipt_ms`), and tracker ACK processing (`tracker_ack_ms`). The
+HTTP interval includes local scheduling. A receipt transaction may combine up
+to four responses already waiting for the recorder. `order.receipt_write`
+measures that shared write once, including commit.
+
 On each `order.admission` span, `admission_slot_wait_ms`,
 `recorder_lock_wait_ms` and `ownership_backoff_ms` accumulate the actual time
 spent acquiring each local lock or sleeping between retries. The trace lists
