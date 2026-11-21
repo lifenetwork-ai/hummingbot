@@ -143,6 +143,50 @@ def test_worker_ack_snapshot_keeps_other_missing_pending_orders(owned, tracking_
         assert db.query(MarketState).one().saved_state == {peer.client_order_id: peer.to_json()}
 
 
+@pytest.mark.parametrize('prior', ['possibly_sent', 'uncertain', 'terminal', 'no_attempt', 'no_order'])
+def test_worker_ack_reads_creation_evidence_together_under_both_fences(owned, prior):
+    if prior != 'no_order':
+        intent(owned)
+        if prior == 'terminal':
+            owned.recorder._update_order_status(MarketEvent.OrderCancelled.value, owned.market,
+                                                SimpleNamespace(order_id='order-1', exchange_order_id='venue-ack'))
+        else:
+            with owned.manager.get_new_session() as db, db.begin():
+                attempt = db.get(SubmissionAttempt, 'order-1')
+                if prior == 'no_attempt':
+                    db.delete(attempt)
+                else:
+                    attempt.state = prior
+
+    created = replace(create(), order_id='order-1', exchange_order_id='venue-ack')
+    with queries(owned.engine) as statements:
+        owned.loop.run_until_complete(owned.recorder.persist_order_update(
+            owned.market, [(MarketEvent.BuyOrderCreated, created)], {}))
+    if prior != 'no_order':
+        identity_reads = [sql for sql in statements if sql.startswith('SELECT') and (
+            'FROM orders \nWHERE orders.id =' in sql or 'submission_attempts' in sql or 'order_statuses' in sql)]
+        assert len(identity_reads) == 1, identity_reads
+        assert all(table in identity_reads[0] for table in ('orders', 'submission_attempts', 'order_statuses'))
+    fences = [sql for sql in statements if 'FOR SHARE NOWAIT' in sql or 'pg_locks' in sql]
+    assert len(fences) == 2
+    assert 'FOR SHARE NOWAIT' in fences[0] and 'pg_locks' in fences[0]
+    assert 'FOR SHARE NOWAIT' not in fences[1] and 'pg_locks' in fences[1]
+
+    # An identical replay must preserve the status row and prior terminal or uncertain proof.
+    owned.loop.run_until_complete(owned.recorder.persist_order_update(
+        owned.market, [(MarketEvent.BuyOrderCreated, created)], {}))
+    with owned.manager.get_new_session() as db:
+        order = db.get(Order, 'order-1')
+        assert not order.creation_pending and order.exchange_order_id == 'venue-ack'
+        assert order.last_status == ('OrderCancelled' if prior == 'terminal' else 'BuyOrderCreated')
+        assert db.query(OrderStatus).filter_by(order_id=order.id, status='BuyOrderCreated').count() == 1
+        attempt = db.get(SubmissionAttempt, order.id)
+        assert (attempt.state if attempt is not None else None) == {
+            'possibly_sent': 'acknowledged', 'uncertain': 'uncertain', 'terminal': 'terminal',
+            'no_attempt': None, 'no_order': None,
+        }[prior]
+
+
 def test_creation_pipeline_paired_roundtrip_measurement(owned):
     """Replay the predecessor flush cuts with identical writes and owner fences."""
     import time

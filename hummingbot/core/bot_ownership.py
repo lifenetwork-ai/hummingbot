@@ -945,8 +945,8 @@ class BotOwnership:
                                 reason_code='ownership_already_lost')
         transaction = session.get_transaction()
         if nowait and transaction is not None and session.info.get('ownership_fenced_transaction') is not transaction:
-            # The eager intent fence can take the row lock and prove the advisory
-            # lock in one statement. Later fences still verify the physical lock.
+            # Take the row lock and prove the advisory lock in one statement.
+            # Later fences still verify the physical lock.
             self.lock_owner_row(session, nowait=True, verify_advisory=True)
             return
         self.lock_owner_row(session, nowait=nowait)

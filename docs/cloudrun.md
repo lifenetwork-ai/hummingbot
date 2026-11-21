@@ -296,8 +296,9 @@ For an authenticated OKX order, `order.place` records separate durations for
 final send authorization (`final_authority_ms`), dispatch through receipt of
 HTTP headers (`wire_headers_ms`), body read and durable receipt storage
 (`transport_receipt_ms`), and tracker ACK processing (`tracker_ack_ms`). The
-HTTP interval includes local scheduling. A receipt transaction may combine up
-to four responses already waiting for the recorder. `order.receipt_write`
+`tracker_recorder_wait_ms` field measures lock acquisition within the tracker
+ACK interval. The HTTP interval includes local scheduling. A receipt transaction
+may combine up to four responses already waiting for the recorder. `order.receipt_write`
 measures that shared write once, including commit.
 
 On each `order.admission` span, `admission_slot_wait_ms`,

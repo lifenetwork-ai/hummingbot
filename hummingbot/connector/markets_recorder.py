@@ -23,7 +23,7 @@ from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.connector.utils import TradeFillOrderDetails
 from hummingbot.core.data_type.common import PriceType
 from hummingbot.core.data_type.trade_fee import TradeFeeBase
-from hummingbot.core.engine_diagnostics import trace_runtime
+from hummingbot.core.engine_diagnostics import timed_submission_lock, trace_runtime
 from hummingbot.core.event.event_forwarder import SourceInfoEventForwarder
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
@@ -145,7 +145,7 @@ class MarketsRecorder:
         already_tracked = task in owner.terminal_tasks
         owner.terminal_tasks.add(task)
         try:
-            async with self.order_writes:
+            async with timed_submission_lock(self.order_writes, 'tracker_recorder_wait_ms'):
                 if (active_guard() is not owner or owner.engine is not self._sql_manager.engine
                         or self._shared_instance is not self or market not in self._markets):
                     raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
@@ -1119,7 +1119,8 @@ class MarketsRecorder:
         timestamp = int(evt.creation_timestamp * 1e3)
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
 
-        order_record = session.get(Order, evt.order_id)
+        evidence = self._read_creation_evidence(session, evt.order_id, timestamp, event_type.name) if coalesce_snapshot else None
+        order_record = evidence[0] if evidence is not None else session.get(Order, evt.order_id)
         config_file_path, strategy_name = self._event_configuration(session, market, order_record)
         if order_record is not None and (
             order_record.market != market.display_name or order_record.symbol != evt.trading_pair
@@ -1164,13 +1165,28 @@ class MarketsRecorder:
         # These lookups need only the persisted attempt and history. An
         # isolated worker ACK can overlay its own change on the fresh snapshot.
         with session.no_autoflush:
-            self._attempt_observation(session, evt.order_id, 'acknowledged')
-            self._add_order_status(session, order_record, timestamp, event_type.name)
+            if evidence is None:
+                self._attempt_observation(session, evt.order_id, 'acknowledged')
+                self._add_order_status(session, order_record, timestamp, event_type.name)
+            else:
+                _, attempt, history_recorded = evidence
+                self._set_attempt_observation(attempt, 'acknowledged')
+                if not history_recorded:
+                    session.add(OrderStatus(order=order_record, timestamp=timestamp, status=event_type.name))
             if coalesce_snapshot:
                 self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states,
                                         staged_orders=(order_record,))
                 return
         self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
+
+    @staticmethod
+    def _read_creation_evidence(session, identity, timestamp, status):
+        from hummingbot.model.runtime_journal import SubmissionAttempt
+
+        history_recorded = select(OrderStatus.id).filter_by(order_id=identity, timestamp=timestamp, status=status).exists()
+        return session.execute(select(Order, SubmissionAttempt, history_recorded).outerjoin(
+            SubmissionAttempt, SubmissionAttempt.order_id == Order.id
+        ).where(Order.id == identity)).one_or_none()
 
     def finish_recorded_order_creation(self, market, evt):
         if evt.exchange_order_id and self._uses_reconstruction_history(market):
@@ -1185,10 +1201,13 @@ class MarketsRecorder:
     def _attempt_observation(self, session, identity, state):
         if self.durable_position_checkpoints:
             from hummingbot.model.runtime_journal import SubmissionAttempt
-            attempt = session.get(SubmissionAttempt, identity)
-            if (attempt is not None and attempt.state != 'uncertain'
-                    and not (state == 'acknowledged' and attempt.state in ('terminal', 'rejected'))):
-                attempt.state = state
+            self._set_attempt_observation(session.get(SubmissionAttempt, identity), state)
+
+    @staticmethod
+    def _set_attempt_observation(attempt, state):
+        if (attempt is not None and attempt.state != 'uncertain'
+                and not (state == 'acknowledged' and attempt.state in ('terminal', 'rejected'))):
+            attempt.state = state
 
     @staticmethod
     def _record_latest_status(order: Order, status: str, timestamp: int) -> None:

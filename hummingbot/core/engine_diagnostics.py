@@ -52,6 +52,7 @@ _SUBMISSION_TIMING_OPERATIONS = {
     'wire_headers_ms': 'order.place',
     'transport_receipt_ms': 'order.place',
     'tracker_ack_ms': 'order.place',
+    'tracker_recorder_wait_ms': 'order.place',
 }
 _QUOTE_LIMIT = 64
 _QUOTE_LINK_TTL_NS = 120_000_000_000

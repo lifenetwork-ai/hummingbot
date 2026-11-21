@@ -45,7 +45,7 @@ def test_tracking_cohort_uses_one_scoped_filter_per_snapshot(owned, size, repeti
                             Decimal('.1'), 1700000000, Decimal('100')) for index in range(size)]
     owned.market.in_flight_orders = {order.client_order_id: order for order in orders}
     owned.market.tracking_states = {order.client_order_id: order.to_json() for order in orders}
-    original = owned.recorder.save_market_states
+    original = owned.recorder._save_market_state_snapshot
     state = dict(inside=False, duration_ms=0, compact_json_bytes=0)
     filters, counts = [], []
 
@@ -62,7 +62,7 @@ def test_tracking_cohort_uses_one_scoped_filter_per_snapshot(owned, size, repeti
         finally:
             state['inside'] = False
             state['duration_ms'] += (time.perf_counter() - start) * 1000
-        session = args[2]
+        session = args[0]
         saved = next(row for row in session.identity_map.values() if isinstance(row, MarketState))
         counts.append(len(saved.saved_state))
         state['compact_json_bytes'] += len(json.dumps(saved.saved_state, sort_keys=True, separators=(',', ':')))
@@ -70,7 +70,7 @@ def test_tracking_cohort_uses_one_scoped_filter_per_snapshot(owned, size, repeti
 
     event.listen(owned.engine, 'before_cursor_execute', capture)
     try:
-        with patch.object(owned.recorder, 'save_market_states', side_effect=snapshot), queries(owned.engine) as statements:
+        with patch.object(owned.recorder, '_save_market_state_snapshot', side_effect=snapshot), queries(owned.engine) as statements:
             start = time.perf_counter()
             for order in orders:
                 owned.owner.before_order(owned.market, order)
@@ -123,7 +123,7 @@ def test_missing_pending_tracking_is_retained_until_positive_durable_ack(owned, 
 def test_tracking_filter_failure_rolls_back_intent_and_preserves_prior_snapshot(owned):
     intent(owned, 'before')
     before = save(owned)
-    original = owned.recorder.save_market_states
+    original = owned.recorder._save_market_state_snapshot
     state = dict(inside=False)
 
     def snapshot(*args, **kwargs):
@@ -139,7 +139,7 @@ def test_tracking_filter_failure_rolls_back_intent_and_preserves_prior_snapshot(
 
     event.listen(owned.engine, 'before_cursor_execute', fail)
     try:
-        with patch.object(owned.recorder, 'save_market_states', side_effect=snapshot):
+        with patch.object(owned.recorder, '_save_market_state_snapshot', side_effect=snapshot):
             with pytest.raises(OSError, match='tracking-filter'):
                 intent(owned, 'failed')
     finally:
