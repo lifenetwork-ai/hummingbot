@@ -206,7 +206,7 @@ class AdminRecoveryAPI:
         if state is None:
             raise ControlConflict('owner_unavailable', code='owner_unavailable')
         identities = query.order_ids()
-        codes = recovery_blockers(state, uncertain_order=bool(identities))
+        codes = recovery_blockers(state, uncertain_ids=identities)
         if identities and not await self.run_database(store.uncertain_orders_pending, identities):
             codes.append('recovery_uncertain_order_scope')
         age = state.get('heartbeat_age_s')

@@ -116,7 +116,7 @@ class RecoveryCoordinator:
         snapshot = await self.call(self.store.operation_snapshot, payload)
         single = snapshot.get('uncertain_order')
         uncertain = snapshot.get('uncertain_orders') or ([single] if single else [])
-        blockers = recovery_blockers(snapshot['state'], uncertain_order=bool(uncertain))
+        blockers = recovery_blockers(snapshot['state'], uncertain_ids=tuple(order['id'] for order in uncertain))
         if blockers:
             if row['action'] == 'recovery_check':
                 await self.finish(self.store.finish_check, row, snapshot, [], dict(verified=False), blockers=blockers)

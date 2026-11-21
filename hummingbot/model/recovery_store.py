@@ -12,6 +12,7 @@ from sqlalchemy import delete, exists, func, or_, select, text, tuple_, update
 from sqlalchemy.exc import IntegrityError
 
 from hummingbot.core.admin_identity import Principal
+from hummingbot.core.halt_diagnostics import halt_cause
 from hummingbot.core.recovery import (
     MAX_FILLS,
     MAX_ORDERS,
@@ -20,6 +21,7 @@ from hummingbot.core.recovery import (
     decimal,
     fingerprint,
     recovery_blockers,
+    supports_halted_order_review,
     uncertain_order_ids,
 )
 from hummingbot.core.recovery_pending_fills import fill_ids
@@ -222,7 +224,7 @@ class RecoveryStore:
             if not isinstance(state['recovery_state'], dict):
                 _conflict('recovery_checkpoint_invalid')
             uncertain = bool(identities)
-            blockers = recovery_blockers(state, uncertain_order=uncertain)
+            blockers = recovery_blockers(state, uncertain_ids=identities)
             if action == 'recovery_check' and not uncertain:
                 blockers = [code for code in blockers if code in ('recovery_stop_required', 'recovery_stop_incomplete',
                                                                   'recovery_not_halted', 'credential_operation_in_progress', 'recovery_pending_mutations')]
@@ -350,9 +352,9 @@ class RecoveryStore:
             _conflict('recovery_owner_changed')
         if state['control_version'] != row['expected_version']:
             _conflict('control_version_changed')
-        uncertain = bool(uncertain_order_ids(row['payload']))
-        blockers = recovery_blockers(state, uncertain_order=uncertain)
-        if checking and not uncertain:
+        identities = uncertain_order_ids(row['payload'])
+        blockers = recovery_blockers(state, uncertain_ids=identities)
+        if checking and not identities:
             blockers = [code for code in blockers if code in ('recovery_stop_required', 'recovery_stop_incomplete',
                                                               'recovery_not_halted', 'credential_operation_in_progress', 'recovery_pending_mutations')]
         if blockers:
@@ -499,7 +501,6 @@ class RecoveryStore:
                     else:
                         anchor = self._bind_runtime_baseline(session, state, row, snapshot, verification=verification)
                     verification = {**verification, 'recovery_anchor': anchor}
-            from hummingbot.core.halt_diagnostics import halt_cause
             recovered_cause = halt_cause(state['recovery_state'])
             recovery = deepcopy(state['recovery_state'])
             for key in ('halt', 'halt_kind', 'halt_diagnostic', 'reason', 'shutdown_incomplete', 'automatic_recovery'):
@@ -538,20 +539,26 @@ class RecoveryStore:
             _conflict('recovery_state_changed')
         timestamp = int(state['database_now'].timestamp() * 1000)
         environment = next(r['environment'] for r in snapshot['bindings'] if r['connector'] == 'okx' and r['state'] == 'active')
+        halted_order = supports_halted_order_review(state, uncertain_order_ids(row['payload']))
         for candidate, change in zip(candidates, changes):
             apply_change(connection, candidate, timestamp)
             self.access.audit(connection, actor=actor, action='recovery_order_repaired', outcome='succeeded',
                               operation_id=row['id'], request_id=row['result']['_private']['request_id'],
                               target_id=change['id'], connector='okx', exchange='okx', environment=environment,
-                              reason_code='operator_reviewed_busy_absence',
+                              reason_code='operator_reviewed_transport_absence' if halted_order else 'operator_reviewed_busy_absence',
                               details=dict(order_id=change['id'], pair=change['pair'], amount=change['amount'],
                                            stage='uncertain_submission_retired'))
         recovery = deepcopy(state['recovery_state'])
         recovery.pop('automatic_recovery', None)
-        state['recovery_state'] = recovery
         result = dict(stage='recovered', can_recover=False, blockers=[],
                       **({'repaired_uncertain_order': changes[0]} if len(changes) == 1 else {'repaired_uncertain_orders': changes}),
                       verification=verification, trading_state='stopped', _private=row['result']['_private'])
+        if halted_order:
+            result['halt_cause'] = halt_cause(state['recovery_state'])
+            for key in ('halt', 'halt_kind', 'halt_diagnostic', 'reason', 'shutdown_incomplete'):
+                recovery.pop(key, None)
+            recovery['runtime_active'] = False
+        state['recovery_state'] = recovery
         self._finish(connection, state, row, result, actor, control_version=state['control_version'] + 1)
 
     def _bind_runtime_baseline(self, session, state, row, snapshot, *, verification=None):

@@ -3,7 +3,7 @@ from sqlalchemy import select, update
 
 from hummingbot.core.automatic_recovery import eligible
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
-from hummingbot.core.recovery import RecoveryBlocked, decimal
+from hummingbot.core.recovery import RecoveryBlocked, decimal, supports_halted_order_review
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.mm_event import MMEvent
 from hummingbot.model.order import Order
@@ -92,6 +92,8 @@ def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, r
     _require(side in PENDING_STATUS and order['last_status'] == PENDING_STATUS[side] and order['exchange_order_id'] is None
              and order['order_type'] == 'LIMIT_MAKER' and order['position'] == 'NIL'
              and not order['position_applied'] and not order['cleanup_operation_id'])
+    if supports_halted_order_review(state, (identity,)):
+        _require(side == 'SELL' and receipt is None)
     statuses = (200, 429, 500, 503) if side == 'SELL' else (429, 500, 503)
     _require((side == 'SELL' and receipt is None) or (isinstance(receipt, dict)
              and receipt.get('code') == '50013' and receipt.get('http_status') in statuses and not receipt.get('order')))

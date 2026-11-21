@@ -1607,6 +1607,11 @@ single-order field and receipt remain supported. After Stop advances the
 generation, an order can qualify when its original window is verified against
 the recorded activation of that generation in the same session.
 
+The single-order flow also covers a stopped session with an incomplete exchange
+reconciliation HALT when automatic recovery retained that exact Spot SELL without
+a transport receipt. A verified Reset clears the technical HALT and leaves
+trading stopped.
+
 ### Automatic order reconciliation
 
 `GET /status` adds optional `automatic_recovery`. This is an observation, not a

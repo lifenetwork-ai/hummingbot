@@ -7,6 +7,8 @@ from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 from types import SimpleNamespace
 
+from hummingbot.core.halt_diagnostics import halt_cause
+
 MAX_FILLS = 2000
 MAX_ORDERS = 5000
 PROOF_TTL_SECONDS = 300
@@ -56,7 +58,30 @@ def decimal(value):
     raise RecoveryBlocked('recovery_financial_data_invalid')
 
 
-def recovery_blockers(state, *, uncertain_order=False):
+def supports_halted_order_review(state, identities):
+    """Permit review only for the exact order retained by a stopped rollover."""
+    recovery = state.get('recovery_state') or {}
+    session = state.get('mm_session') or {}
+    status = state.get('status') or {}
+    if (len(identities) != 1 or state.get('config_type') != 'mm-session'
+            or state.get('desired_state') != 'stopped' or not isinstance(session, dict) or session.get('status') != 'stopped'
+            or not isinstance(recovery, dict)
+            or not isinstance(status, dict) or status.get('running') is not False
+            or status.get('phase') not in ('halted', 'recovery_checking', 'recovering')
+            or recovery.get('halt') is not True or recovery.get('halt_kind') != 'manual'
+            or recovery.get('shutdown_incomplete') is not True):
+        return False
+    automatic = recovery.get('automatic_recovery')
+    if (not isinstance(automatic, dict) or automatic.get('order_id') != identities[0]
+            or automatic.get('phase') != 'settled_stopped' or automatic.get('reason_code') != 'uncertain_effects_retained'
+            or automatic.get('cold_recovery_supported') is not True):
+        return False
+    cause = halt_cause(recovery)
+    return (cause['evidence_source'] == 'persisted' and cause['reason_code'] == 'exchange_reconciliation_incomplete'
+            and cause['current_reason_code'] in ('exchange_reconciliation_incomplete', 'strategy_reconciliation_failed'))
+
+
+def recovery_blockers(state, *, uncertain_order=False, uncertain_ids=()):
     reasons = []
     if state.get('desired_state') != 'stopped':
         reasons.append('recovery_stop_required')
@@ -65,10 +90,12 @@ def recovery_blockers(state, *, uncertain_order=False):
     recovery = state.get('recovery_state')
     if not isinstance(recovery, dict):
         return reasons + ['recovery_checkpoint_invalid']
+    uncertain_order = uncertain_order or bool(uncertain_ids)
     if uncertain_order:
-        if recovery.get('halt') or recovery.get('reason') or recovery.get('shutdown_incomplete'):
+        stopped_rollover = supports_halted_order_review(state, uncertain_ids)
+        if not stopped_rollover and (recovery.get('halt') or recovery.get('reason') or recovery.get('shutdown_incomplete')):
             reasons.append('recovery_uncertain_order_scope')
-        if recovery.get('runtime_active'):
+        if not stopped_rollover and recovery.get('runtime_active'):
             reasons.append('recovery_stop_incomplete')
     elif recovery.get('halt') is not True:
         reasons.append('recovery_not_halted')

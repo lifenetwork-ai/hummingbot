@@ -475,6 +475,11 @@ confirmation token. Reset repeats venue verification and writes the order
 failure metadata, terminal submission attempt, tracker removal and audit in
 one transaction. The original receipt, risk state and financial checkpoint are
 retained. The engine keeps its ownership lock and the session remains stopped.
+The same single-order path may clear a technical reconciliation HALT after Stop
+if automatic recovery retained exactly that expired Spot SELL without a
+transport receipt. The owner must confirm the execution runtime is idle before
+either operation, and the HALT stays latched until Reset commits the verified
+order changes.
 For two to eight outstanding orders, supply the complete set of client IDs as
 `uncertain_order_ids`. The same proofs apply to every order and all rows
 and per-order audit entries commit together. Any missing or conflicting
