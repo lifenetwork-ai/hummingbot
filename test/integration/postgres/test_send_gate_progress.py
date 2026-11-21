@@ -12,7 +12,7 @@ from psycopg2 import OperationalError
 from sqlalchemy import update
 from sqlalchemy.exc import DBAPIError
 
-from hummingbot.core.bot_ownership import ORDER_PATH
+from hummingbot.core.bot_ownership import ORDER_PATH, OwnershipLost
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
 from hummingbot.core.order_submission_guard import SubmissionBlocked, session_order_scope
@@ -41,11 +41,34 @@ def test_send_transition_uses_one_journal_roundtrip_and_keeps_immutable_context(
     journal = [s for s in statements if 'submission_attempts' in s]
     assert len(journal) == 1, f'Send transition used {len(journal)} journal round trips'
     assert journal[0].lstrip().upper().startswith('UPDATE') and 'RETURNING' in journal[0]
+    assert [s for s in statements if 'pg_locks' in s] == journal
     with owned.manager.get_new_session() as db:
         row = db.get(SubmissionAttempt, 'order-1')
         assert row.state == 'possibly_sent' and row.context == original
         assert row.payload_hash == digest(payload) and row.deadline_ms == 123456 and row.receipt is None
     assert owned.owner.sent_intents == {'order-1'}
+
+
+def test_send_transition_checks_advisory_lock_after_final_authority_read(owned):
+    intent(owned)
+    rest, transport = assistant()
+    original = owned.owner._record_send_attempt
+
+    def lose_lock(identity, *args):
+        owned.owner.connection.exec_driver_sql('SELECT pg_advisory_unlock_all()')
+        owned.owner.connection.commit()
+        return original(identity, *args)
+
+    with patch.object(owned.owner, '_record_send_attempt', side_effect=lose_lock) as record:
+        with pytest.raises(OwnershipLost) as error:
+            owned.loop.run_until_complete(send(rest, 'order-1'))
+        record.assert_called_once()
+    assert error.value.reason_code == 'ownership_identity_mismatch'
+    transport.call.assert_not_awaited()
+    assert owned.owner.lost and not owned.owner.sent_intents
+    with owned.manager.get_new_session() as db:
+        row = db.get(SubmissionAttempt, 'order-1')
+        assert row.state == 'prepared' and row.payload_hash is None and row.deadline_ms is None
 
 
 def test_final_send_burst_leaves_a_health_turn_between_durable_gates(owned):

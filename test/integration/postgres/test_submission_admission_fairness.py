@@ -249,6 +249,36 @@ def test_native_eight_quote_burst_allows_health_callback_between_admissions(nati
     assert not native.store.read()['recovery_state'].get('halt')
 
 
+def test_worker_intent_verifies_owner_and_locks_row_in_one_statement(native):
+    worker_fences = []
+
+    def observe_fence(connection, cursor, statement, parameters, context, executemany):
+        if threading.current_thread() is not threading.main_thread() and (
+                'FOR SHARE NOWAIT' in statement or 'SELECT 1 FROM pg_locks' in statement):
+            worker_fences.append(statement)
+
+    async def admit():
+        order = InFlightOrder('intent-round-trips', 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
+                              Decimal('5'), time.time(), Decimal('10'))
+        native.market._order_tracker.start_tracking_order(order)
+        with session_order_scope(native.session.id, native.session.generation):
+            await native.owner.admit_order(native.market, order)
+
+    event.listen(native.engine, 'before_cursor_execute', observe_fence)
+    try:
+        native.loop.run_until_complete(admit())
+    finally:
+        event.remove(native.engine, 'before_cursor_execute', observe_fence)
+
+    assert 'FOR SHARE NOWAIT' in worker_fences[0]
+    assert 'SELECT 1 FROM pg_locks' in worker_fences[0]
+    assert 'SELECT 1 FROM pg_locks' in worker_fences[-1] and 'FOR SHARE' not in worker_fences[-1]
+    with native.manager.get_new_session() as db:
+        assert db.get(Order, 'intent-round-trips').creation_pending
+        assert db.get(SubmissionAttempt, 'intent-round-trips').state == 'prepared'
+    native.transport.call.assert_not_awaited()
+
+
 def test_stop_between_native_admissions_prevents_the_rest_of_the_burst(native):
     original = native.recorder.persist_order_intent
     admitted = []

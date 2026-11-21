@@ -12,7 +12,7 @@ from decimal import Decimal
 from urllib.parse import urlparse
 
 from psycopg2 import Error as PostgreSQLError
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import DBAPIError, OperationalError
 
 from hummingbot.core.data_type.common import OrderType, TradeType
@@ -686,29 +686,38 @@ class BotOwnership:
     def _record_send_attempt(self, client_id, data, deadline, headers):
         """A committed, immutable transport identity precedes any network call."""
         from hummingbot.model.runtime_journal import SubmissionAttempt, digest
-        self.check_owner()
+        connection = self.require_owner_connection()
+        owner_exists = select(BotState.bot_id).where(
+            BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
+            BotState.owner_generation == self.generation, func.pg_backend_pid() == self.backend_pid,
+            self._advisory_lock_exists()).exists()
         # A lost COMMIT reply is ambiguous even though this coroutine will not
         # deliberately invoke transport after the exception.
-        with self.connection.begin():
-            # UPDATE takes the row lock and returns its immutable context in one
-            # round trip. Validation still runs before COMMIT/transport; a bad
-            # context or payload rolls the transition back, never granting send.
-            row = self.connection.execute(update(SubmissionAttempt).where(
-                SubmissionAttempt.order_id == client_id, SubmissionAttempt.state == 'prepared').values(
+        with connection.begin():
+            # Recheck physical ownership at the journal write. The earlier
+            # authority read alone cannot authorize this transition.
+            row = connection.execute(update(SubmissionAttempt).where(
+                SubmissionAttempt.order_id == client_id, SubmissionAttempt.state == 'prepared', owner_exists).values(
                 state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline).returning(
                 SubmissionAttempt.context)).mappings().one_or_none()
-            if (row is None or row['context']['owner_uuid'] != self.owner_uuid
-                    or row['context']['generation'] != self.generation):
-                raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
-            self._validate_close_transport(row['context'], client_id, data)
-            from hummingbot.core.automatic_recovery import eligible
-            if eligible(row['context']):
-                key = headers.get('OK-ACCESS-KEY')
-                expected = digest(['credential_identity', row['context']['environment'],
-                                   row['context']['executor']['connector_name'], key])
-                if not key or expected != row['context']['credential_fingerprint']:
-                    raise SubmissionBlocked('Authenticated transport identity does not match its recorded account scope.')
-            self.sent_intents.add(client_id)
+            if row is not None:
+                context = row['context']
+                if context['owner_uuid'] != self.owner_uuid or context['generation'] != self.generation:
+                    raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
+                self._validate_close_transport(context, client_id, data)
+                from hummingbot.core.automatic_recovery import eligible
+                if eligible(context):
+                    key = headers.get('OK-ACCESS-KEY')
+                    expected = digest(['credential_identity', context['environment'],
+                                       context['executor']['connector_name'], key])
+                    if not key or expected != context['credential_fingerprint']:
+                        raise SubmissionBlocked('Authenticated transport identity does not match its recorded account scope.')
+                self.sent_intents.add(client_id)
+                return
+        # A skipped UPDATE is harmless. Distinguish a stale attempt from
+        # ownership loss without adding a round trip to successful sends.
+        self._read_owner(identity_only=True)
+        raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
 
     def _validate_close_transport(self, context, identity, data):
         """Bind a managed close to its immutable intent at the existing SQL gate."""
@@ -759,26 +768,38 @@ class BotOwnership:
         if self.lost:
             raise OwnershipLost('Trading ownership was lost while recording the order.',
                                 reason_code='ownership_already_lost')
+        transaction = session.get_transaction()
+        if nowait and transaction is not None and session.info.get('ownership_fenced_transaction') is not transaction:
+            # The eager intent fence can take the row lock and prove the advisory
+            # lock in one statement. Later fences still verify the physical lock.
+            self.lock_owner_row(session, nowait=True, verify_advisory=True)
+            return
         self.lock_owner_row(session, nowait=nowait)
-        advisory_lock = session.connection().execute(text("""
-            SELECT EXISTS (
-                SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
-                AND pid=:pid AND classid=:namespace AND objid=:key AND objsubid=2
-                AND database=(SELECT oid FROM pg_database WHERE datname=current_database())
-            )
-        """), {'pid': self.backend_pid, 'namespace': OWNER_NAMESPACE, 'key': OWNER_KEY}).scalar_one()
+        advisory_lock = session.connection().execute(select(self._advisory_lock_exists())).scalar_one()
         if not advisory_lock:
             raise OwnershipLost('The recorder cannot verify the trading owner lock.',
                                 reason_code='ownership_identity_mismatch')
 
-    def lock_owner_row(self, session, *, nowait=False):
+    def _advisory_lock_exists(self):
+        return text("""
+            EXISTS (
+                SELECT 1 FROM pg_locks WHERE locktype='advisory' AND granted
+                AND pid=:pid AND classid=:namespace AND objid=:key AND objsubid=2
+                AND database=(SELECT oid FROM pg_database WHERE datname=current_database())
+            )
+        """).bindparams(pid=self.backend_pid, namespace=OWNER_NAMESPACE, key=OWNER_KEY)
+
+    def lock_owner_row(self, session, *, nowait=False, verify_advisory=False):
         transaction = session.get_transaction()
         if transaction is not None and session.info.get("ownership_fenced_transaction") is transaction:
             return
+        statement = select(BotState.owner_generation).where(
+            BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
+            BotState.owner_generation == self.generation)
+        if verify_advisory:
+            statement = statement.where(self._advisory_lock_exists())
         with submission_timing('ownership_row_check_ms') if nowait else nullcontext():
-            row = session.connection().execute(select(BotState.owner_generation).where(
-                BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
-                BotState.owner_generation == self.generation).with_for_update(read=True, nowait=nowait)).first()
+            row = session.connection().execute(statement.with_for_update(read=True, nowait=nowait)).first()
         if not row:
             raise OwnershipLost("A stale process cannot write trading/recovery state.",
                                 reason_code='ownership_identity_mismatch')
