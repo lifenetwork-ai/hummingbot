@@ -110,6 +110,7 @@ class Exchange:
         self.submission_busy = False
         self.submission_busy_side = None
         self.accepted_response_lost = 0
+        self.accepted_response_lost_match = {}
         self.cancel_before_ack = False
         self.cancel_before_ack_remaining = None
         self.cancel_delay_seconds = 0
@@ -470,6 +471,19 @@ class Exchange:
                 rows.append(dict(instId=symbol, last=str(price), askPx=str(price * Decimal('1.01')),
                                  bidPx=str(price * Decimal('.99')), ts=millis()))
             return self.ok(rows)
+        if path == "/api/v5/trade/orders-history" and method == "GET":
+            rows = [
+                order for order in self.orders.values()
+                if order['state'] in ('filled', 'canceled')
+                and all(not request.query.get(key) or request.query[key] == order.get(key)
+                        for key in ('instId', 'ordType'))
+                and (not request.query.get('instType')
+                     or request.query['instType'] == ('SWAP' if order['instId'].endswith('-SWAP') else 'SPOT'))
+                and int(request.query.get('begin', '0')) <= int(order['cTime']) <= int(request.query.get('end', millis()))
+                and (not request.query.get('after') or int(order['ordId']) < int(request.query['after']))
+            ]
+            rows.sort(key=lambda order: int(order['ordId']), reverse=True)
+            return self.ok(rows[:min(100, int(request.query.get('limit', '100')))])
         if path == "/api/v5/trade/orders-pending":
             rows = [order for order in self.orders.values() if order["state"] in ("live", "partially_filled")]
             for identity, remaining in list(self.cancel_pending_visibility.items()):
@@ -534,7 +548,8 @@ class Exchange:
             if self.quote_activity:
                 self.quote_activity.accept(order)
             self.accepted.append(copy.deepcopy(order))
-            if self.accepted_response_lost:
+            if self.accepted_response_lost and all(data.get(key) == value
+                                                   for key, value in self.accepted_response_lost_match.items()):
                 self.accepted_response_lost -= 1
                 observed['injected_accepted_response_lost'] = True
                 # The venue has accepted the physical POST, but neither its
@@ -675,7 +690,13 @@ class Exchange:
             count = data['accepted_response_lost']
             if type(count) is not int or not 0 <= count <= 10:
                 return web.json_response({'error': 'invalid_accepted_response_lost'}, status=400)
+            match = data.get('accepted_response_lost_match', {})
+            if (not isinstance(match, dict) or set(match) - {'side', 'posSide'}
+                    or ('side' in match and match['side'] not in ('buy', 'sell'))
+                    or ('posSide' in match and match['posSide'] not in ('long', 'short'))):
+                return web.json_response({'error': 'invalid_accepted_response_lost_match'}, status=400)
             self.accepted_response_lost = count
+            self.accepted_response_lost_match = match
         if 'cleanup_partial' in data:
             if data['cleanup_partial'] not in ('none', 'live', 'canceled'):
                 return web.json_response({'error': 'invalid_cleanup_partial'}, status=400)

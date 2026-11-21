@@ -18,6 +18,11 @@ SCRIPTS = Path(__file__).resolve().parent / "scripts"
 MIGRATION_LOCK = 0x48424F544D494752  # HBOTMIGR; locks are scoped to the connected database
 HISTORY_TABLE = "hbot_schema_migrations"
 BOOTSTRAP_TIMEOUT = 180
+SESSION_CASH_BASELINES_MIGRATION = (
+    "024_create_session_cash_baselines.sql",
+    # SHA-256 of the packaged SQL script.
+    "00f91aa224d2a0ae0732a75c91e18feaaea40dfeb5904920d45d9147531eb2d0",  # noqa: documentation
+)
 LEGACY_TABLES = (
     "Order", "OrderStatus", "TradeFill", "MarketState", "Executors", "Controllers", "Position",
     "FundingPayment", "InventoryCost", "MarketData", "RangePositionUpdate", "RangePositionCollectedFees", "Metadata",
@@ -163,6 +168,20 @@ def _pending_scripts(connection, manifest):
     return pending
 
 
+def _adopt_existing_migration(connection, name, checksum):
+    # Migration 024 contains only table and index DDL. A restored compatible
+    # schema can already contain both objects even if its history is absent.
+    if (name, checksum) != SESSION_CASH_BASELINES_MIGRATION:
+        return False
+    existing = connection.execute(text("""
+        SELECT to_regclass('public.session_cash_baselines') IS NOT NULL
+            OR to_regclass('public.idx_daily_balance_snapshots_scope_day') IS NOT NULL
+    """)).scalar_one()
+    if existing:
+        validate_schema(connection)
+    return existing
+
+
 def migration_owner_available(engine):
     """Scheduling hint only; bootstrap must acquire its own physical lock again."""
     with engine.begin() as connection:
@@ -269,13 +288,15 @@ def bootstrap_postgres(
                             cursor.execute("SELECT set_config('statement_timeout', %s, true)",
                                            (str(max(1, int(min(statement_timeout, remaining) * 1000))),))
                             cursor.execute("SET LOCAL lock_timeout = '5s'")
-                            cursor.execute(content)
+                            adopted = _adopt_existing_migration(connection, name, checksum)
+                            if not adopted:
+                                cursor.execute(content)
                             cursor.execute("INSERT INTO public.hbot_schema_migrations(name, sha256) VALUES (%s, %s)",
                                            (name, checksum))
                         if not legacy_cutover:
                             raw.commit()
-                        LOGGER.info("%s PostgreSQL script %s sha256=%s", "Staged" if legacy_cutover else "Applied",
-                                    name, checksum)
+                        action = "Validated existing schema for" if adopted else "Staged" if legacy_cutover else "Applied"
+                        LOGGER.info("%s PostgreSQL script %s sha256=%s", action, name, checksum)
                 validate_schema(connection)
                 if time.monotonic() >= deadline:
                     raise PostgreSQLBootstrapError("PostgreSQL bootstrap deadline exceeded.", retryable=True)

@@ -108,16 +108,23 @@ async def test_failed_commit_does_not_publish_or_release_and_periodic_retry_rema
 async def test_burst_coalesces_and_foreign_generation_does_not_publish(native_publication):
     strategy, _, executor, _, _, controller = native_publication()
     strategy.update_executors_info = MagicMock()
-    executor.stop()
-    for _ in range(100):
+    # Drive the coalescing timer explicitly across adjacent loop turns.
+    with patch.object(asyncio.get_running_loop(), 'call_later', return_value=MagicMock()) as schedule:
+        executor.stop()
+        for _ in range(100):
+            strategy.notify_executor_terminated(executor)
+            await asyncio.sleep(0)
+        strategy.update_executors_info.assert_not_called()
+        schedule.assert_called_once()
+        delay, publish = schedule.call_args.args
+        assert delay == strategy.MANAGED_REPORT_COALESCE_SECONDS
+        schedule.call_args.kwargs['context'].run(publish)
+        strategy.update_executors_info.assert_called_once()
+
+        controller.config = controller.config.model_copy(update={'mm_generation': 2})
         strategy.notify_executor_terminated(executor)
-        await asyncio.sleep(0)  # Adjacent loop turns still belong to one notification window.
-    await asyncio.sleep(.07)
-    strategy.update_executors_info.assert_called_once()
-    controller.config = controller.config.model_copy(update={'mm_generation': 2})
-    strategy.notify_executor_terminated(executor)
-    await asyncio.sleep(.07)
-    strategy.update_executors_info.assert_called_once()
+        schedule.assert_called_once()
+        strategy.update_executors_info.assert_called_once()
 
 
 @pytest.mark.asyncio

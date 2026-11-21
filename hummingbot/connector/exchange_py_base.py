@@ -636,19 +636,23 @@ class ExchangePyBase(ExchangeBase, ABC):
     async def _execute_order_cancel_and_process_update(self, order: InFlightOrder) -> bool:
         from hummingbot.core.order_submission_guard import managed_terminal_order
         cancelled = await self._place_cancel(order.client_order_id, order)
-        if cancelled and not order.is_done:
-            update_timestamp = self.current_timestamp
-            if update_timestamp is None or math.isnan(update_timestamp):
-                update_timestamp = self._time()
-            order_update: OrderUpdate = OrderUpdate(
-                client_order_id=order.client_order_id,
-                trading_pair=order.trading_pair,
-                update_timestamp=update_timestamp,
-                new_state=(OrderState.CANCELED
-                           if self.is_cancel_request_in_exchange_synchronous and not managed_terminal_order(order)
-                           else OrderState.PENDING_CANCEL),
-            )
-            self._order_tracker.process_order_update(order_update)
+        if not cancelled:
+            return cancelled
+        confirmed_cancel = self.is_cancel_request_in_exchange_synchronous and not managed_terminal_order(order)
+        # Locally FAILED lost orders still need their confirmed cancel recorded by the tracker.
+        if order.is_done and (not confirmed_cancel or
+                              self._order_tracker.fetch_lost_order(client_order_id=order.client_order_id) is not order):
+            return cancelled
+        update_timestamp = self.current_timestamp
+        if update_timestamp is None or math.isnan(update_timestamp):
+            update_timestamp = self._time()
+        order_update = OrderUpdate(
+            client_order_id=order.client_order_id,
+            trading_pair=order.trading_pair,
+            update_timestamp=update_timestamp,
+            new_state=OrderState.CANCELED if confirmed_cancel else OrderState.PENDING_CANCEL,
+        )
+        self._order_tracker.process_order_update(order_update)
         return cancelled
 
     async def _execute_cancel(self, trading_pair: str, order_id: str) -> str:

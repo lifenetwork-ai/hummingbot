@@ -1,7 +1,7 @@
 import asyncio
 import time
-import unittest
 from decimal import Decimal
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 from typing import List, Union
 
 import pandas as pd
@@ -14,7 +14,7 @@ from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
 from hummingbot.strategy.order_tracker import OrderTracker
 
 
-class OrderTrackerUnitTests(unittest.TestCase):
+class OrderTrackerUnitTests(LocalClassEventLoopWrapperTestCase):
     start: pd.Timestamp = pd.Timestamp("2019-01-01", tz="UTC")
     end: pd.Timestamp = pd.Timestamp("2019-01-01 01:00:00", tz="UTC")
     start_timestamp: float = start.timestamp()
@@ -23,6 +23,7 @@ class OrderTrackerUnitTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.ev_loop = asyncio.get_event_loop()
         cls.trading_pair = "COINALPHA-HBOT"
 

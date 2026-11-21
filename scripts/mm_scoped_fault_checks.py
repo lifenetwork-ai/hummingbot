@@ -13,6 +13,7 @@ def configure(harness):
     original = path.read_bytes()
     profiles = yaml.safe_load(original)
     profiles['spot_outflow'] = dict(window_seconds=300, max_net_outflow_quote='100', fee_allowance_rate='.01')
+    profiles['markets']['spot']['total_amount_quote'] = '80'  # Leave room for fees in the unresolved BUY cohort.
     path.write_text(yaml.safe_dump(profiles))
     harness.env.update(MM_SCOPED_RECOVERY_ENABLED='true', ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED='true',
                        ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')

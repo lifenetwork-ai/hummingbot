@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest import TestCase
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 
 from hummingbot.client.config.config_var import ConfigVar
 from hummingbot.client.settings import ConnectorSetting, ConnectorType
@@ -7,7 +7,7 @@ from hummingbot.connector.exchange.binance.binance_exchange import BinanceExchan
 from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 
 
-class ConnectorSettingTests(TestCase):
+class ConnectorSettingTests(LocalClassEventLoopWrapperTestCase):
 
     def test_connector_setting_creates_non_trading_connector_instance(self):
         setting = ConnectorSetting(

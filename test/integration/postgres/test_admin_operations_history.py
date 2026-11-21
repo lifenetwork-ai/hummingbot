@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import datetime, timezone
 from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
 from test.integration.postgres.test_admin_history import history  # noqa: F401
@@ -16,6 +17,7 @@ from hummingbot.core.mm_session import MMSessionRequest
 from hummingbot.model.admin_command import AdminCommand
 from hummingbot.model.admin_store import AdminStore
 from hummingbot.model.bot_state_store import BotStateStore
+from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
 from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
 from hummingbot.model.mm_event import MMEvent
 
@@ -145,14 +147,15 @@ def test_session_discovery_does_not_scan_unrelated_guard_history(pg_engine):
     with pg_engine.begin() as connection:
         runtime_timeout = connection.execute(text('SHOW statement_timeout')).scalar_one()
         # Offline bulk fixture construction is not the query being measured.
-        connection.execute(text("SELECT set_config('statement_timeout','60s',true)"))
-        connection.execute(text("""INSERT INTO mm_events
-            (bot_id,session_id,event_key,event_type,source,generation,control_version,payload,created_at)
-            SELECT 'hummingbot','session-' || n%10,'history-plan-' || n,
-                CASE WHEN n<=10 THEN 'session_created' ELSE 'guard_changed' END,
-                'scheduler',1,1,'{}'::jsonb,clock_timestamp() FROM generate_series(1,20000) n"""))
-        connection.execute(text("ANALYZE mm_events"))
-        connection.execute(text("SELECT set_config('statement_timeout',:value,true)"), {'value': runtime_timeout})
+        with bootstrap_io_budget(connection, time.monotonic() + 60):
+            connection.execute(text("SELECT set_config('statement_timeout','60s',true)"))
+            connection.execute(text("""INSERT INTO mm_events
+                (bot_id,session_id,event_key,event_type,source,generation,control_version,payload,created_at)
+                SELECT 'hummingbot','session-' || n%10,'history-plan-' || n,
+                    CASE WHEN n<=10 THEN 'session_created' ELSE 'guard_changed' END,
+                    'scheduler',1,1,'{}'::jsonb,clock_timestamp() FROM generate_series(1,20000) n"""))
+            connection.execute(text("ANALYZE mm_events"))
+            connection.execute(text("SELECT set_config('statement_timeout',:value,true)"), {'value': runtime_timeout})
         assert connection.execute(text('SHOW statement_timeout')).scalar_one() == runtime_timeout
         plan = connection.execute(text("""EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON)
             SELECT id,session_id,payload->'configuration'->'request' FROM mm_events

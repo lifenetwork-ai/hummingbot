@@ -99,7 +99,7 @@ async def run_client(monkeypatch, tmp_path, mode, *, duration=1):
     output = tmp_path / 'result.json'
     await load_client.main(SimpleNamespace(duration=duration, read_rate=20, market_rate=100,
                                            output=str(output), fills=True, controls=False,
-                                           operations=False, burst=False, random_soak=True))
+                                           operations=False, balance_changes=False, burst=False, random_soak=True))
     return session, json.loads(output.read_text())
 
 
@@ -134,7 +134,7 @@ async def test_market_rate_observes_workload_without_charging_ledger_preparation
     output = tmp_path / 'market-window.json'
     await load_client.main(SimpleNamespace(duration=1, read_rate=20, market_rate=100,
                                            output=str(output), fills=False, controls=False,
-                                           operations=False, burst=False, random_soak=False))
+                                           operations=False, balance_changes=False, burst=False, random_soak=False))
     result = json.loads(output.read_text())
     assert result['market_measurement_seconds'] == pytest.approx(1)
     assert result['market_updates_sent'] == updates

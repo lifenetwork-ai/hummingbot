@@ -21,6 +21,12 @@ from hummingbot.model.trade_fill import TradeFill
 recovering = _recovering
 
 
+def publish_heartbeat(store, owner):
+    # These tests hold ownership without running the service publication loop.
+    assert store.state.publish(owner_uuid=owner.owner_uuid, owner_generation=owner.generation,
+                               version=0, status={}, save_balances=False)
+
+
 def seed_checkpoint(store, *, orders=5001, fills=2001, existing_binding=False):
     now = datetime.now(timezone.utc)
     anchor = now - timedelta(hours=2)
@@ -99,12 +105,14 @@ def test_checkpoint_review_confirm_preserves_all_ledger_rows_and_remaining_costs
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo'); monkeypatch.setenv('OKX_SITE', 'www')
     store, owner = recovering
     seed_checkpoint(store)
+    publish_heartbeat(store, owner)
     request = store.request('recovery_check', 'checkpoint-check', {'expected_version': 0}, ADMIN, 'req')
     claimed = store.claim(owner); snapshot = store.snapshot()
     proof = dict(verified=True, scope='verified_checkpoint', venue_heads={'okx': '2001'})
     store.finish_check(owner, claimed, snapshot, [], proof, blockers=[])
     check = store.get(request['id'])
     payload = dict(expected_version=0, check_id=check['id'], confirmation_token=check['result']['confirmation_token'])
+    publish_heartbeat(store, owner)
     reset = store.request('recovery_reset', 'checkpoint-reset', payload, ADMIN, 'reset')
     claimed = store.claim(owner)
     assert store.finish_reset(owner, claimed, store.snapshot(), [], proof)
@@ -130,6 +138,7 @@ def test_changed_proof_invalidates_preview(recovering, monkeypatch, mutation):
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo'); monkeypatch.setenv('OKX_SITE', 'www')
     store, owner = recovering
     seed_checkpoint(store)
+    publish_heartbeat(store, owner)
     row = store.request('recovery_check', 'check', {'expected_version': 0}, ADMIN, 'req')
     claimed = store.claim(owner); snapshot = store.snapshot()
     store.finish_check(owner, claimed, snapshot, [], dict(verified=True, scope='verified_checkpoint', venue_heads={'okx': '2'}), blockers=[])
@@ -144,6 +153,7 @@ def test_changed_proof_invalidates_preview(recovering, monkeypatch, mutation):
         else:
             state = owner.check_owner()
             db.execute(update(BotState).values(recovery_state={**state['recovery_state'], 'policy_changed': True}))
+    publish_heartbeat(store, owner)
     with pytest.raises(ControlConflict, match='recovery_state_changed'):
         store.request('recovery_reset', 'reset', dict(expected_version=0, check_id=check['id'], confirmation_token=check['result']['confirmation_token']), ADMIN, 'reset')
     assert owner.check_owner()['recovery_state']['halt']
@@ -184,6 +194,7 @@ async def test_large_postgres_ledger_verifies_complete_paged_native_venue_suffix
     monkeypatch.setenv('OKX_SITE', 'www')
     store, owner = recovering
     anchor = seed_checkpoint(store)
+    publish_heartbeat(store, owner)
     request = store.request('recovery_check', 'paged-check', dict(expected_version=0), ADMIN, 'check')
     claimed = store.claim(owner)
     snapshot = store.snapshot()
@@ -220,6 +231,7 @@ async def test_large_postgres_ledger_verifies_complete_paged_native_venue_suffix
         assert owner.check_owner()['recovery_state']['halt']
         store.finish_check(owner, claimed, snapshot, [], proof, blockers=[])
         check = store.get(request['id'])
+        publish_heartbeat(store, owner)
         reset = store.request('recovery_reset', 'paged-reset', dict(expected_version=0, check_id=check['id'],
                               confirmation_token=check['result']['confirmation_token']), ADMIN, 'reset')
         claimed = store.claim(owner)

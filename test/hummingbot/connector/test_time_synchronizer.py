@@ -1,6 +1,6 @@
 import asyncio
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 from typing import Awaitable
-from unittest import TestCase
 from unittest.mock import patch
 
 import numpy.ma
@@ -8,7 +8,7 @@ import numpy.ma
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 
 
-class TimeSynchronizerTests(TestCase):
+class TimeSynchronizerTests(LocalClassEventLoopWrapperTestCase):
 
     def async_run_with_timeout(self, coroutine: Awaitable, timeout: float = 1):
         ret = asyncio.get_event_loop().run_until_complete(asyncio.wait_for(coroutine, timeout))

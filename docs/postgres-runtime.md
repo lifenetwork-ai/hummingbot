@@ -164,8 +164,9 @@ If the old schema is incompatible with the new binary, startup fails before
 admission: use a stopped-writer maintenance window for that upgrade.
 
 An existing untracked database treats packaged files as pending. After the old
-owner releases its lock, the runner executes the existing idempotent SQL once
-and records history; it does not silently stamp files as applied while trading.
+owner releases its lock, the runner executes the pending SQL and records history.
+If a restored database already contains the objects from migration 024, the
+runner verifies the schema before recording that migration's packaged checksum.
 Migrations must remain transactional (no manual COMMIT or session-lock changes).
 This coordination covers cooperating native engines, not external SQL writers.
 Stop external writers before schema changes. Large backfills/long DDL still

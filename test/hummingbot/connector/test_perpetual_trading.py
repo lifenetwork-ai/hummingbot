@@ -1,6 +1,6 @@
 import asyncio
-import unittest
 from decimal import Decimal
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 from typing import Awaitable
 from unittest.mock import MagicMock
 
@@ -10,7 +10,7 @@ from hummingbot.core.data_type.common import PositionMode, PositionSide
 from hummingbot.core.data_type.funding_info import FundingInfo, FundingInfoUpdate
 
 
-class PerpetualTest(unittest.TestCase):
+class PerpetualTest(LocalClassEventLoopWrapperTestCase):
     # logging.Level required to receive logs from the data source logger
     level = 0
 

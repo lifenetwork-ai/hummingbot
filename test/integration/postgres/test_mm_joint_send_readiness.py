@@ -61,6 +61,7 @@ def jointly_ready(context, gross_case):
         controllers.append(controller)
     host = ServiceHost.__new__(ServiceHost)
     host.owner = context.owner
+    host.hb = SimpleNamespace(trading_core=SimpleNamespace(strategy=None))
     host.mm_session = SimpleNamespace(id=snapshot['id'], generation=0,
                                       catalogue=SimpleNamespace(drawdown_policy=lambda: None))
     host._mm_controllers = lambda: controllers

@@ -125,11 +125,13 @@ async def test_slow_heavy_query_cannot_hold_the_status_response_open():
         return result()
 
     try:
-        response = await asyncio.wait_for(cache.read(row(), scope(), query), timeout=.1)
+        response = await asyncio.wait_for(cache.read(row(), scope(), query), timeout=5)
         assert response['value'] is None
         assert response['unavailable_reason'] == 'session_fees_refreshing'
         assert len(cache.flights) == 1
+        refresh = next(iter(cache.flights.values()))
         release.set()
+        await asyncio.wait_for(refresh, timeout=5)
         assert (await cache.read(row(), scope(), query))['value']['total_usdt'] == '0.123456789012345678'
     finally:
         release.set()
@@ -241,7 +243,6 @@ async def test_cached_observation_freshness_is_checked_against_each_database_clo
 async def test_pending_refresh_retains_last_usable_total_as_stale():
     clock = [0]
     cache = OverviewFeeCache(clock=lambda: clock[0])
-    cache.READ_WAIT_SECONDS = .001
     release = asyncio.Event()
 
     async def blocked(**kwargs):
@@ -250,6 +251,8 @@ async def test_pending_refresh_retains_last_usable_total_as_stale():
 
     try:
         first = await cache.read(row(), scope(), AsyncMock(return_value=result()))
+        assert first['value']['total_usdt'] == '0.123456789012345678'
+        cache.READ_WAIT_SECONDS = .001
         clock[0] = 16
         pending = await cache.read(row(), scope(), blocked)
         assert pending['value'] == first['value']

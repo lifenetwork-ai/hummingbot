@@ -28,7 +28,7 @@ capture = observations.capture_reporting
 save = reporting.save_daily_balances
 claim = AdminStore.claim_check
 rules = OkxExchange._update_trading_rules
-control = LifeMMController.control_task
+control_tick = LifeMMController._wait_for_control_tick
 
 
 def capture_reporting(*args):
@@ -60,17 +60,17 @@ async def update_rules(self):
     return await rules(self)
 
 
-async def control_task(self):
+async def wait_for_control_tick(self):
     if faults().get("controller_error"):
         raise RuntimeError("offline injected controller failure")
-    return await control(self)
+    return await control_tick(self)
 
 
 observations.capture_reporting = capture_reporting
 reporting.save_daily_balances = save_daily_balances
 AdminStore.claim_check = claim_check
 OkxExchange._update_trading_rules = update_rules
-LifeMMController.control_task = control_task
+LifeMMController._wait_for_control_tick = wait_for_control_tick
 if importlib.util.find_spec('hummingbot.cli.service_processes'):
     from hummingbot.cli import service_processes
     service_processes.child_command = lambda role: [sys.executable, __file__, '--role', role]

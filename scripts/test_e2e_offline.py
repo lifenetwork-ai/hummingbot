@@ -780,7 +780,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                     target = self.report / (bot + '.log')
                     target.write_text(logs.stdout + logs.stderr)
                     target.chmod(0o600)
-        completed = dict.fromkeys(('order.intent', 'order.created'), 0)
+        completed = dict.fromkeys(('order.intent', 'order.intent_batch', 'order.created'), 0)
         for target in self.report.glob('*.log'):
             for line in target.read_text().splitlines():
                 try:
@@ -791,7 +791,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                             completed[stage] = max(completed[stage], stages.get(stage, {}).get('completed', 0))
                 except (ValueError, AttributeError):
                     continue
-        assert all(completed.values()), 'Missing completed native intent/ACK timing evidence.'
+        assert completed['order.created'] and (completed['order.intent'] or completed['order.intent_batch']), (
+            'Missing completed native intent/ACK timing evidence.')
         self.metrics['creation_stage_diagnostics'] = dict(enabled=True, completed=completed)
 
     def until_stopped_scenario(self, *, slow_terminal_proof=False):
@@ -1853,7 +1854,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         self.mm_command(port, "start", market_mode="spot", selection="fixed", profile_id="sideways", duration_seconds=600)
         inject(controller_error=True)
         poll(lambda: bool(self.state()["recovery_state"].get("halt")), description="dead controller creates durable HALT")
-        poll(lambda: incident("controller_task_failed"), description="failed task reason exposed")
+        poll(lambda: incident("controller_task_stopped"), description="failed task reason exposed")
         assert http(port, "/live")[0] == 200
         self.metrics["availability"] = dict(optional_failures_recovered=3, startup_read_recovered=True,
                                             stale_feed_recovered=True, preserved_anchor_deadline=True,

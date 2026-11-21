@@ -5,6 +5,7 @@ import unittest
 import unittest.mock
 from datetime import datetime
 from decimal import Decimal
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 from typing import Any, Dict, List, Tuple, Union
 
 from hummingbot.client.config.client_config_map import ClientConfigMap
@@ -55,10 +56,11 @@ class MockStrategy(StrategyBase):
         return ms_logger
 
 
-class StrategyBaseUnitTests(unittest.TestCase):
+class StrategyBaseUnitTests(LocalClassEventLoopWrapperTestCase):
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.ev_loop = asyncio.get_event_loop()
         cls.trading_pair = "COINALPHA-HBOT"
 

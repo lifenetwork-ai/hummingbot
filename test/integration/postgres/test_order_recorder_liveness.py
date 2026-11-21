@@ -286,8 +286,9 @@ def test_managed_ack_rolls_back_when_physical_owner_lock_is_lost(owned, after_fl
             owned.owner.connection.commit()
         finally:
             resume.set()
-        with pytest.raises(OwnershipLost, match='owner lock'):
+        with pytest.raises(OwnershipLost) as raised:
             await task
+        assert raised.value.reason_code == 'ownership_identity_mismatch'
 
     event.listen(owned.engine, 'before_cursor_execute', before_query)
     event.listen(owned.engine, 'after_cursor_execute', after_query)

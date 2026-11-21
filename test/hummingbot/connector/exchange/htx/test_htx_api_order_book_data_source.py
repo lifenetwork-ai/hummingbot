@@ -190,10 +190,11 @@ class HtxAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
             message=self._compress(subbed_message_trade),
             message_type=aiohttp.WSMsgType.BINARY,
         )
+        self.mocking_assistant.add_websocket_aiohttp_exception(ws_connect_mock.return_value, asyncio.CancelledError())
 
-        self.async_tasks.append(self.local_event_loop.create_task(self.data_source.listen_for_subscriptions()))
-
-        await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(ws_connect_mock.return_value)
+        # Stop the listener after it processes both subscription acknowledgments.
+        with self.assertRaises(asyncio.CancelledError):
+            await asyncio.wait_for(self.data_source.listen_for_subscriptions(), timeout=5)
 
         self.assertEqual(0, self.data_source._message_queue[CONSTANTS.TRADE_CHANNEL_SUFFIX].qsize())
         self.assertEqual(0, self.data_source._message_queue[CONSTANTS.ORDERBOOK_CHANNEL_SUFFIX].qsize())

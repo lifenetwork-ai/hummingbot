@@ -64,7 +64,8 @@ def scenario(harness, leg, *, previous_image=None):
 
     poll(lambda: len(live()) == 2, description='flat account has two opening maker quotes')
     opening = next(row for row in live() if row['posSide'] == leg)
-    harness.control(accepted_response_lost=1)
+    harness.control(accepted_response_lost=1,
+                    accepted_response_lost_match=dict(side='sell' if leg == 'long' else 'buy', posSide=leg))
     opening_base = Decimal(opening['sz']) * Decimal('.01')
     opening_fee = opening_base * Decimal(opening['px']) * Decimal('.0002')
     harness.control(fill=dict(clOrdId=opening['clOrdId'], amount=opening['sz'], fee=str(opening_fee)), duplicate=True)

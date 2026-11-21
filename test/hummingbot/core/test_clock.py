@@ -1,6 +1,6 @@
 import asyncio
 import time
-import unittest
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 
 import pandas as pd
 
@@ -8,7 +8,7 @@ from hummingbot.core.clock import Clock, ClockMode
 from hummingbot.core.time_iterator import TimeIterator
 
 
-class ClockUnitTest(unittest.TestCase):
+class ClockUnitTest(LocalClassEventLoopWrapperTestCase):
 
     backtest_start_timestamp: float = pd.Timestamp("2021-01-01", tz="UTC").timestamp()
     backtest_end_timestamp: float = pd.Timestamp("2021-01-01 01:00:00", tz="UTC").timestamp()

@@ -1,8 +1,8 @@
 import asyncio
 import time
-import unittest
 from collections import deque
 from decimal import Decimal
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 from typing import Union
 
 from hummingbot.connector.test_support.mock_paper_exchange import MockPaperExchange
@@ -61,10 +61,11 @@ class MockPyStrategy(StrategyPyBase):
         self.events_queue.append(funding_payment_completed_event)
 
 
-class StrategyPyBaseUnitTests(unittest.TestCase):
+class StrategyPyBaseUnitTests(LocalClassEventLoopWrapperTestCase):
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.ev_loop = asyncio.get_event_loop()
         cls.trading_pair = "COINALPHA-HBOT"
 

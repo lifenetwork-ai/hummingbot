@@ -106,6 +106,19 @@ def test_pending_incompatible_schema_cannot_claim_standby_readiness(owned, tmp_p
     assert not owned.owner.lost
 
 
+def test_existing_cash_baseline_migration_must_match_schema_before_adoption(pg_engine):
+    bootstrap_postgres(pg_engine, auto_migrate=True)
+    name = '024_create_session_cash_baselines.sql'
+    with pg_engine.begin() as db:
+        db.execute(text(f'DELETE FROM {HISTORY} WHERE name=:name'), dict(name=name))
+        db.execute(text('DROP INDEX idx_daily_balance_snapshots_scope_day'))
+
+    with pytest.raises(PostgreSQLBootstrapError, match='idx_daily_balance_snapshots_scope_day'):
+        bootstrap_postgres(pg_engine, auto_migrate=True)
+    with pg_engine.connect() as db:
+        assert not db.execute(text(f'SELECT 1 FROM {HISTORY} WHERE name=:name'), dict(name=name)).first()
+
+
 def test_pending_explicit_migration_refuses_live_owner_without_ddl(owned, tmp_path):
     (tmp_path / '900_explicit.sql').write_text('ALTER TABLE bot_state ADD COLUMN migration_probe integer;')
     with pytest.raises(PostgreSQLBootstrapError, match='trading owner') as raised:

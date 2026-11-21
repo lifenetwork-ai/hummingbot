@@ -29,7 +29,6 @@ async def test_http_status_deadline_retains_physical_ping_work_without_losing_ow
     identity = owner.owner_uuid, owner.generation, owner.backend_pid
     tracer = EngineDiagnostics(emit=lambda _: None)
     monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
-    monkeypatch.setattr(AdminAPI, 'STATUS_READ_SECONDS', .05)
     try:
         async with response_loss_proxy(pg_engine.url) as proxy:
             settings = RuntimeSettings.from_environment({'DATABASE_URL': proxy.url.render_as_string(hide_password=False)})
@@ -46,20 +45,22 @@ async def test_http_status_deadline_retains_physical_ping_work_without_losing_ow
                 api.register(app)
                 async with TestClient(TestServer(app), headers={
                         'Authorization': BasicAuth('operator', 'offline-password').encode()}) as http:
-                    proxy.drop_responses = True
-                    try:
-                        response = await asyncio.wait_for(http.get(ADMIN_PREFIX + '/status'), .8)
-                        body = await response.json()
-                        assert response.status == 503 and body['code'] == 'unavailable'
-                        assert body['service']['stale'] and body['service']['state_source'] == 'process'
-                        assert api._database_executor.active == 1
-                        assert any(s['operation'] == 'db.ping' for s in tracer.snapshot()['active'])
-                        assert (await http.get('/live')).status == 200
-                        assert await asyncio.to_thread(owner.check_owner)
-                        assert identity == (owner.owner_uuid, owner.generation, owner.backend_pid)
-                        assert not owner.lost
-                    finally:
-                        proxy.drop_responses = False
+                    with monkeypatch.context() as fault:
+                        fault.setattr(api, 'STATUS_READ_SECONDS', .05)
+                        proxy.drop_responses = True
+                        try:
+                            response = await asyncio.wait_for(http.get(ADMIN_PREFIX + '/status'), .8)
+                            body = await response.json()
+                            assert response.status == 503 and body['code'] == 'unavailable'
+                            assert body['service']['stale'] and body['service']['state_source'] == 'process'
+                            assert api._database_executor.active == 1
+                            assert any(s['operation'] == 'db.ping' for s in tracer.snapshot()['active'])
+                            assert (await http.get('/live')).status == 200
+                            assert await asyncio.to_thread(owner.check_owner)
+                            assert identity == (owner.owner_uuid, owner.generation, owner.backend_pid)
+                            assert not owner.lost
+                        finally:
+                            proxy.drop_responses = False
                     # A dropped reply cannot be repaired by releasing its worker
                     # early. Join the native I/O deadline/reconnect, then fresh work.
                     assert await asyncio.wait_for(api.run_database(lambda: 'joined'), 6) == 'joined'

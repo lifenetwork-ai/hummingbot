@@ -282,11 +282,16 @@ class AutomaticOrderRecovery:
         if order.client_order_id in self.quarantined:
             raise MarketReadinessBlocked('uncertain_identity_reserved')
         if payload is not None:
+            from hummingbot.core.bot_ownership import _ownership_read
+
             expected = dict(clOrdId=order.client_order_id, tdMode='cash', ordType='post_only', side='sell',
                             instId=order.trading_pair)
             try:
-                attempt = self.owner.connection.execute(select(SubmissionAttempt.context).where(
-                    SubmissionAttempt.order_id == order.client_order_id)).scalar_one()
+                connection = self.owner.require_owner_connection()
+                # Release the read scope before the same session journals the send.
+                with _ownership_read(connection):
+                    attempt = connection.execute(select(SubmissionAttempt.context).where(
+                        SubmissionAttempt.order_id == order.client_order_id)).scalar_one()
                 original = attempt['order']
                 if (set(payload) != {*expected, 'px', 'sz'} or any(payload.get(k) != v for k, v in expected.items())
                         or original['trade_type'] != 'SELL' or original['trading_pair'] != order.trading_pair

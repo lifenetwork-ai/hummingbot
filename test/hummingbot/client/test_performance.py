@@ -1,7 +1,7 @@
 import asyncio
 import time
-import unittest
 from decimal import Decimal
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 from typing import Awaitable
 from unittest.mock import MagicMock, patch
 
@@ -18,7 +18,7 @@ trading_pair = "HBOT-USDT"
 base, quote = trading_pair.split("-")
 
 
-class PerformanceMetricsUnitTest(unittest.TestCase):
+class PerformanceMetricsUnitTest(LocalClassEventLoopWrapperTestCase):
 
     def tearDown(self) -> None:
         RateOracle._shared_instance = None

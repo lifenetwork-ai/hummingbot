@@ -1,9 +1,9 @@
-import unittest
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 
 from hummingbot.client.hummingbot_application import HummingbotApplication
 
 
-class HummingbotApplicationTest(unittest.TestCase):
+class HummingbotApplicationTest(LocalClassEventLoopWrapperTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.app = HummingbotApplication()

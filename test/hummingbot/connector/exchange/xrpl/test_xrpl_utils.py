@@ -1313,28 +1313,15 @@ class TestXRPLNodePoolProactivePingLoop(IsolatedAsyncioWrapperTestCase):
         pool._connections["wss://test.com"] = conn
         pool._healthy_connections.append("wss://test.com")
 
-        call_count = 0
-
-        async def mock_ping(c):
-            nonlocal call_count
-            call_count += 1
+        async def mock_ping(connection):
+            pool._running = False
             return False  # Simulate ping failure
 
-        with patch.object(pool, "_ping_connection", side_effect=mock_ping), \
+        with patch.object(pool, "_ping_connection", side_effect=mock_ping) as ping, \
              patch.object(pool, "_reconnect", new_callable=AsyncMock), \
-             patch("hummingbot.connector.exchange.xrpl.xrpl_constants.PROACTIVE_PING_INTERVAL", 0.01):
-            # Run one iteration then stop
-            async def run_one_iter():
-                await asyncio.sleep(0.02)
-                pool._running = False
-
-            task = asyncio.create_task(pool._proactive_ping_loop())
-            await run_one_iter()
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+             patch("hummingbot.connector.exchange.xrpl.xrpl_constants.PROACTIVE_PING_INTERVAL", 0):
+            await asyncio.wait_for(pool._proactive_ping_loop(), 5)
+            ping.assert_awaited_once_with(conn)
 
         self.assertFalse(conn.is_healthy)
 
@@ -1351,22 +1338,14 @@ class TestXRPLNodePoolProactivePingLoop(IsolatedAsyncioWrapperTestCase):
         pool._connections["wss://test.com"] = conn
         pool._healthy_connections.append("wss://test.com")
 
-        async def mock_ping(c):
+        async def mock_ping(connection):
+            pool._running = False
             return True
 
-        with patch.object(pool, "_ping_connection", side_effect=mock_ping), \
-             patch("hummingbot.connector.exchange.xrpl.xrpl_constants.PROACTIVE_PING_INTERVAL", 0.01):
-            async def run_one_iter():
-                await asyncio.sleep(0.02)
-                pool._running = False
-
-            task = asyncio.create_task(pool._proactive_ping_loop())
-            await run_one_iter()
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+        with patch.object(pool, "_ping_connection", side_effect=mock_ping) as ping, \
+             patch("hummingbot.connector.exchange.xrpl.xrpl_constants.PROACTIVE_PING_INTERVAL", 0):
+            await asyncio.wait_for(pool._proactive_ping_loop(), 5)
+            ping.assert_awaited_once_with(conn)
 
         self.assertEqual(conn.consecutive_errors, 0)
 

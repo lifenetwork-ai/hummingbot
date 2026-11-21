@@ -1,7 +1,7 @@
 import asyncio
 import json
 import re
-import unittest
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 from typing import Awaitable, Optional
 from unittest.mock import MagicMock, patch
 
@@ -11,7 +11,7 @@ from hummingbot.data_feed.coin_gecko_data_feed import CoinGeckoDataFeed, coin_ge
 from hummingbot.data_feed.coin_gecko_data_feed.coin_gecko_constants import DEMO, PRO, PUBLIC
 
 
-class CoinGeckoDataFeedTest(unittest.TestCase):
+class CoinGeckoDataFeedTest(LocalClassEventLoopWrapperTestCase):
     # the level is required to receive logs from the data source logger
     level = 0
 

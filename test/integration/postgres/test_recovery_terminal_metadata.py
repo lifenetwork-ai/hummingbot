@@ -1,7 +1,7 @@
 """Review zero-fill terminal metadata without replaying lifetime history."""
 from copy import deepcopy
 from decimal import Decimal
-from test.integration.postgres.test_checkpoint_recovery import seed_checkpoint
+from test.integration.postgres.test_checkpoint_recovery import publish_heartbeat, seed_checkpoint
 from test.integration.postgres.test_recovery_store import ADMIN, recovering as _recovering
 from types import SimpleNamespace
 
@@ -189,6 +189,7 @@ async def test_review_then_fresh_reset_repairs_only_terminal_metadata(recovering
     monkeypatch.setenv('OKX_SITE', 'www')
     store, owner = recovering
     identities = seed_terminal_work(store, fills=3, perpetual=perpetual)
+    publish_heartbeat(store, owner)
     store.request('recovery_check', 'check', dict(expected_version=0), ADMIN, 'check')
     row, snapshot = store.claim(owner), store.snapshot()
     venue = {name: TerminalVenue(snapshot, name) for name in ('okx', 'okx_perpetual')[:2 if perpetual else 1]}
@@ -203,8 +204,10 @@ async def test_review_then_fresh_reset_repairs_only_terminal_metadata(recovering
     assert store.snapshot()['ledger_hash'] == snapshot['ledger_hash']
     assert owner.check_owner()['recovery_state']['halt']
     reset_payload = dict(expected_version=0, check_id=row['id'], confirmation_token=check['result']['confirmation_token'])
+    publish_heartbeat(store, owner)
     with pytest.raises(ControlConflict, match='recovery_order_review_required'):
         store.request('recovery_reset', 'unreviewed', reset_payload, ADMIN, 'unreviewed')
+    publish_heartbeat(store, owner)
     store.request('recovery_reset', 'reset', {**reset_payload, 'confirm_order_changes': True}, ADMIN, 'reset')
     row = store.claim(owner)
     fresh = store.snapshot()

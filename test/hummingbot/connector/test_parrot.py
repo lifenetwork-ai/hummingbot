@@ -3,7 +3,7 @@ import json
 from asyncio import CancelledError
 from copy import copy
 from decimal import Decimal
-from unittest import TestCase
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 from unittest.mock import patch
 
 from aioresponses import aioresponses
@@ -11,12 +11,13 @@ from aioresponses import aioresponses
 import hummingbot.connector.parrot as parrot
 
 
-class ParrotConnectorUnitTest(TestCase):
+class ParrotConnectorUnitTest(LocalClassEventLoopWrapperTestCase):
     # logging.Level required to receive logs from the data source logger
     level = 0
 
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
         cls.ev_loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
 
     def setUp(self) -> None:
