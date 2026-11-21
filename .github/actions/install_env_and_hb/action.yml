@@ -30,10 +30,9 @@ runs:
       run: |
         ./install
 
-    # Compile and run tests if code has changed
+    # Each checkout needs compiled extensions before running tests.
     - name: Compile Hummingbot
       shell: bash
-      if: ${{inputs.program-cache-hit}} != 'true' || ${{inputs.dependencies-cache-hit}} != 'true'
       env:
         WITHOUT_CYTHON_OPTIMIZATIONS: 'true'
       run: |

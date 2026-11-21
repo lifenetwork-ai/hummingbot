@@ -1,7 +1,6 @@
 import asyncio
-import unittest
 from decimal import Decimal
-from typing import Awaitable
+from test.isolated_asyncio_wrapper_test_case import LocalClassEventLoopWrapperTestCase
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pandas as pd
@@ -19,21 +18,7 @@ class ExpectedException(Exception):
     pass
 
 
-class InterfaceUtilsTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        ev_loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
-        for task in asyncio.all_tasks(ev_loop):
-            task.cancel()
-
-    def setUp(self) -> None:
-        super().setUp()
-        self.ev_loop = asyncio.get_event_loop()
-
-    def async_run_with_timeout(self, coroutine: Awaitable, timeout: float = 1):
-        ret = self.ev_loop.run_until_complete(asyncio.wait_for(coroutine, timeout))
-        return ret
-
+class InterfaceUtilsTest(LocalClassEventLoopWrapperTestCase):
     def test_format_bytes(self):
         size = 1024.
         self.assertEqual("1.00 KB", format_bytes(size))
@@ -44,7 +29,7 @@ class InterfaceUtilsTest(unittest.TestCase):
         mock_timer = MagicMock()
         mock_sleep.side_effect = [None, ExpectedException()]
         with self.assertRaises(ExpectedException):
-            self.async_run_with_timeout(start_timer(mock_timer))
+            self.run_async_with_timeout(start_timer(mock_timer))
         self.assertEqual('Uptime:   0 day(s), 00:00:02', mock_timer.log.call_args_list[0].args[0])
         self.assertEqual('Uptime:   0 day(s), 00:00:03', mock_timer.log.call_args_list[1].args[0])
 
@@ -62,7 +47,7 @@ class InterfaceUtilsTest(unittest.TestCase):
         mock_monitor = MagicMock()
         mock_sleep.side_effect = asyncio.CancelledError
         with self.assertRaises(asyncio.CancelledError):
-            self.async_run_with_timeout(start_process_monitor(mock_monitor))
+            self.run_async_with_timeout(start_process_monitor(mock_monitor))
         self.assertEqual(
             "CPU:    30%, Mem:   512.00 B (1.00 KB), Threads:   2, ",
             mock_monitor.log.call_args_list[0].args[0])
@@ -83,7 +68,7 @@ class InterfaceUtilsTest(unittest.TestCase):
                                  MagicMock(return_pct=Decimal("0.02"), total_pnl=Decimal("2"))]
         mock_sleep.side_effect = [None, asyncio.CancelledError()]
         with self.assertRaises(asyncio.CancelledError):
-            self.async_run_with_timeout(start_trade_monitor(mock_result))
+            self.run_async_with_timeout(start_trade_monitor(mock_result))
         self.assertEqual(3, mock_result.log.call_count)
         self.assertEqual('Trades: 0, Total P&L: 0.00, Return %: 0.00%', mock_result.log.call_args_list[0].args[0])
         self.assertEqual('Trades: 1, Total P&L: 2.00 USDT, Return %: 1.00%', mock_result.log.call_args_list[1].args[0])
@@ -108,7 +93,7 @@ class InterfaceUtilsTest(unittest.TestCase):
                                  MagicMock(return_pct=Decimal("0.02"), total_pnl=Decimal("3"))]
         mock_sleep.side_effect = asyncio.CancelledError()
         with self.assertRaises(asyncio.CancelledError):
-            self.async_run_with_timeout(start_trade_monitor(mock_result))
+            self.run_async_with_timeout(start_trade_monitor(mock_result))
         self.assertEqual(2, mock_result.log.call_count)
         self.assertEqual('Trades: 0, Total P&L: 0.00, Return %: 0.00%', mock_result.log.call_args_list[0].args[0])
         self.assertEqual('Trades: 2, Total P&L: N/A, Return %: 1.50%', mock_result.log.call_args_list[1].args[0])
@@ -132,7 +117,7 @@ class InterfaceUtilsTest(unittest.TestCase):
                                  MagicMock(return_pct=Decimal("0.02"), total_pnl=Decimal("3"))]
         mock_sleep.side_effect = asyncio.CancelledError()
         with self.assertRaises(asyncio.CancelledError):
-            self.async_run_with_timeout(start_trade_monitor(mock_result))
+            self.run_async_with_timeout(start_trade_monitor(mock_result))
         self.assertEqual(2, mock_result.log.call_count)
         self.assertEqual('Trades: 0, Total P&L: 0.00, Return %: 0.00%', mock_result.log.call_args_list[0].args[0])
         self.assertEqual('Trades: 2, Total P&L: 5.00 USDT, Return %: 1.50%', mock_result.log.call_args_list[1].args[0])
@@ -148,7 +133,7 @@ class InterfaceUtilsTest(unittest.TestCase):
         mock_app.trading_core.trade_fill_db = MagicMock()
         mock_sleep.side_effect = asyncio.CancelledError()
         with self.assertRaises(asyncio.CancelledError):
-            self.async_run_with_timeout(start_trade_monitor(mock_result))
+            self.run_async_with_timeout(start_trade_monitor(mock_result))
         self.assertEqual(1, mock_result.log.call_count)
         self.assertEqual('Trades: 0, Total P&L: 0.00, Return %: 0.00%', mock_result.log.call_args_list[0].args[0])
 
@@ -164,11 +149,10 @@ class InterfaceUtilsTest(unittest.TestCase):
         mock_app._get_trades_from_session.return_value = []
         mock_sleep.side_effect = asyncio.CancelledError()
         with self.assertRaises(asyncio.CancelledError):
-            self.async_run_with_timeout(start_trade_monitor(mock_result))
+            self.run_async_with_timeout(start_trade_monitor(mock_result))
         self.assertEqual(1, mock_result.log.call_count)
         self.assertEqual('Trades: 0, Total P&L: 0.00, Return %: 0.00%', mock_result.log.call_args_list[0].args[0])
 
-    @unittest.skip("Test hangs - needs investigation. The trade monitor implementation has been updated to use trading_core architecture.")
     @patch("hummingbot.client.ui.interface_utils._sleep", new_callable=AsyncMock)
     @patch("hummingbot.client.hummingbot_application.HummingbotApplication")
     def test_start_trade_monitor_loop_continues_on_failure(self, mock_hb_app, mock_sleep):
@@ -198,13 +182,14 @@ class InterfaceUtilsTest(unittest.TestCase):
         mock_sleep.side_effect = [None, asyncio.CancelledError()]
 
         with self.assertRaises(asyncio.CancelledError):
-            self.async_run_with_timeout(start_trade_monitor(mock_result), timeout=5)
+            self.run_async_with_timeout(start_trade_monitor(mock_result))
 
         # Verify initial log was called
         self.assertEqual(mock_result.log.call_args_list[0].args[0], 'Trades: 0, Total P&L: 0.00, Return %: 0.00%')
 
-        # Verify the exception was logged
-        mock_logger.exception.assert_called_with("start_trade_monitor failed.")
+        mock_logger.exception.assert_called_once_with("start_trade_monitor failed.")
+        self.assertEqual(2, mock_app._get_trades_from_session.call_count)
+        self.assertEqual(2, mock_sleep.await_count)
 
     def test_format_df_for_printout(self):
         df = pd.DataFrame(
