@@ -466,7 +466,6 @@
           },
           "reserved_base": {
             "additionalProperties": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Reserved Base",
@@ -474,7 +473,6 @@
           },
           "reserved_quote_worst_case": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Reserved Quote Worst Case",
             "type": "string"
           },
@@ -741,7 +739,6 @@
           "available_cash": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -753,7 +750,6 @@
           "available_equity": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -765,7 +761,6 @@
           "cash_balance": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -785,7 +780,6 @@
           "equity": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -872,27 +866,22 @@
             "type": "integer"
           },
           "max_anchor_move_bps": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Anchor Move Bps",
             "type": "string"
           },
           "max_market_spread_bps": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Market Spread Bps",
             "type": "string"
           },
           "max_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Quote",
             "type": "string"
           },
           "min_external_depth_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Min External Depth Quote",
             "type": "string"
           },
           "qualification_seconds": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Qualification Seconds",
             "type": "string"
           }
@@ -912,7 +901,6 @@
         "additionalProperties": false,
         "properties": {
           "anchor": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Anchor",
             "type": "string"
           },
@@ -929,17 +917,14 @@
             "title": "Expires At"
           },
           "external_ask_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "External Ask Quote",
             "type": "string"
           },
           "external_bid_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "External Bid Quote",
             "type": "string"
           },
           "lower_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Lower Price",
             "type": "string"
           },
@@ -954,7 +939,6 @@
           "market_spread_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -964,7 +948,6 @@
             "title": "Market Spread Bps"
           },
           "max_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Quote",
             "type": "string"
           },
@@ -1031,7 +1014,6 @@
             "type": "string"
           },
           "upper_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Upper Price",
             "type": "string"
           }
@@ -2064,7 +2046,6 @@
           "available_cash": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2076,7 +2057,6 @@
           "available_equity": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2088,7 +2068,6 @@
           "cash_balance": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2117,7 +2096,6 @@
           "equity": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2167,12 +2145,10 @@
         "additionalProperties": false,
         "properties": {
           "buy_volume_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Buy Volume Base",
             "type": "string"
           },
           "buy_volume_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Buy Volume Quote",
             "type": "string"
           },
@@ -2188,7 +2164,6 @@
           "fee_in_usdt": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2211,7 +2186,6 @@
           "funding_paid": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2224,7 +2198,6 @@
           "funding_received": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2256,12 +2229,10 @@
             "type": "integer"
           },
           "sell_volume_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Sell Volume Base",
             "type": "string"
           },
           "sell_volume_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Sell Volume Quote",
             "type": "string"
           },
@@ -2304,17 +2275,14 @@
             "type": "string"
           },
           "net": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Net",
             "type": "string"
           },
           "paid": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Paid",
             "type": "string"
           },
           "rebates": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Rebates",
             "type": "string"
           }
@@ -2516,7 +2484,6 @@
           "drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2528,7 +2495,6 @@
           "peak_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2540,7 +2506,6 @@
           "pnl_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2597,7 +2562,6 @@
           "global_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2610,7 +2574,6 @@
           "global_peak_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2623,7 +2586,6 @@
           "global_pnl_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2636,7 +2598,6 @@
           "max_controller_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2648,7 +2609,6 @@
           "max_global_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -2921,7 +2881,6 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
@@ -2960,7 +2919,6 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
@@ -2983,7 +2941,6 @@
           "fee_in_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3028,7 +2985,6 @@
             "title": "Position"
           },
           "price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Price",
             "type": "string"
           },
@@ -3400,7 +3356,6 @@
         "description": "Configuration for an initial position that the controller should consider.\nThis is used when the user already has assets in their account and wants\nthe controller to manage them.",
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
@@ -3458,7 +3413,6 @@
         "additionalProperties": false,
         "properties": {
           "available_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Available Base",
             "type": "string"
           },
@@ -3480,7 +3434,6 @@
           "owned_base": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3501,7 +3454,6 @@
             "title": "Reason Code"
           },
           "reserved_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Reserved Base",
             "type": "string"
           },
@@ -3514,7 +3466,6 @@
             "type": "string"
           },
           "venue_base": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Venue Base",
             "type": "string"
           }
@@ -3606,14 +3557,12 @@
           },
           "inventory_range_multiplier": {
             "description": "Legacy range in multiples of total unskewed base order size; defaults to 1 when neither range is supplied. Omitted in percentage mode.",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Inventory Range Multiplier",
             "type": "string"
           },
           "inventory_range_pct": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3625,7 +3574,6 @@
           },
           "target_base_pct": {
             "default": "0.5",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Target Base Pct",
             "type": "string"
           }
@@ -3651,7 +3599,6 @@
           "base_cash": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3663,7 +3610,6 @@
           "base_pct": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3673,19 +3619,16 @@
             "title": "Base Pct"
           },
           "budget_scale": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Budget Scale",
             "type": "string"
           },
           "buy_multiplier": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Buy Multiplier",
             "type": "string"
           },
           "cash_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3702,7 +3645,6 @@
           "inventory_range_pct": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3748,7 +3690,6 @@
             "type": "string"
           },
           "sell_multiplier": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Sell Multiplier",
             "type": "string"
           },
@@ -3763,7 +3704,6 @@
           "target_base_pct": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3777,7 +3717,6 @@
           "valuation_price": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3811,7 +3750,6 @@
             "anyOf": [
               {
                 "items": {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                   "type": "string"
                 },
                 "type": "array"
@@ -3880,7 +3818,6 @@
           "initial_anchor": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3929,7 +3866,6 @@
           "max_base_inventory": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3941,14 +3877,12 @@
           },
           "max_data_age_seconds": {
             "default": "10",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Data Age Seconds",
             "type": "string"
           },
           "max_gross_base": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3961,7 +3895,6 @@
           "max_long_base": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3972,7 +3905,6 @@
             "title": "Max Long Base"
           },
           "max_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Price",
             "type": "string"
           },
@@ -3986,7 +3918,6 @@
           "max_short_base": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -3997,7 +3928,6 @@
             "title": "Max Short Base"
           },
           "min_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Min Price",
             "type": "string"
           },
@@ -4043,7 +3973,6 @@
           "position_rebalance_threshold_pct": {
             "default": "0.05",
             "is_updatable": true,
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "prompt": "Enter the position rebalance threshold percentage (e.g., 0.05 for 5%): ",
             "prompt_on_new": true,
             "title": "Position Rebalance Threshold Pct",
@@ -4081,7 +4010,6 @@
           "saved_life_anchor": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4093,7 +4021,6 @@
           },
           "saved_source_anchors": {
             "additionalProperties": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Saved Source Anchors",
@@ -4113,7 +4040,6 @@
             "anyOf": [
               {
                 "items": {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                   "type": "string"
                 },
                 "type": "array"
@@ -4161,7 +4087,6 @@
           "stop_loss": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4174,7 +4099,6 @@
           "take_profit": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4206,7 +4130,6 @@
           "total_amount_quote": {
             "default": "100",
             "is_updatable": true,
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "prompt": "Enter the total amount in quote asset to use for trading (e.g., 1000): ",
             "prompt_on_new": true,
             "title": "Total Amount Quote",
@@ -4246,7 +4169,6 @@
           "ask_notional": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4258,7 +4180,6 @@
           "best_ask": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4270,7 +4191,6 @@
           "best_bid": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4282,7 +4202,6 @@
           "bid_notional": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4380,7 +4299,6 @@
           "spread_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4601,17 +4519,14 @@
             "type": "string"
           },
           "price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Price",
             "type": "string"
           },
           "remaining_notional": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Remaining Notional",
             "type": "string"
           },
           "remaining_quantity": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Remaining Quantity",
             "type": "string"
           },
@@ -4894,7 +4809,6 @@
           "max_controller_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4913,7 +4827,6 @@
           "max_global_drawdown_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -4924,7 +4837,6 @@
             "title": "Max Global Drawdown Quote"
           },
           "max_total_amount_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Total Amount Quote",
             "type": "string"
           },
@@ -5177,7 +5089,6 @@
           "reference_price": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5372,7 +5283,6 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
@@ -5436,7 +5346,6 @@
             "title": "Position"
           },
           "price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Price",
             "type": "string"
           },
@@ -5460,7 +5369,6 @@
           "recorded_filled_amount": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -5473,7 +5381,6 @@
           "recorded_remaining_amount": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8081,13 +7988,11 @@
           },
           "global_pnl_pct": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Global Pnl Pct",
             "type": "string"
           },
           "global_pnl_quote": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Global Pnl Quote",
             "type": "string"
           },
@@ -8099,31 +8004,26 @@
           },
           "realized_pnl_pct": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Realized Pnl Pct",
             "type": "string"
           },
           "realized_pnl_quote": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Realized Pnl Quote",
             "type": "string"
           },
           "unrealized_pnl_pct": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Unrealized Pnl Pct",
             "type": "string"
           },
           "unrealized_pnl_quote": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Unrealized Pnl Quote",
             "type": "string"
           },
           "volume_traded": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Volume Traded",
             "type": "string"
           }
@@ -8169,17 +8069,14 @@
         "additionalProperties": false,
         "properties": {
           "allocated_capital_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Allocated Capital Quote",
             "type": "string"
           },
           "max_gross_pct": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Gross Pct",
             "type": "string"
           },
           "max_long_pct": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Long Pct",
             "type": "string"
           },
@@ -8191,7 +8088,6 @@
             "type": "integer"
           },
           "max_short_pct": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Short Pct",
             "type": "string"
           }
@@ -8289,24 +8185,20 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount",
             "type": "string"
           },
           "entry_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Entry Price",
             "type": "string"
           },
           "leverage": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Leverage",
             "type": "string"
           },
           "liquidation_price": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8319,7 +8211,6 @@
           "margin": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8371,7 +8262,6 @@
             "type": "boolean"
           },
           "unrealized_pnl": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Unrealized Pnl",
             "type": "string"
           }
@@ -8673,7 +8563,6 @@
           "max_deviation_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8701,14 +8590,12 @@
           },
           "recovery_delay_seconds": {
             "default": "5",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Recovery Delay Seconds",
             "type": "string"
           },
           "resume_deviation_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8776,7 +8663,6 @@
           "deviation_bps": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -8797,7 +8683,6 @@
           "market_mid": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -9499,7 +9384,6 @@
           },
           "percent": {
             "default": "0",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Percent",
             "type": "string"
           },
@@ -10520,13 +10404,11 @@
         "additionalProperties": false,
         "properties": {
           "life": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Life",
             "type": "string"
           },
           "sources": {
             "additionalProperties": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Sources",
@@ -10548,7 +10430,6 @@
             "type": "string"
           },
           "weight": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Weight",
             "type": "string"
           }
@@ -11303,22 +11184,18 @@
         "additionalProperties": false,
         "properties": {
           "lower_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Lower Price",
             "type": "string"
           },
           "resume_lower_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Resume Lower Price",
             "type": "string"
           },
           "resume_upper_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Resume Upper Price",
             "type": "string"
           },
           "upper_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Upper Price",
             "type": "string"
           }
@@ -11364,12 +11241,10 @@
         "additionalProperties": false,
         "properties": {
           "fee_allowance_rate": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Fee Allowance Rate",
             "type": "string"
           },
           "max_net_outflow_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Net Outflow Quote",
             "type": "string"
           },
@@ -11392,12 +11267,10 @@
         "additionalProperties": false,
         "properties": {
           "fee_allowance_rate": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Fee Allowance Rate",
             "type": "string"
           },
           "max_net_outflow_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Net Outflow Quote",
             "type": "string"
           },
@@ -11468,7 +11341,6 @@
           },
           "non_usdt_fees": {
             "additionalProperties": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Non Usdt Fees",
@@ -11512,7 +11384,6 @@
           "recorded_net_outflow_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -11524,7 +11395,6 @@
           "remaining_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -11536,7 +11406,6 @@
           "reserved_quote": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -11612,7 +11481,6 @@
         "properties": {
           "buy_spreads": {
             "items": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Buy Spreads",
@@ -11652,7 +11520,6 @@
           "multiplier": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -11664,7 +11531,6 @@
           "raw_natr": {
             "anyOf": [
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                 "type": "string"
               },
               {
@@ -11677,7 +11543,6 @@
           },
           "sell_spreads": {
             "items": {
-              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
               "type": "string"
             },
             "title": "Sell Spreads",
@@ -12285,12 +12150,10 @@
       "TrailingStopOutput": {
         "properties": {
           "activation_price": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Activation Price",
             "type": "string"
           },
           "trailing_delta": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Trailing Delta",
             "type": "string"
           }
@@ -12312,22 +12175,18 @@
             "type": "integer"
           },
           "reduce_at_natr": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Reduce At Natr",
             "type": "string"
           },
           "reduced_size_factor": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Reduced Size Factor",
             "type": "string"
           },
           "resume_below_natr": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Resume Below Natr",
             "type": "string"
           },
           "stop_at_natr": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Stop At Natr",
             "type": "string"
           }
@@ -12363,7 +12222,6 @@
             "title": "Cancellation Pending"
           },
           "effective_allocation_quote": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Effective Allocation Quote",
             "type": "string"
           },
@@ -12413,7 +12271,6 @@
             "type": "integer"
           },
           "size_factor": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Size Factor",
             "type": "string"
           },
@@ -12471,7 +12328,6 @@
             "anyOf": [
               {
                 "items": {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                   "type": "string"
                 },
                 "type": "array"
@@ -12487,7 +12343,6 @@
             "anyOf": [
               {
                 "items": {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                   "type": "string"
                 },
                 "type": "array"
@@ -12529,13 +12384,11 @@
           },
           "max_multiplier": {
             "default": "3",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Max Multiplier",
             "type": "string"
           },
           "min_multiplier": {
             "default": "0.5",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Min Multiplier",
             "type": "string"
           },
@@ -12550,7 +12403,6 @@
           },
           "target_natr": {
             "default": "0.01",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Target Natr",
             "type": "string"
           }

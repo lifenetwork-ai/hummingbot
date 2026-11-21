@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 
 from pydantic import BaseModel, TypeAdapter
+from pydantic.json_schema import GenerateJsonSchema, JsonSchemaValue
+from pydantic_core import core_schema
 
 from hummingbot.cli.admin_api import ADMIN_ENDPOINTS, ADMIN_PREFIX, AdminAPI
 from hummingbot.cli.admin_models import ErrorResponse
@@ -12,12 +14,23 @@ from hummingbot.cli.admin_models import ErrorResponse
 SPEC_PATH = Path(__file__).resolve().parents[2] / "docs/api/openapi.json"
 
 
+class OpenAPISchema(GenerateJsonSchema):
+    def decimal_schema(self, schema: core_schema.DecimalSchema) -> JsonSchemaValue:
+        result = super().decimal_schema(schema)
+        if self.mode == "serialization":
+            # Older Pydantic emits a validation pattern that rejects serialized
+            # decimals in scientific notation, such as "1E-8".
+            result.pop("pattern", None)
+        return result
+
+
 def build_spec():
     schemas = {}
 
     def schema_for(annotation, mode="validation"):
         suffix = "Output" if mode == "serialization" else ""
-        schema = TypeAdapter(annotation).json_schema(mode=mode, ref_template="#/components/schemas/{model}" + suffix)
+        schema = TypeAdapter(annotation).json_schema(
+            mode=mode, ref_template="#/components/schemas/{model}" + suffix, schema_generator=OpenAPISchema)
         definitions = schema.pop("$defs", {})
         for name, definition in definitions.items():
             name += suffix

@@ -59,8 +59,9 @@ def test_response_money_fields_are_documented_as_decimal_strings():
         return spec["components"]["schemas"][schema["$ref"].rsplit("/", 1)[-1]] if "$ref" in schema else schema
     response = spec["paths"][ADMIN_PREFIX + "/fills"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
     fill = resolve(resolve(response)["properties"]["items"]["items"])
-    assert fill["properties"]["amount"].get("type") == "string"
-    assert fill["properties"]["price"].get("type") == "string"
+    for field in ("amount", "price"):
+        assert fill["properties"][field].get("type") == "string"
+        assert "pattern" not in fill["properties"][field], "Decimal responses can use scientific notation"
 
 
 def test_commands_document_only_session_controls_and_all_handler_errors():
