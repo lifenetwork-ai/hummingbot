@@ -32,7 +32,7 @@ from hummingbot.core.order_submission_guard import (
     SubmissionBlocked,
 )
 from hummingbot.core.startup_order_reconciliation import UntrackedOpenOrders, reconcile_open_order_visibility
-from hummingbot.core.submission_admission import SubmissionAdmission
+from hummingbot.core.submission_admission import QueuedIntent, SubmissionAdmission
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
@@ -42,6 +42,7 @@ ORDER_PATH = "/api/v5/trade/order"
 CANCEL_PATHS = {"/api/v5/trade/cancel-order", "/api/v5/trade/cancel-batch-orders"}
 ACCOUNT_PATHS = {"/api/v5/account/set-leverage", "/api/v5/account/set-position-mode"}
 INTENT_ADMISSION_RETRY_DELAYS = (.1, .15, .25, .5)
+MAX_INTENT_BATCH = 4
 POSITION_CHECKPOINT_ORDER_WAIT_SECONDS = 1.0
 POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS = .1
 
@@ -115,6 +116,7 @@ class BotOwnership:
         self._intent_admission_warnings = OperationalWarnings(maximum=1)
         self.active_intents = set()
         self.sent_intents = set()
+        self._unresolved_intent_batch = set()
         # Proof follows the actual rejected order object, including references
         # captured by shutdown, without retaining retired IDs indefinitely.
         self.unsent_rejections = weakref.WeakValueDictionary()
@@ -228,6 +230,7 @@ class BotOwnership:
     def prepare(self, version, config_file_path):
         self.check_owner()
         self.unsent_rejections.clear()
+        self._unresolved_intent_batch.clear()
         self.allow_new_orders = False
         self.reconciling = True
         self.version = version
@@ -370,7 +373,7 @@ class BotOwnership:
         except Exception as error:
             self._owner_error(error)
 
-    def _check_intents(self, recorder, *, admitting=False):
+    def _check_intents(self, recorder, *, admitting=False, staged=()):
         from hummingbot.core.automatic_recovery import MAX_ATTEMPTS
         recorder.sql_manager.assert_persistence_healthy()
         try:
@@ -383,9 +386,10 @@ class BotOwnership:
         if len(pending) > MAX_ATTEMPTS:
             self.require_recovery('Pending order recovery exceeds its bounded scope.')
             raise SubmissionBlocked('Pending order recovery exceeds its bounded scope.')
-        if admitting and len(pending) == MAX_ATTEMPTS:
+        if admitting and len(pending) + len(staged) >= MAX_ATTEMPTS:
             raise MarketReadinessBlocked('Pending submission admission is at capacity; wait for durable acknowledgments.')
         ids = {order_id for order_id, _ in pending}
+        ids.update(staged)
         self.active_intents.intersection_update(ids)
         self.sent_intents.intersection_update(ids)
         self.intent_scopes = {key: value for key, value in self.intent_scopes.items() if key in ids}
@@ -442,8 +446,6 @@ class BotOwnership:
     @trace_runtime('order.admission', order_parameter='order')
     async def admit_order(self, connector, order):
         """Serialize native intent writes and yield while waiting for durable admission."""
-        from hummingbot.core.order_submission_guard import active_guard
-
         # Shutdown must also drain tasks waiting before any durable intent exists.
         self._track_submission_task(order)
         checkpoint_deadline = None
@@ -456,33 +458,8 @@ class BotOwnership:
                 with submission_timing('ownership_backoff_ms'):
                     await asyncio.sleep(delay)
             try:
-                async with timed_submission_lock(self.submission_admission, 'admission_slot_wait_ms'):
-                    # Even uncontended admissions yield before fresh authority and
-                    # price/risk checks. Another waiter may have renewed cooldown.
-                    await asyncio.sleep(0)
-                    if active_guard() is not self:
-                        raise SubmissionBlocked("Trading owner changed before order admission.")
-                    if time.monotonic() < self._intent_admission_retry_at:
-                        continue
-                    from hummingbot.connector.markets_recorder import MarketsRecorder
-                    recorder = MarketsRecorder.service_recorder_for(connector)
-                    if recorder is None:
-                        self.before_order(connector, order)
-                    else:
-                        async with timed_submission_lock(recorder.order_writes, 'recorder_lock_wait_ms'):
-                            if active_guard() is not self:
-                                raise SubmissionBlocked("Trading owner changed before durable order admission.")
-                            recorder = self._prepare_order_intent(connector, order)
-                            try:
-                                cancelled = await recorder.persist_order_intent(connector, order)
-                            except IntentAdmissionBusy as error:
-                                self._release_busy_intent(order)
-                                if error.cancellation is not None:
-                                    raise error.cancellation from None
-                                raise
-                            self._intent_admission_retry_index = 0
-                            if cancelled is not None:
-                                raise cancelled
+                if not await self._admit_intent_turn(connector, order):
+                    continue
             except IntentAdmissionBusy:
                 # Only the confirmed prewrite rollback takes this path.
                 # Unknown writes/COMMIT/transport outcomes still propagate.
@@ -503,6 +480,122 @@ class BotOwnership:
                     extra={'event': 'intent_admission_recovered', 'reason_code': 'intent_admission_ready'})
             return
 
+    async def _admit_intent_turn(self, connector, order):
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+        from hummingbot.core.cleanup_authority import current_cleanup_scope
+        from hummingbot.core.order_submission_guard import active_guard
+
+        queue = self.submission_admission
+        recorder = MarketsRecorder.service_recorder_for(connector)
+        intent = (QueuedIntent(connector, order) if recorder is not None and MAX_INTENT_BATCH > 1
+                  and order.order_type == OrderType.LIMIT_MAKER and current_cleanup_scope() is None
+                  and not self.automatic_recovery.active else None)
+        with submission_timing('admission_slot_wait_ms') as finish_wait:
+            if intent is not None:
+                intent.on_claim = finish_wait
+            result = await queue.acquire() if intent is None else await queue.acquire(intent=intent)
+        if result is False:
+            return False  # The leader was cancelled before any batch write.
+        if result is not True:
+            if result is not None:
+                raise result
+            return True
+        try:
+            # Yield even for one immediately available order. Only collect
+            # peers already waiting by the time this turn can write.
+            await asyncio.sleep(0)
+            if active_guard() is not self:
+                raise SubmissionBlocked("Trading owner changed before order admission.")
+            if time.monotonic() < self._intent_admission_retry_at:
+                return False
+            recorder = MarketsRecorder.service_recorder_for(connector)
+            if recorder is None:
+                self.before_order(connector, order)
+                return True
+            async with timed_submission_lock(recorder.order_writes, 'recorder_lock_wait_ms'):
+                if active_guard() is not self:
+                    raise SubmissionBlocked("Trading owner changed before durable order admission.")
+                if time.monotonic() < self._intent_admission_retry_at:
+                    return False
+                peers = queue.take_intents(MAX_INTENT_BATCH - 1) if intent is not None and not self.automatic_recovery.active else []
+                if peers:
+                    await self._persist_intent_group(recorder, intent, peers)
+                    return True
+                recorder = self._prepare_order_intent(connector, order)
+                try:
+                    cancelled = await recorder.persist_order_intent(connector, order)
+                except IntentAdmissionBusy as error:
+                    self._release_busy_intent(order)
+                    if error.cancellation is not None:
+                        raise error.cancellation from None
+                    raise
+                self._intent_admission_retry_index = 0
+                if cancelled is not None:
+                    raise cancelled
+                return True
+        finally:
+            queue.release()
+
+    async def _persist_intent_group(self, recorder, leader, peers):
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+        from hummingbot.core.order_submission_guard import active_guard
+
+        requests = [leader, *(intent for intent, _ in peers)]
+        results, accepted, staged = {}, [], set()
+        failure, cancelled = None, None
+        writing = False
+        try:
+            if len({intent.order.client_order_id for intent in requests}) != len(requests):
+                raise SubmissionBlocked('A queued client order identity was duplicated.')
+            for index, intent in enumerate(requests):
+                if index:
+                    await asyncio.sleep(0)  # Keep probe/Stop callbacks serviced inside a burst.
+                if intent.cancelled:
+                    continue
+                if active_guard() is not self or MarketsRecorder.service_recorder_for(intent.connector) is not recorder:
+                    raise SubmissionBlocked('Owner or recorder changed during intent batch validation.')
+                try:
+                    intent.context.run(self._prepare_order_intent, intent.connector, intent.order, staged=staged)
+                except OwnershipLost:
+                    raise
+                except SubmissionBlocked as error:
+                    results[index] = error
+                else:
+                    staged.add(intent.order.client_order_id)
+                    accepted.append(intent)
+            if accepted:
+                self._check_shutdown()
+                if not self.allow_new_orders:
+                    raise SubmissionBlocked('Trading authority closed during intent batch validation.')
+                writing = True
+                cancelled = await recorder.persist_order_intents(accepted)
+                self._intent_admission_retry_index = 0
+        except IntentAdmissionBusy as error:
+            # Same proven prewrite rollback for the entire transaction.
+            self._release_busy_intent(accepted[0].order)
+            for intent in accepted[1:]:
+                self._release_unsent_admission(intent.order.client_order_id)
+            failure = IntentAdmissionBusy(str(error))
+            cancelled = error.cancellation
+        except BaseException as error:
+            failure = error
+            if writing:
+                self._unresolved_intent_batch.update(staged)
+                self.require_recovery('An order submission has an unresolved outcome; no automatic resubmission is allowed.')
+            else:
+                for identity in staged:
+                    self._release_unsent_admission(identity)
+                if isinstance(error, asyncio.CancelledError):
+                    failure, cancelled = False, error  # Other callers may rejoin the queue.
+        finally:
+            for index, (_, future) in enumerate(peers, 1):
+                future.set_result(results.get(index, failure))
+        if cancelled is not None:
+            raise cancelled
+        leader_error = results.get(0, failure)
+        if leader_error is not None:
+            raise leader_error
+
     def before_order(self, connector, order):
         recorder = self._prepare_order_intent(connector, order)
         try:
@@ -520,7 +613,7 @@ class BotOwnership:
         self._intent_admission_retry_at = time.monotonic() + INTENT_ADMISSION_RETRY_DELAYS[index]
         self._intent_admission_retry_index = min(index + 1, len(INTENT_ADMISSION_RETRY_DELAYS) - 1)
 
-    def _prepare_order_intent(self, connector, order):
+    def _prepare_order_intent(self, connector, order, *, staged=()):
         from hummingbot.core.cleanup_authority import current_cleanup_scope, validate_close
         from hummingbot.core.order_submission_guard import current_session_scope
         cleanup = current_cleanup_scope()
@@ -544,7 +637,7 @@ class BotOwnership:
         if (recorder is None or recorder.sql_manager.engine is not self.engine
                 or recorder.config_file_path != self.config_file_path or connector not in recorder._markets):
             raise SubmissionBlocked("The active recorder/configuration does not match the service owner.")
-        self._check_intents(recorder, admitting=True)
+        self._check_intents(recorder, admitting=True, staged=staged)
         if cleanup is None and self.scoped_recovery_enabled and self.automatic_recovery.active:
             self.automatic_recovery.authorize_isolated_order(connector, order)
         try:
@@ -571,6 +664,8 @@ class BotOwnership:
 
     def order_failed(self, connector, order, exception=None):
         from hummingbot.connector.okx_order_status import OKXOrderRejection, OKXPriceLimitOrderRejection
+        if order.client_order_id in self._unresolved_intent_batch:
+            return True
         if (isinstance(exception, OKXOrderRejection)
                 and exception.client_order_id == order.client_order_id
                 and connector is not None and connector.name in SUPPORTED_CONNECTORS

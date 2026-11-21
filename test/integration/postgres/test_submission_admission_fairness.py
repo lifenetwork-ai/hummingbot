@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiohttp import web
 from bidict import bidict
+from psycopg2 import OperationalError
 from sqlalchemy import event
 
 from hummingbot.cli.service import ServiceHost
@@ -25,14 +26,15 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.order_submission_guard import session_order_scope
+from hummingbot.model.market_state import MarketState
 from hummingbot.model.order import Order
-from hummingbot.model.runtime_journal import SubmissionAttempt
+from hummingbot.model.runtime_journal import RuntimeJournal, SubmissionAttempt
 
 owned = owned_fixture
 
 
 @pytest.fixture
-def native(owned):
+def native(owned, request):
     exchange = OkxExchange(okx_api_key='offline', okx_secret_key='offline', okx_passphrase='offline',
                            trading_pairs=['LIFE-USDT'])
     exchange._set_current_timestamp(time.time())
@@ -46,7 +48,7 @@ def native(owned):
     recorder.start()
     context = SimpleNamespace(**{**vars(owned), 'market': exchange, 'recorder': recorder})
     owned.owner.connectors = {'okx': exchange}
-    session, _ = setup(context, max_net_outflow_quote='1000')
+    session, _ = setup(context, max_net_outflow_quote=getattr(request, 'param', '1000'))
     rest, transport = assistant()
     rest._auth = exchange.authenticator
 
@@ -217,7 +219,8 @@ def test_slow_intent_rolls_back_if_original_owner_lock_disappears(native):
         assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 0
 
 
-def test_native_eight_quote_burst_allows_health_callback_between_admissions(native):
+def test_native_eight_quote_burst_allows_health_callback_between_admissions(native, monkeypatch):
+    monkeypatch.setattr(bot_ownership, 'MAX_INTENT_BATCH', 1)
     admitted, probe_counts = [], []
     original = native.recorder.persist_order_intent
 
@@ -279,15 +282,247 @@ def test_worker_intent_verifies_owner_and_locks_row_in_one_statement(native):
     native.transport.call.assert_not_awaited()
 
 
+def test_native_intent_and_ack_flush_each_snapshot_with_its_order(native):
+    flushed = []
+    queued = InFlightOrder('queued-sibling', 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
+                           Decimal('5'), time.time(), Decimal('10'))
+    native.market._order_tracker.start_tracking_order(queued)
+
+    def observe_flush(session, *_):
+        if session.info.get('worker_order_owner') is native.owner:
+            flushed.append({type(row).__name__ for row in set(session.new) | set(session.dirty)})
+
+    async def send():
+        with session_order_scope(native.session.id, native.session.generation):
+            await native.market._create_order(TradeType.BUY, 'combined-snapshot', 'LIFE-USDT',
+                                              Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))
+
+    event.listen(native.manager._session_cls, 'before_flush', observe_flush)
+    try:
+        native.loop.run_until_complete(send())
+    finally:
+        event.remove(native.manager._session_cls, 'before_flush', observe_flush)
+
+    assert len(flushed) == 2, flushed
+    assert all({'Order', 'OrderStatus', 'SubmissionAttempt', 'MarketState'} <= rows for rows in flushed)
+    native.transport.call.assert_awaited_once()
+    with native.manager.get_new_session() as db:
+        order = db.get(Order, 'combined-snapshot')
+        assert order.exchange_order_id == 'venue-combined-snapshot' and not order.creation_pending
+        assert db.get(SubmissionAttempt, order.id).state == 'acknowledged'
+        assert db.query(MarketState).one().saved_state == {order.id: native.market.tracking_states[order.id]}
+        assert db.get(Order, queued.client_order_id) is None
+
+
+def test_native_burst_commits_bounded_intent_batches_before_sending(native):
+    batches = []
+    reply = native.transport.call.side_effect
+
+    def inspect_flush(session, *_):
+        orders = {row.order_id for row in session.new if isinstance(row, RuntimeJournal) and row.kind == 'intent'}
+        if orders:
+            batches.append(orders)
+            assert sum(isinstance(row, MarketState) for row in set(session.new) | set(session.dirty)) == 1
+
+    async def venue(request):
+        order_id = json.loads(request.data)['clOrdId']
+        with native.manager.get_new_session() as db:
+            attempt = db.get(SubmissionAttempt, order_id)
+            assert attempt.state == 'possibly_sent' and attempt.context['executor']['id'] == order_id
+            batch, = [batch for batch in batches if order_id in batch]
+            assert {identity for identity in batch if db.get(Order, identity) is not None} == batch
+        return await reply(request)
+
+    async def burst():
+        tasks = []
+        for index in range(8):
+            identity = f'batch-{index}'
+            with session_order_scope(native.session.id, native.session.generation, executor={'id': identity}):
+                tasks.append(asyncio.create_task(native.market._create_order(
+                    TradeType.BUY, identity, 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))))
+        await asyncio.gather(*tasks)
+
+    event.listen(native.manager._session_cls, 'before_flush', inspect_flush)
+    try:
+        with patch.object(native.transport.call, 'side_effect', venue):
+            native.loop.run_until_complete(burst())
+    finally:
+        event.remove(native.manager._session_cls, 'before_flush', inspect_flush)
+    assert batches == [{f'batch-{i}' for i in range(4)}, {f'batch-{i}' for i in range(4, 8)}]
+    assert native.transport.call.await_count == 8
+
+
+def test_batch_updates_each_connector_snapshot_with_its_own_intents(native):
+    swap = MagicMock()
+    swap.name, swap.display_name = 'okx_perpetual', 'okx_perpetual'
+    swap.account_uid, swap.trading_environment = native.market.account_uid, native.market.trading_environment
+    swap.authenticator = SimpleNamespace(api_key='offline-perpetual')
+    native.recorder._markets.append(swap)
+    native.owner.connectors[swap.name] = swap
+    spot_order, swap_order = [
+        InFlightOrder(identity, 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.SELL,
+                      Decimal('5'), time.time(), Decimal('10'))
+        for identity in ('batched-spot', 'batched-perp')
+    ]
+    native.market._order_tracker.start_tracking_order(spot_order)
+    swap.in_flight_orders = {swap_order.client_order_id: swap_order}
+    swap.tracking_states = {swap_order.client_order_id: swap_order.to_json()}
+
+    async def admit():
+        with session_order_scope(native.session.id, native.session.generation):
+            await asyncio.gather(native.owner.admit_order(native.market, spot_order),
+                                 native.owner.admit_order(swap, swap_order))
+
+    native.loop.run_until_complete(admit())
+    with native.manager.get_new_session() as db:
+        assert {row.market: set(row.saved_state) for row in db.query(MarketState)} == {
+            'okx': {'batched-spot'}, 'okx_perpetual': {'batched-perp'}}
+        assert {row.order_id: row.state for row in db.query(SubmissionAttempt)} == {
+            'batched-spot': 'prepared', 'batched-perp': 'prepared'}
+    native.transport.call.assert_not_awaited()
+
+
+def test_cancelled_batch_leader_before_write_releases_peers_to_retry(native):
+    prepare = native.owner._prepare_order_intent
+
+    def cancel_leader(connector, order, **kwargs):
+        result = prepare(connector, order, **kwargs)
+        if order.client_order_id == 'cancel-leader-0':
+            asyncio.current_task().cancel()
+        return result
+
+    async def burst():
+        with session_order_scope(native.session.id, native.session.generation):
+            outcomes = await asyncio.gather(*(native.market._create_order(
+                TradeType.BUY, f'cancel-leader-{i}', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))
+                for i in range(4)), return_exceptions=True)
+        assert isinstance(outcomes[0], asyncio.CancelledError)
+        assert outcomes[1:] == [None, None, None]
+        assert not native.owner.submission_tasks and not native.owner.submission_admission.locked()
+
+    with patch.object(native.owner, '_prepare_order_intent', side_effect=cancel_leader):
+        native.loop.run_until_complete(burst())
+    with native.manager.get_new_session() as db:
+        assert {row.order_id: row.state for row in db.query(SubmissionAttempt)} == {
+            f'cancel-leader-{index}': 'acknowledged' for index in range(1, 4)}
+    assert native.transport.call.await_count == 3
+    assert not native.store.read()['recovery_state'].get('halt')
+
+
+@pytest.mark.parametrize('interrupt', ['cancel-peer', 'lose-ownership'])
+def test_intent_batch_drains_after_cancellation_or_ownership_loss(native, interrupt):
+    entered, proceed = threading.Event(), threading.Event()
+
+    def hold_snapshot(connection, cursor, statement, *args):
+        if 'FROM market_states' in statement and not entered.is_set():
+            entered.set()
+            assert proceed.wait(2)
+
+    async def burst():
+        with session_order_scope(native.session.id, native.session.generation):
+            tasks = [asyncio.create_task(native.market._create_order(
+                TradeType.BUY, f'interrupted-{i}', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
+                for i in range(4)]
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            native.transport.call.assert_not_awaited()
+            if interrupt == 'cancel-peer':
+                tasks[1].cancel()
+                await asyncio.sleep(0)
+                assert not tasks[1].done() and tasks[1] in native.owner.submission_tasks
+            else:
+                native.owner.connection.exec_driver_sql('SELECT pg_advisory_unlock_all()')
+                native.owner.connection.commit()
+        finally:
+            proceed.set()
+            outcomes = await asyncio.gather(*tasks, return_exceptions=True)
+        if interrupt == 'cancel-peer':
+            assert isinstance(outcomes[1], asyncio.CancelledError)
+        assert not native.owner.submission_tasks and not native.owner.submission_admission.locked()
+
+    event.listen(native.engine, 'before_cursor_execute', hold_snapshot)
+    try:
+        native.loop.run_until_complete(burst())
+    finally:
+        event.remove(native.engine, 'before_cursor_execute', hold_snapshot)
+    with native.manager.get_new_session() as db:
+        if interrupt == 'cancel-peer':
+            sent = {json.loads(call.args[0].data)['clOrdId'] for call in native.transport.call.await_args_list}
+            assert sent == {'interrupted-0', 'interrupted-2', 'interrupted-3'}
+            assert db.get(SubmissionAttempt, 'interrupted-1').state == 'rejected'
+            assert native.manager.persistence_healthy
+        else:
+            native.transport.call.assert_not_awaited()
+            assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 0
+            assert native.owner.lost and not native.manager.persistence_healthy
+
+
+@pytest.mark.parametrize('native', ['120'], indirect=True)
+def test_intent_batch_reserves_spot_budget_in_order(native):
+    async def burst():
+        with session_order_scope(native.session.id, native.session.generation):
+            await asyncio.gather(*(native.market._create_order(
+                TradeType.BUY, f'limited-{i}', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))
+                for i in range(4)))
+
+    native.loop.run_until_complete(burst())
+    assert [json.loads(call.args[0].data)['clOrdId'] for call in native.transport.call.await_args_list] == [
+        'limited-0', 'limited-1']
+    with native.manager.get_new_session() as db:
+        assert {row.order_id for row in db.query(SubmissionAttempt)} == {'limited-0', 'limited-1'}
+    assert native.owner.spot_outflow.status()['reserved_quote'] == Decimal('101')
+
+
+@pytest.mark.parametrize('committed', [False, True], ids=['rolled-back', 'commit-reply-lost'])
+def test_intent_batch_commit_failure_keeps_every_order_behind_send_gate(native, monkeypatch, committed):
+    failure_drivers = []
+    driver_class = type(native.owner.connection.connection.driver_connection)
+    commit = driver_class.commit
+
+    def inspect_flush(session, *_):
+        orders = [r for r in session.new if isinstance(r, RuntimeJournal) and r.kind == 'intent']
+        if len(orders) == 4:
+            failure_drivers.append(session.connection().connection.driver_connection)
+
+    def disconnect(driver):
+        if driver in failure_drivers:
+            failure_drivers.remove(driver)
+            if committed:
+                commit(driver)
+            driver.close()
+            raise OperationalError('test lost intent batch COMMIT response')
+        return commit(driver)
+
+    async def burst():
+        with session_order_scope(native.session.id, native.session.generation):
+            await asyncio.gather(*(native.market._create_order(
+                TradeType.BUY, f'bad-commit-{i}', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))
+                for i in range(4)))
+
+    monkeypatch.setattr(driver_class, 'commit', disconnect)
+    event.listen(native.manager._session_cls, 'before_flush', inspect_flush)
+    try:
+        native.loop.run_until_complete(burst())
+    finally:
+        event.remove(native.manager._session_cls, 'before_flush', inspect_flush)
+    native.transport.call.assert_not_awaited()
+    assert native.store.read()['recovery_state']['halt']
+    assert not native.owner.allow_new_orders and not native.manager.persistence_healthy
+    assert not native.owner.submission_tasks
+    with native.manager.get_new_session() as db:
+        assert db.query(Order).count() == 4 * committed
+        assert db.query(SubmissionAttempt).count() == 4 * committed
+        assert all(row.state == 'prepared' and row.payload_hash is None for row in db.query(SubmissionAttempt))
+
+
 def test_stop_between_native_admissions_prevents_the_rest_of_the_burst(native):
-    original = native.recorder.persist_order_intent
+    original = native.recorder.persist_order_intents
     admitted = []
 
-    async def record(*args):
-        result = await original(*args)
-        admitted.append(args[1].client_order_id)
-        if len(admitted) == 1:
-            asyncio.get_running_loop().call_soon(native.owner.begin_shutdown)
+    async def record(intents):
+        result = await original(intents)
+        admitted.extend(intent.order.client_order_id for intent in intents)
+        asyncio.get_running_loop().call_soon(native.owner.begin_shutdown)
         return result
 
     async def burst():
@@ -300,22 +535,23 @@ def test_stop_between_native_admissions_prevents_the_rest_of_the_burst(native):
         await asyncio.sleep(0)
         assert not native.owner.submission_tasks
 
-    with patch.object(native.recorder, 'persist_order_intent', side_effect=record):
+    with patch.object(native.recorder, 'persist_order_intents', side_effect=record):
         native.loop.run_until_complete(burst())
     # Stop now runs before the first order's final send fence too. Its prepared
     # intent must be rejected durably instead of crossing the transport gate.
-    assert len(admitted) == 1 and native.transport.call.await_count == 0
+    assert len(admitted) == 4 and native.transport.call.await_count == 0
     with native.manager.get_new_session() as db:
-        assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 1
+        assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 4
         assert not db.query(Order).filter(Order.creation_pending.is_(True)).count()
-        assert db.query(SubmissionAttempt).one().state == 'terminal'
+        assert {row.state for row in db.query(SubmissionAttempt)} == {'terminal'}
     assert not native.store.read()['recovery_state'].get('halt')
 
 
-def test_native_burst_paired_callback_wait_with_real_postgres(native):
+def test_native_burst_paired_callback_wait_with_real_postgres(native, monkeypatch):
     from test.integration.postgres.test_performance import queries, report
 
     from hummingbot.core import order_submission_guard as gates
+    monkeypatch.setattr(bot_ownership, 'MAX_INTENT_BATCH', 1)
     original_record, persist_intent = native.recorder.record_order_intent, native.recorder.persist_order_intent
     current = gates.before_order
 
@@ -409,11 +645,12 @@ def test_native_order_retired_while_queued_cannot_leave_an_intent_or_halt(native
 
 
 @pytest.mark.parametrize('legacy', [True, False], ids=['predecessor', 'candidate'])
-def test_fresh_burst_callback_and_completion_work(native, legacy):
+def test_fresh_burst_callback_and_completion_work(native, legacy, monkeypatch):
     """Equal empty ledgers avoid growing the candidate's workload after a replay."""
     from test.integration.postgres.test_performance import queries, report
 
     from hummingbot.core import order_submission_guard as gates
+    monkeypatch.setattr(bot_ownership, 'MAX_INTENT_BATCH', 1)
     current, original_record = gates.before_order, native.recorder.record_order_intent
     persist_intent = native.recorder.persist_order_intent
     admitted, timing = [], {}

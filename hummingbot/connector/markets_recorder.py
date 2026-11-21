@@ -809,11 +809,12 @@ class MarketsRecorder:
                 return query.limit(number_of_rows).all()
 
     def save_market_states(self, config_file_path: str, market: ConnectorBase, session: Session,
-                           *, new_order_id: Optional[str] = None, tracking_states=None):
+                           *, new_order_id: Optional[str] = None, tracking_states=None, staged_orders=()):
         saved_state = dict(market.tracking_states if tracking_states is None else tracking_states)
-        self._save_market_state_snapshot(session, config_file_path, market.display_name, saved_state, new_order_id)
+        self._save_market_state_snapshot(session, config_file_path, market.display_name, saved_state, new_order_id,
+                                         staged_orders=staged_orders)
 
-    def _save_market_state_snapshot(self, session, config_file_path, market_name, saved_state, new_order_id=None):
+    def _save_market_state_snapshot(self, session, config_file_path, market_name, saved_state, new_order_id=None, *, staged_orders=()):
         # A newly persisted identity requires a new snapshot. Avoid decoding
         # the old JSON unless unresolved identities need merging below. Ordinary
         # checkpoints retain full reads and unchanged-JSON dirty checking.
@@ -833,7 +834,10 @@ class MarketsRecorder:
                 selection = or_(selection, Order.creation_pending.is_(True))
             admitted = session.query(Order.id, Order.creation_pending).filter(
                 Order.config_file_path == config_file_path, Order.market == market_name, selection).all()
-            saved_state = {order_id: saved_state[order_id] for order_id, _ in admitted if order_id in saved_state}
+            # Tracker identities staged in this transaction can commit with
+            # their intents, even before they are visible to the SELECT.
+            admitted_ids = {order_id for order_id, _ in admitted} | {order.id for order in staged_orders}
+            saved_state = {order_id: state for order_id, state in saved_state.items() if order_id in admitted_ids}
             pending_ids = [order_id for order_id, pending in admitted if pending]
         if market_states is not None:
             # A connector may discard a pending create after a lost HTTP ack. Keep
@@ -843,7 +847,10 @@ class MarketsRecorder:
                 # their existing single pending-identity lookup.
                 pending_ids = [order_id for (order_id,) in session.query(Order.id).filter_by(
                     config_file_path=config_file_path, market=market_name, creation_pending=True).all()]
+            resolved = {order.id for order in staged_orders if not order.creation_pending}
             for order_id in pending_ids:
+                if order_id in resolved:
+                    continue  # The current ACK already resolves this pending identity.
                 if order_id not in saved_state and order_id in market_states.saved_state:
                     saved_state[order_id] = market_states.saved_state[order_id]
 
@@ -888,7 +895,7 @@ class MarketsRecorder:
                 # The mutable connector/tracker stay on the engine. The worker
                 # opens and closes its own session for the entire transaction.
                 with self._sql_manager.order_intent_transaction(record.id, worker_owner=owner) as session:
-                    self._stage_order_intent(session, record, cleanup, attempt, tracking_states)
+                    self._stage_order_intent(session, record, cleanup, attempt, tracking_states, coalesce_snapshot=True)
                     session.flush()
                     self._sql_manager.assert_persistence_healthy()
                     owner.fence_recorder_session(session)
@@ -903,6 +910,60 @@ class MarketsRecorder:
         if busy is not None:
             raise IntentAdmissionBusy(str(busy), cancellation=cancelled) from None
         if attempt is not None:
+            mark_prepared_order(order, attempt)
+        return cancelled
+
+    @trace_runtime('order.intent_batch')
+    async def persist_order_intents(self, intents):
+        """Commit a bounded set of already-authorized native intents together."""
+        from hummingbot.core.bot_ownership import OwnershipLost
+        from hummingbot.core.order_submission_guard import IntentAdmissionBusy, active_guard
+        from hummingbot.model.runtime_journal import bindings, mark_prepared_order, prepare_attempt
+
+        owner = active_guard()
+        owner.require_owner_connection()
+        records, by_market, tracking = [], {}, {}
+        try:
+            for intent in intents:
+                record, cleanup, attempt = intent.context.run(self._capture_order_intent, intent.connector, intent.order)
+                if cleanup is not None or attempt is None:
+                    raise ValueError('An intent batch requires ordinary managed order identities.')
+                records.append((intent.order, record, attempt))
+                if record.market not in by_market:
+                    by_market[record.market] = []
+                    tracking[record.market] = dict(intent.connector.tracking_states)
+                by_market[record.market].append(record)
+        except Exception:
+            self._sql_manager.persistence_healthy = False
+            raise
+
+        def write():
+            try:
+                identities = tuple(record.id for _, record, _ in records)
+                with self._sql_manager.order_intent_transaction(identities, worker_owner=owner) as session:
+                    with session.no_autoflush:
+                        current_bindings = bindings(session, owner.store.bot_id)
+                        for _, record, attempt in records:
+                            session.add(record)
+                            prepare_attempt(session, record.id, attempt, current_bindings=current_bindings)
+                            session.add(OrderStatus(order=record, timestamp=record.creation_timestamp, status=record.last_status))
+                        for market, orders in by_market.items():
+                            self._save_market_state_snapshot(session, self._config_file_path, market, tracking[market],
+                                                             orders[0].id, staged_orders=orders)
+                    session.flush()
+                    self._sql_manager.assert_persistence_healthy()
+                    owner.fence_recorder_session(session)
+            except IntentAdmissionBusy as error:
+                return error
+            return None
+
+        try:
+            busy, cancelled = await self._drain_order_write(write)
+        except OwnershipLost as error:
+            raise owner._lose_ownership(str(error), error.reason_code) from None
+        if busy is not None:
+            raise IntentAdmissionBusy(str(busy), cancellation=cancelled) from None
+        for order, _, attempt in records:
             mark_prepared_order(order, attempt)
         return cancelled
 
@@ -927,10 +988,18 @@ class MarketsRecorder:
         attempt = capture_attempt_context(order, active_guard(), market) if self.durable_position_checkpoints else None
         return record, cleanup, attempt
 
-    def _stage_order_intent(self, session, record, cleanup, attempt, tracking_states):
+    def _stage_order_intent(self, session, record, cleanup, attempt, tracking_states, *, coalesce_snapshot=False):
         from hummingbot.model.runtime_journal import prepare_attempt
 
         session.add(record)
+        if coalesce_snapshot and cleanup is None and attempt is not None:
+            with session.no_autoflush:
+                prepare_attempt(session, record.id, attempt)
+                # An intent transaction already proved this identity is new.
+                session.add(OrderStatus(order=record, timestamp=record.creation_timestamp, status=record.last_status))
+                self._save_market_state_snapshot(session, record.config_file_path, record.market, tracking_states, record.id,
+                                                 staged_orders=(record,))
+            return
         if attempt is not None:
             # Binding metadata does not depend on the pending Order INSERT.
             # Persist the complete identity/status together at the existing
@@ -1045,7 +1114,7 @@ class MarketsRecorder:
         self.finish_recorded_order_creation(market, evt)
 
     @trace_runtime('order.created', order_parameter='evt')
-    def _stage_order_creation(self, session, event_tag, market, evt, *, tracking_states=None):
+    def _stage_order_creation(self, session, event_tag, market, evt, *, tracking_states=None, coalesce_snapshot=False):
         base_asset, quote_asset = evt.trading_pair.split("-")
         timestamp = int(evt.creation_timestamp * 1e3)
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
@@ -1092,12 +1161,15 @@ class MarketsRecorder:
                 order_record.last_status = event_type.name
             if order_record.last_status in (MarketEvent.BuyOrderCreated.name, MarketEvent.SellOrderCreated.name):
                 order_record.last_update_timestamp = max(order_record.last_update_timestamp, timestamp)
-        # These lookups need only the previously persisted attempt and
-        # history. Flush the ACK changes together before the fresh
-        # tracking snapshot; never carry this scope across that read.
+        # These lookups need only the persisted attempt and history. An
+        # isolated worker ACK can overlay its own change on the fresh snapshot.
         with session.no_autoflush:
             self._attempt_observation(session, evt.order_id, 'acknowledged')
             self._add_order_status(session, order_record, timestamp, event_type.name)
+            if coalesce_snapshot:
+                self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states,
+                                        staged_orders=(order_record,))
+                return
         self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
 
     def finish_recorded_order_creation(self, market, evt):
@@ -1348,7 +1420,8 @@ class MarketsRecorder:
         def stage(session):
             for tag, payload in events:
                 if tag in (MarketEvent.BuyOrderCreated, MarketEvent.SellOrderCreated):
-                    self._stage_order_creation(session, tag.value, market, payload, tracking_states=tracking_states)
+                    self._stage_order_creation(session, tag.value, market, payload, tracking_states=tracking_states,
+                                               coalesce_snapshot=len(events) == 1)
                 else:
                     self._stage_order_status(session, tag.value, market, payload, tracking_states=tracking_states)
 

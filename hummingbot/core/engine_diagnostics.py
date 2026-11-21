@@ -22,7 +22,7 @@ from contextvars import ContextVar
 OPERATIONS = frozenset({
     'strategy.tick', 'strategy.reports', 'controller.cycle', 'controller.indicator', 'order.submit', 'order.admission', 'order.place',
     'controller.reference', 'controller.proposals', 'controller.actions', 'controller.policy',
-    'order.cancel', 'order.terminal', 'order.intent', 'order.created', 'position.checkpoint', 'owner.read',
+    'order.cancel', 'order.terminal', 'order.intent', 'order.intent_batch', 'order.created', 'position.checkpoint', 'owner.read',
     'db.sql', 'db.commit', 'db.ping', 'service.observe', 'executor.terminal', 'executor.archive', 'order.proof',
     'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
     'shutdown.cancel', 'shutdown.proof_before', 'shutdown.proof_after',
@@ -31,14 +31,14 @@ SLOW_MS = {
     'strategy.tick': 250, 'strategy.reports': 250, 'controller.cycle': 1000, 'controller.indicator': 250,
     'controller.reference': 250, 'controller.proposals': 250, 'controller.actions': 250, 'controller.policy': 100,
     'order.submit': 1000, 'order.admission': 1000, 'order.place': 1000,
-    'order.intent': 100, 'order.created': 100, 'order.cancel': 1000, 'order.proof': 1000,
+    'order.intent': 100, 'order.intent_batch': 100, 'order.created': 100, 'order.cancel': 1000, 'order.proof': 1000,
     'order.terminal': 250, 'executor.terminal': 250, 'executor.archive': 100, 'position.checkpoint': 250,
     'owner.read': 100, 'db.sql': 100, 'db.commit': 100, 'db.ping': 100, 'service.observe': 1000,
     'shutdown.total': 1000, 'shutdown.core': 1000, 'shutdown.strategy': 1000,
     'shutdown.hold': 1000, 'shutdown.cancel': 1000,
     'shutdown.proof_before': 1000, 'shutdown.proof_after': 1000,
 }
-SUBMISSION_OPERATIONS = frozenset({'order.submit', 'order.admission', 'order.intent', 'order.place', 'order.created'})
+SUBMISSION_OPERATIONS = frozenset({'order.submit', 'order.admission', 'order.intent', 'order.intent_batch', 'order.place', 'order.created'})
 _SUBMISSION_TIMING_OPERATIONS = {
     'admission_slot_wait_ms': 'order.admission',
     'recorder_lock_wait_ms': 'order.admission',

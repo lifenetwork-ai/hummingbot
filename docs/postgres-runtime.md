@@ -105,6 +105,14 @@ after that fence, unconfirmed rollback/COMMIT outcomes and ownership loss retain
 the persistence latch and normal recovery requirement. An already-unhealthy
 recorder cannot be reopened by this exception. No new environment setting is used.
 
+Ordinary managed maker intents can share a PostgreSQL transaction with up to
+three already queued intents. Risk checks run in queue order, including earlier
+reservations, and each connector gets one tracking snapshot in that transaction.
+A single available intent proceeds immediately. Each order still needs its own
+final send authorization. An uncertain batch commit closes admission and retains
+the affected intents for reconciliation. `order.intent_batch` traces the
+transaction path.
+
 Pool connections open on demand; the setting is a ceiling, not a preallocation.
 Size the database budget for the sum of all process/engine ceilings, including
 separate migration engines and old/new revisions during deployment overlap, and

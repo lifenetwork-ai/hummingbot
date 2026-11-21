@@ -127,6 +127,22 @@ def test_creation_snapshot_admits_only_durable_peers_and_the_new_identity(owned)
         assert {row.order_id for row in db.query(SubmissionAttempt)} == {'first', 'second'}
 
 
+@pytest.mark.parametrize('tracking_not_empty', [False, True])
+def test_worker_ack_snapshot_keeps_other_missing_pending_orders(owned, tracking_not_empty):
+    peer = intent(owned, 'still-pending')
+    order = intent(owned, 'acknowledged')
+    created = replace(create(), order_id=order.client_order_id, exchange_order_id='venue-ack',
+                      price=order.price, creation_timestamp=order.creation_timestamp)
+    tracking = {'never-admitted': {**peer.to_json(), 'client_order_id': 'never-admitted'}} if tracking_not_empty else {}
+    owned.loop.run_until_complete(owned.recorder.persist_order_update(
+        owned.market, [(MarketEvent.BuyOrderCreated, created)], tracking))
+
+    with owned.manager.get_new_session() as db:
+        assert not db.get(Order, order.client_order_id).creation_pending
+        assert db.get(SubmissionAttempt, order.client_order_id).state == 'acknowledged'
+        assert db.query(MarketState).one().saved_state == {peer.client_order_id: peer.to_json()}
+
+
 def test_creation_pipeline_paired_roundtrip_measurement(owned):
     """Replay the predecessor flush cuts with identical writes and owner fences."""
     import time

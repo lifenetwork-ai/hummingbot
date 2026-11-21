@@ -258,8 +258,10 @@ def capture_attempt_context(order, owner, connector):
     return context
 
 
-def prepare_attempt(session, order_id, context):
-    context = {**context, 'bindings': bindings(session, context['bot_id'])}
+def prepare_attempt(session, order_id, context, *, current_bindings=None):
+    if current_bindings is None:
+        current_bindings = bindings(session, context['bot_id'])
+    context = {**context, 'bindings': current_bindings}
     # Financial history contains no keys, passphrases or authenticated HTTP headers.
     if len(json.dumps(context, allow_nan=False).encode()) > 65536:
         raise ValueError('Submission context exceeds the bounded record size')

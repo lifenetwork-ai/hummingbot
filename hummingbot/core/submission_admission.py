@@ -2,6 +2,19 @@
 import asyncio
 from collections import deque
 from contextlib import asynccontextmanager
+from contextvars import Context, copy_context
+from dataclasses import dataclass, field
+from typing import Callable, Optional
+
+
+@dataclass
+class QueuedIntent:
+    connector: object
+    order: object
+    context: Context = field(default_factory=copy_context)
+    claimed: bool = False
+    cancelled: bool = False
+    on_claim: Optional[Callable[[], None]] = None
 
 
 class SubmissionAdmission:
@@ -14,25 +27,37 @@ class SubmissionAdmission:
     def __init__(self):
         self._locked = False
         self._admissions, self._sends = deque(), deque()
+        self._intents = {}
         self._send_streak = 0
 
     def locked(self):
         return self._locked
 
-    async def acquire(self, *, final=False):
+    async def acquire(self, *, final=False, intent=None):
         if not self._locked and not self._admissions and not self._sends:
             self._locked = True
             self._send_streak = min(2, self._send_streak + 1) if final else 0
             return True
         queue = self._sends if final else self._admissions
         future = asyncio.get_running_loop().create_future()
+        if intent is not None:
+            self._intents[future] = intent
         queue.append(future)
         if not self._locked:
             self._wake_next()
         try:
-            await future
+            return await future if intent is None else await asyncio.shield(future)
         except BaseException:
-            if future.done() and not future.cancelled():
+            if intent is not None and intent.claimed:
+                intent.cancelled = True
+                # A peer with a transaction in flight stays in the original
+                # submit task until the recorder knows the transaction outcome.
+                while not future.done():
+                    try:
+                        await asyncio.shield(future)
+                    except asyncio.CancelledError:
+                        continue
+            elif future.done() and not future.cancelled() and future.result() is True:
                 # A grant reserves the slot before the task resumes. Hand it on
                 # if that task is canceled at exactly this boundary.
                 self.release()
@@ -45,7 +70,26 @@ class SubmissionAdmission:
                 if not self._locked:
                     self._wake_next()
             raise
-        return True
+        finally:
+            self._intents.pop(future, None)
+
+    def take_intents(self, maximum):
+        """Collect consecutive native waiters while the leader owns the slot."""
+        peers = []
+        while self._admissions and len(peers) < maximum:
+            future = self._admissions[0]
+            if future.done():
+                self._admissions.popleft()
+                continue
+            intent = self._intents.get(future)
+            if intent is None:
+                break
+            self._admissions.popleft()
+            intent.claimed = True
+            if intent.on_claim is not None:
+                intent.on_claim()
+            peers.append((intent, future))
+        return peers
 
     def _wake_next(self):
         for queue in (self._admissions, self._sends):

@@ -90,7 +90,9 @@ def order_intent_transaction(manager, order_id, *, worker_owner=None):
     with manager.get_new_session() as session, prewrite_transaction(
             manager, session, IntentAdmissionBusy, 'Intent admission waits for the ownership row; no order was sent.'):
         # Contention must not excuse an existing durable order.
-        if session.get(Order, order_id) is not None:
+        existing = (session.get(Order, order_id) if isinstance(order_id, str) else
+                    session.query(Order.id).filter(Order.id.in_(order_id)).first())
+        if existing is not None:
             raise RuntimeError('Client order identity already exists; reconcile instead of resubmitting.')
         if manager.engine.dialect.name == 'postgresql':
             guard = worker_owner if worker_owner is not None else active_guard()
