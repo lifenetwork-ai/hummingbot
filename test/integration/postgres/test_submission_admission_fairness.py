@@ -707,6 +707,42 @@ def test_fresh_burst_callback_and_completion_work(native, legacy, monkeypatch):
     report('fresh_burst_predecessor' if legacy else 'fresh_burst_candidate', timing)
 
 
+def test_first_ownership_conflict_retries_after_a_short_shared_cooldown(native):
+    schedule = []
+    release_busy = native.owner._release_busy_intent
+    deferred = asyncio.Event()
+
+    def record_retry(order):
+        now = time.monotonic()
+        with patch.object(bot_ownership, 'time', SimpleNamespace(monotonic=lambda: now)):
+            release_busy(order)
+        schedule.append(native.owner._intent_admission_retry_at - now)
+        deferred.set()
+
+    async def run():
+        with native.engine.begin() as blocker:
+            blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE').all()
+            with session_order_scope(native.session.id, native.session.generation):
+                order = asyncio.create_task(native.market._create_order(
+                    TradeType.BUY, 'brief-owner-conflict', 'LIFE-USDT', Decimal('5'),
+                    OrderType.LIMIT_MAKER, Decimal('10')))
+            await asyncio.wait_for(deferred.wait(), 2)
+            native.transport.call.assert_not_awaited()
+            assert native.manager.persistence_healthy
+            assert not native.owner.active_intents and not native.owner.sent_intents
+        await asyncio.wait_for(order, 2)
+
+    with patch.object(native.owner, '_release_busy_intent', side_effect=record_retry):
+        native.loop.run_until_complete(run())
+
+    delay, = schedule
+    assert 0 < delay <= .05, f'First retry was deferred for {delay:.3f}s'
+    native.transport.call.assert_awaited_once()
+    with native.manager.get_new_session() as db:
+        assert db.query(SubmissionAttempt).one().state == 'acknowledged'
+    assert not native.store.read()['recovery_state'].get('halt')
+
+
 @pytest.mark.parametrize('after_wait', ['send', 'stop', 'retire', 'reprice'])
 def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(native, after_wait, monkeypatch):
     from hummingbot.core.order_submission_guard import QuoteRefreshRequired
@@ -759,7 +795,8 @@ def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(
     phases = diagnostics.snapshot()['submission_recent']
     admission, = [phase for phase in phases if phase['operation'] == 'order.admission']
     intents = [phase for phase in phases if phase['operation'] == 'order.intent']
-    assert admission['ownership_backoff_ms'] >= 240
+    expected_backoff_ms = sum(bot_ownership.INTENT_ADMISSION_RETRY_DELAYS[:2]) * 1000
+    assert admission['ownership_backoff_ms'] >= expected_backoff_ms - 10
     assert admission['admission_slot_wait_ms'] >= 0
     assert admission['recorder_lock_wait_ms'] >= 0
     assert len(intents) == 2 + sends
@@ -826,7 +863,7 @@ def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends
                 if hold_seconds > 1:
                     assert 2 <= len(attempts) <= 6, 'Waiters must not each poll the DB during shared cooldown'
                 else:
-                    assert len(attempts) == 1
+                    assert 1 <= len(attempts) <= (1 if fixed else 2)
             except BaseException:
                 for task in tasks:
                     task.cancel()

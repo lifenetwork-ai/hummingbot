@@ -97,9 +97,11 @@ class FundingBillStore:
                         raise ValueError("Funding bill identity conflict")
             # A busy or replaced owner cannot commit speculative bills/cursor.
             # No wait queue is inserted ahead of financial FOR SHARE readers.
-            if c.execute(query.with_for_update(skip_locked=True), authority).first() is None:
-                raise ControlConflict("Funding checkpoint authority changed or is busy", code='funding_checkpoint_deferred')
+            target = query.with_for_update(skip_locked=True).cte('funding_checkpoint_target')
             value = cast(bindparam('funding_checkpoint_json', prepared_checkpoint), JSONB)
-            c.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(
-                recovery_state=func.jsonb_set(BotState.recovery_state, text("'{funding_sync}'"), value)))
+            result = c.execute(update(BotState).where(BotState.bot_id == target.c.bot_id).values(
+                recovery_state=func.jsonb_set(BotState.recovery_state, text("'{funding_sync}'"), value))
+                .returning(BotState.bot_id), authority).first()
+            if result is None:
+                raise ControlConflict("Funding checkpoint authority changed or is busy", code='funding_checkpoint_deferred')
         return checkpoint

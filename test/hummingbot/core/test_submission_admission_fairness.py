@@ -247,7 +247,7 @@ def test_confirmed_contention_retries_ramp_to_a_cap_and_reset_after_a_write(owne
     recorder = Mock()
     owner._prepare_order_intent = Mock(return_value=recorder)
 
-    for delay in (.1, .15, .25, .5, .5):
+    for delay in (.025, .075, .15, .25, .5, .5):
         owner._release_busy_intent(order)
         assert owner._intent_admission_retry_at == pytest.approx(10. + delay)
 
@@ -255,7 +255,7 @@ def test_confirmed_contention_retries_ramp_to_a_cap_and_reset_after_a_write(owne
     owner.before_order(None, order)
     recorder.record_order_intent.assert_called_once_with(None, order)
     owner._release_busy_intent(order)
-    assert owner._intent_admission_retry_at == pytest.approx(11.1)
+    assert owner._intent_admission_retry_at == pytest.approx(11.025)
 
 
 @pytest.mark.asyncio

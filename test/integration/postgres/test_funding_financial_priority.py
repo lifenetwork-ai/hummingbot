@@ -67,6 +67,19 @@ def test_funding_page_yields_without_committing_bills_or_cursor(owned):
     assert store.commit(owned.owner.owner_uuid, owned.owner.generation, [bill()], {'cursor': 1}) == {'cursor': 1}
 
 
+def test_funding_locks_owner_and_updates_checkpoint_in_one_statement(owned):
+    from test.integration.postgres.test_performance import queries
+
+    store = funding(owned)
+    with queries(owned.engine) as statements:
+        assert store.commit(owned.owner.owner_uuid, owned.owner.generation, [bill()], {'cursor': 1}) == {'cursor': 1}
+
+    locked = [sql for sql in statements if 'FOR UPDATE SKIP LOCKED' in sql or 'UPDATE bot_state SET' in sql]
+    assert len(locked) == 1, locked
+    assert 'FOR UPDATE SKIP LOCKED' in locked[0] and 'UPDATE bot_state SET' in locked[0]
+    assert store.load() == {'cursor': 1}
+
+
 @pytest.mark.parametrize('change', ['lost_owner', 'risk_checkpoint'])
 def test_funding_page_final_fence_preserves_authority_and_concurrent_risk(owned, change):
     store = funding(owned)
