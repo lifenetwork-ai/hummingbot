@@ -18,7 +18,8 @@ runs:
         WITHOUT_CYTHON_OPTIMIZATIONS: 'true'
       run: |
         test "${CONDA_DEFAULT_ENV:-}" = hummingbot
-        conda develop .
+        site_packages="$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')"
+        printf '%s\n' "$PWD" > "$site_packages/hummingbot-checkout.pth"
         python -m pip install --no-deps -r setup/pip_packages.txt
         ./compile
         ln -sf "$PWD/bin/hbot" "$CONDA_PREFIX/bin/hbot"
