@@ -312,16 +312,19 @@ class BotStateStore:
     def update_mm_session(self, *, owner_uuid, owner_generation, version, session_id, generation, change, risk_change=None):
         from hummingbot.core.mm_session import MMSession
         with self.engine.begin() as connection:
-            row = connection.execute(select(BotState).where(
+            locked = select(BotState.mm_session, BotState.recovery_state).where(
                 BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
                 BotState.owner_generation == owner_generation, BotState.control_version == version,
-            ).with_for_update()).mappings().first()
+            ).with_for_update().cte("locked_session").prefix_with("MATERIALIZED", dialect="postgresql")
+            # Evaluate the clock only after the CTE produces the locked row.
+            statement = select(locked, func.extract("epoch", func.clock_timestamp()).label("database_now"))
+            row = connection.execute(statement).mappings().first()
             if row is None or not owner_uuid or not row["mm_session"]:
                 raise ControlConflict("MM session owner/control version changed")
             session = MMSession.model_validate(row["mm_session"])
             if session.id != session_id or session.generation != generation:
                 raise ControlConflict("MM session or random step changed")
-            now = float(connection.execute(text("SELECT EXTRACT(EPOCH FROM clock_timestamp())")).scalar())
+            now = float(row["database_now"])
             change(session, now)
             if (row["recovery_state"] or {}).get("halt") and session.status in ("preparing", "running"):
                 raise ControlConflict("Recovery HALT blocks session activation or a new draw")

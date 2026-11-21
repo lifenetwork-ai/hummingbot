@@ -2,7 +2,7 @@ import asyncio
 import unittest
 from decimal import Decimal
 from typing import Awaitable, Dict
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.connector.exchange_base import ExchangeBase
@@ -248,6 +248,30 @@ class ClientOrderTrackerUnitTest(unittest.TestCase):
         fetched_order: InFlightOrder = self.tracker.fetch_order(exchange_order_id=order.exchange_order_id)
 
         self.assertTrue(fetched_order == order)
+
+    def test_fetch_order_by_client_id_uses_exact_lookup_with_cache_precedence(self):
+        def make_order(exchange_id):
+            return InFlightOrder(
+                client_order_id="shared-client-id",
+                exchange_order_id=exchange_id,
+                trading_pair=self.trading_pair,
+                order_type=OrderType.LIMIT,
+                trade_type=TradeType.BUY,
+                amount=Decimal("1"),
+                creation_timestamp=1640001112.0,
+                price=Decimal("1"),
+            )
+
+        active, cached = make_order("active-exchange-id"), make_order("cached-exchange-id")
+        self.tracker.start_tracking_order(active)
+        self.tracker._cached_orders[active.client_order_id] = cached
+        with patch.object(ClientOrderTracker, "all_orders", new_callable=PropertyMock,
+                          side_effect=AssertionError("Exact lookup must not assemble a snapshot")):
+            self.assertIs(cached, self.tracker.fetch_order(active.client_order_id, active.exchange_order_id))
+            self.tracker._cached_orders.clear()
+            self.assertIs(active, self.tracker.fetch_order(active.client_order_id))
+            self.assertIsNone(self.tracker.fetch_order("missing-client-id"))
+        self.assertIs(active, self.tracker.fetch_order("missing-client-id", active.exchange_order_id))
 
     def test_fetch_order_does_not_match_orders_with_undefined_exchange_id(self):
         order: InFlightOrder = InFlightOrder(

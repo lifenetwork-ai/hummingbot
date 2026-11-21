@@ -127,6 +127,7 @@ class BotOwnership:
         self.submission_tasks = set()
         self._submission_order_tasks = {}
         self.submission_admission = SubmissionAdmission()
+        self.position_checkpoint_ready = asyncio.Event()
         self.terminal_tasks = set()
         self.transport_tasks = {}
         self._order_receipts = deque()
@@ -448,15 +449,25 @@ class BotOwnership:
             return recorder.order_writes
         return nullcontext()
 
+    def notify_position_checkpoint_ready(self):
+        # Waiters keep the event they observed before checking readiness.
+        ready = self.position_checkpoint_ready
+        self.position_checkpoint_ready = asyncio.Event()
+        ready.set()
+
     @staticmethod
-    async def _wait_for_position_checkpoint(deadline, error):
+    async def _wait_for_position_checkpoint(deadline, error, ready):
         now = time.monotonic()
         if deadline is None:
             deadline = now + POSITION_CHECKPOINT_ORDER_WAIT_SECONDS
         remaining = deadline - now
         if remaining <= 0:
             raise error from None
-        await asyncio.sleep(min(remaining, POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS))
+        # Keep the bounded poll for paths that recover on an ordinary report tick.
+        try:
+            await asyncio.wait_for(ready.wait(), min(remaining, POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS))
+        except asyncio.TimeoutError:
+            pass
         return deadline
 
     @trace_runtime('order.admission', order_parameter='order')
@@ -473,6 +484,7 @@ class BotOwnership:
             if delay > 0:
                 with submission_timing('ownership_backoff_ms'):
                     await asyncio.sleep(delay)
+            checkpoint_ready = self.position_checkpoint_ready
             try:
                 if not await self._admit_intent_turn(connector, order):
                     continue
@@ -487,7 +499,7 @@ class BotOwnership:
                 continue
             except PositionCheckpointOrderWait as error:
                 # A new order still has no durable intent. Wait outside both locks.
-                checkpoint_deadline = await self._wait_for_position_checkpoint(checkpoint_deadline, error)
+                checkpoint_deadline = await self._wait_for_position_checkpoint(checkpoint_deadline, error, checkpoint_ready)
                 continue
             summary = self._intent_admission_warnings.recover('ownership_row')
             if summary is not None:
@@ -1013,6 +1025,7 @@ class BotOwnership:
         checkpoint_deadline = None
         try:
             while True:
+                checkpoint_ready = self.position_checkpoint_ready
                 try:
                     async with self.submission_admission.final_send():
                         await asyncio.sleep(0)
@@ -1024,7 +1037,7 @@ class BotOwnership:
                             return await self._authorize_rest(request)
                 except PositionCheckpointOrderWait as error:
                     # There is a prepared intent, but no durable send yet.
-                    checkpoint_deadline = await self._wait_for_position_checkpoint(checkpoint_deadline, error)
+                    checkpoint_deadline = await self._wait_for_position_checkpoint(checkpoint_deadline, error, checkpoint_ready)
         finally:
             # Native create tasks retain their original lifetime tracking. A
             # direct REST caller may be the long-lived service loop; retain it

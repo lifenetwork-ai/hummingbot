@@ -189,15 +189,12 @@ class ClientOrderTracker:
     def fetch_order(
         self, client_order_id: Optional[str] = None, exchange_order_id: Optional[str] = None
     ) -> Optional[InFlightOrder]:
-        found_order = None
-
-        if client_order_id in self.all_orders:
-            found_order = self.all_orders[client_order_id]
-        elif exchange_order_id is not None:
-            found_order = next(
+        # Match the snapshot's precedence without building it for an exact ID.
+        found_order = self._cached_orders.get(client_order_id, self._in_flight_orders.get(client_order_id))
+        if found_order is None and exchange_order_id is not None:
+            return next(
                 (order for order in self.all_orders.values() if order.exchange_order_id == exchange_order_id), None
             )
-
         return found_order
 
     def fetch_lost_order(

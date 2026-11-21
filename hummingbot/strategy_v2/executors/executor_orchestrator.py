@@ -1011,7 +1011,7 @@ class ExecutorOrchestrator:
                 self._position_checkpoint_task = None
 
     async def _persist_held_checkpoint(self, executor_reports=None, *, defer_ownership_contention):
-        from hummingbot.core.order_submission_guard import active_guard
+        from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
 
         recorder = MarketsRecorder._shared_instance
         if recorder is None or recorder.durable_position_checkpoints is not True:
@@ -1025,13 +1025,25 @@ class ExecutorOrchestrator:
             archive = getattr(self, '_executor_archive_task', None)
             if archive is not None:
                 await asyncio.shield(archive)
+            reports = self.get_executors_report() if executor_reports is None else executor_reports
+            _, candidates = self._held_checkpoint_work(reports)
+            prefetched = {info.id for info in candidates}
+            applied = await asyncio.to_thread(recorder.applied_position_executors, list(prefetched)) if prefetched else set()
             async with recorder.order_writes:
+                if active_guard() is not owner:
+                    raise SubmissionBlocked('Trading owner changed before the position checkpoint.')
                 reports = self.get_executors_report() if executor_reports is None else executor_reports
                 _, candidates = self._held_checkpoint_work(reports)
                 if not candidates:
                     self._position_checkpoint_retry_at = 0.0
                     return self._apply_position_updates(reports)
-                applied = await asyncio.to_thread(recorder.applied_position_executors, [info.id for info in candidates])
+                # Rebuild the plan under the recorder lock from the latest reports.
+                # The write transaction still rejects an application after prefetch.
+                identities = {info.id for info in candidates}
+                applied.intersection_update(identities)
+                missing = identities - prefetched
+                if missing:
+                    applied.update(await asyncio.to_thread(recorder.applied_position_executors, list(missing)))
                 committed, positions, fresh, bases = self._plan_held_checkpoint(reports, candidates, applied)
                 cancelled = None
                 if fresh:
@@ -1092,6 +1104,12 @@ class ExecutorOrchestrator:
             publish = getattr(self.strategy, 'update_executors_info', None)
             if callable(publish):
                 publish()
+                # Admission reads the published reports as well as durable state.
+                if getattr(self.strategy, 'controller_reports_error', None) is None:
+                    from hummingbot.core.order_submission_guard import active_guard
+                    owner = active_guard()
+                    if owner is not None:
+                        owner.notify_position_checkpoint_ready()
 
     def _apply_position_updates(self, executor_reports=None):
         """

@@ -1,5 +1,7 @@
 import asyncio
 import random
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
@@ -7,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.core.bot_ownership import BotOwnership
@@ -50,6 +52,56 @@ def test_migration_replay_preserves_pending_draw(sessions):
     saved = store.read()["mm_session"]
     bootstrap_postgres(store.engine, auto_migrate=True)
     assert store.read()["mm_session"] == saved
+
+
+def test_session_update_reads_database_time_after_lock_in_one_projected_query(sessions):
+    store, catalogue = sessions
+    receipt = store.request_mm_session(action="start", expected_version=0, catalogue=catalogue,
+                                       request=MMSessionRequest(market_mode="spot", profile_id="sideways",
+                                                                duration_seconds=60))
+    owner = BotOwnership(store.engine, "hummingbot")
+    assert owner.try_acquire()
+    reads = []
+    worker_pids = []
+    main_thread = threading.get_ident()
+
+    def capture(connection, cursor, statement, parameters, context, executemany):
+        if threading.get_ident() == main_thread:
+            return
+        if statement.startswith(('SELECT', 'WITH')):
+            reads.append(statement)
+        if 'mm_session' in statement and 'FOR UPDATE' in statement:
+            worker_pids.append(connection.connection.driver_connection.get_backend_pid())
+
+    event.listen(store.engine, 'before_cursor_execute', capture)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as worker:
+            with store.engine.begin() as locker:
+                locker.execute(text('SELECT bot_id FROM bot_state FOR UPDATE'))
+                future = worker.submit(
+                    store.update_mm_session, owner_uuid=owner.owner_uuid, owner_generation=owner.generation,
+                    version=1, session_id=receipt['session_id'], generation=0,
+                    change=lambda session, now: session.ready(
+                        now=now, anchors={"life_spot": {"life": "0.1", "sources": {}}}))
+                deadline = time.monotonic() + 3
+                while not (worker_pids and locker.execute(
+                        text('SELECT pg_backend_pid() = ANY(pg_blocking_pids(:worker_pid))'),
+                        {'worker_pid': worker_pids[0]}).scalar()):
+                    assert time.monotonic() < deadline, 'Session writer did not reach the row lock'
+                    time.sleep(.01)
+                released_after = locker.execute(text('SELECT EXTRACT(EPOCH FROM clock_timestamp())')).scalar()
+            saved = future.result(timeout=3)
+        assert saved.started_at >= float(released_after)
+    finally:
+        event.remove(store.engine, 'before_cursor_execute', capture)
+        owner.release()
+
+    assert len(reads) == 1
+    locked_read = reads[0]
+    assert 'FOR UPDATE' in locked_read
+    assert 'clock_timestamp()' in locked_read
+    assert 'bot_state.status' not in locked_read
+    assert 'bot_state.heartbeat' not in locked_read
 
 
 def test_guard_policy_and_anchors_survive_pg_handover_but_recovery_delay_restarts(sessions):

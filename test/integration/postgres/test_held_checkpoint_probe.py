@@ -43,6 +43,49 @@ def pending_checkpoint(owned, side=TradeType.BUY):
     return runtime
 
 
+@pytest.mark.parametrize('apply_during_prefetch', [False, True])
+def test_held_checkpoint_prefetch_leaves_recorder_slot_free(owned, monkeypatch, apply_during_prefetch):
+    runtime = pending_checkpoint(owned)
+    prefetch_entered, release_prefetch = threading.Event(), threading.Event()
+    lookup = owned.recorder.applied_position_executors
+
+    def prefetch(identities):
+        applied = lookup(identities)
+        prefetch_entered.set()
+        assert release_prefetch.wait(3)
+        return applied
+
+    monkeypatch.setattr(owned.recorder, 'applied_position_executors', prefetch)
+
+    async def exercise():
+        with pytest.raises(PositionCheckpointPending):
+            runtime.get_all_reports()
+        task = runtime._position_checkpoint_task
+        try:
+            assert await asyncio.to_thread(prefetch_entered.wait, 2)
+            assert not owned.recorder.order_writes.locked()
+            async with owned.recorder.order_writes:
+                assert not runtime.executors_ids_position_held
+                if apply_during_prefetch:
+                    with owned.engine.begin() as connection:
+                        connection.execute(text("""
+                            INSERT INTO runtime_journal (event_key, kind, applied, payload)
+                            VALUES ('hold:hold-probe', 'hold', true, '{}')
+                        """))
+        finally:
+            release_prefetch.set()
+            await asyncio.gather(task, return_exceptions=True)
+        if apply_during_prefetch:
+            with pytest.raises(ValueError, match='Position application changed'):
+                task.result()
+        else:
+            task.result()
+
+    owned.loop.run_until_complete(exercise())
+    assert len(owned.recorder.get_all_positions()) == (0 if apply_during_prefetch else 1)
+    assert runtime.executors_ids_position_held == (set() if apply_during_prefetch else {'hold-probe'})
+
+
 @pytest.mark.parametrize('stage', ['read', 'commit'])
 def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(owned, stage, monkeypatch):
     runtime = pending_checkpoint(owned, TradeType.SELL)
@@ -72,6 +115,7 @@ def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(own
             hold()
 
     async def exercise():
+        checkpoint_ready = owned.owner.position_checkpoint_ready
         controller = SimpleNamespace(config=info.config, executors_update_event=asyncio.Event())
         strategy = runtime.strategy
         strategy.controllers['maker'] = controller
@@ -100,6 +144,7 @@ def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(own
             assert healthy, detail
             task = runtime._position_checkpoint_task
             assert task in owned.owner.terminal_tasks
+            assert not checkpoint_ready.is_set()
             with pytest.raises(PositionCheckpointPending):
                 runtime.get_all_reports()
             assert runtime._position_checkpoint_task is task
@@ -111,6 +156,7 @@ def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(own
             release.set()
             await server.cleanup()
         await asyncio.wait_for(controller.executors_update_event.wait(), 1)
+        assert checkpoint_ready.is_set()
         assert owned.recorder.get_all_positions()[0].amount == Decimal('.1')
         assert len(runtime.positions_held['maker']) == 1
         assert runtime.executors_ids_position_held == {'hold-probe'}

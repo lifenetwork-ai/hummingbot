@@ -153,6 +153,9 @@ def test_native_sell_waits_for_checkpoint_before_sending(owned, managed_entry, m
 
     rest, transport = assistant(CheckpointThrottle())
     rest._auth = exchange.authenticator
+    if outcome == 'ready':
+        # A published checkpoint must wake the same native order without a poll.
+        monkeypatch.setattr(bot_ownership, 'POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS', 5)
     if outcome == 'timed_out':
         monkeypatch.setattr(bot_ownership, 'POSITION_CHECKPOINT_ORDER_WAIT_SECONDS', .15)
     if outcome == 'expired_signature':
@@ -189,7 +192,9 @@ def test_native_sell_waits_for_checkpoint_before_sending(owned, managed_entry, m
                 owned.owner.mm_quote_check = MagicMock(side_effect=QuoteRefreshRequired('price changed while waiting'))
             if outcome != 'timed_out':
                 reason = None
-            await asyncio.wait_for(asyncio.gather(*owned.owner.submission_tasks), 2)
+            if outcome == 'ready':
+                owned.owner.notify_position_checkpoint_ready()
+            await asyncio.wait_for(asyncio.gather(*owned.owner.submission_tasks), .6 if outcome == 'ready' else 2)
 
     owned.loop.run_until_complete(run())
     assert len(identities) == 1
