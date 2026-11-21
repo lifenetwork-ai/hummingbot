@@ -1,43 +1,24 @@
 name: "Install environment and Hummingbot"
 description: "Installs conda environment, all libraries and compiles Hummingbot"
-inputs:
-   program-cache-hit:
-     required: true
-     description: "Value of truth regarding the program cache being hit or not"
-   dependencies-cache-hit:
-     required: true
-     description: "Value of truth regarding the program cache being hit or not"
 runs:
   using: "composite"
   steps:
-    # Install python/conda to check if core code has changed
-    - uses: actions/setup-python@v4
-      if: ${{inputs.program-cache-hit}} != 'true' || ${{inputs.dependencies-cache-hit}} != 'true'
+    - name: Set up Miniforge and the Hummingbot environment
+      uses: conda-incubator/setup-miniconda@be893c923ea9cf1cf7cd510fbdde27c7e18cbdcb # v4.1.0
       with:
-        python-version: 3.x
+        miniforge-version: '26.9.4-2'
+        python-version: '3.13'
+        environment-file: setup/environment.yml
+        activate-environment: hummingbot
+        pkgs-dirs: ${{ runner.temp }}/conda-packages
 
-    # Install pre_commit if code has changed
-    - name: Install pre_commit
-      if: ${{inputs.program-cache-hit}} != 'true' || ${{inputs.dependencies-cache-hit}} != 'true'
-      shell: bash
-      run: |
-        conda install -c conda-forge pre_commit
-
-    # Install hummingbot env if environment.yml has changed
-    - name: Install Hummingbot
-      if: ${{inputs.dependencies-cache-hit}} != 'true'
-      shell: bash -l {0}
-      run: |
-        ./install
-
-    # Each checkout needs compiled extensions before running tests.
     - name: Compile Hummingbot
-      shell: bash
+      shell: bash -el {0}
       env:
         WITHOUT_CYTHON_OPTIMIZATIONS: 'true'
       run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda info --envs
-        conda activate hummingbot
-        conda env export
+        test "${CONDA_DEFAULT_ENV:-}" = hummingbot
+        conda develop .
+        python -m pip install --no-deps -r setup/pip_packages.txt
         ./compile
+        ln -sf "$PWD/bin/hbot" "$CONDA_PREFIX/bin/hbot"

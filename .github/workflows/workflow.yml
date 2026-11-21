@@ -18,6 +18,9 @@ jobs:
     name: Hummingbot build + stable tests
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
 
     steps:
       - uses: actions/checkout@v6
@@ -35,33 +38,22 @@ jobs:
           path: README.md # placeholder file
           key: ${{ runner.os }}-build-${{ env.CACHE_NUMBER }}-${{ hashFiles('hummingbot/*', '**/*.py', '**/*.py*', '**/*.pxd', '**/*.sql', 'test/*') }}
 
-      # Check for setup/environment.yml changes
-      - name: Cache conda dependencies
+      # Recreate the environment on each runner using the cached packages.
+      - name: Cache Conda packages
         id: conda-dependencies
         uses: actions/cache@v5
-        env:
-          # Increase this value to manually reset cache if setup/environment.yml has not changed
-          CONDA_CACHE_NUMBER: 0
         with:
-          path: |
-            /home/runner/conda_pkgs_dir/
-            /usr/share/miniconda/envs
-          key: ${{ runner.os }}-conda-${{ env.CONDA_CACHE_NUMBER }}-${{ hashFiles('setup/environment.yml') }}
+          path: ${{ runner.temp }}/conda-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-conda-packages-${{ hashFiles('setup/environment.yml', '.github/actions/install_env_and_hb/action.yml') }}
 
       # Install environment and Hummingbot
       - name: Install environment and Hummingbot
         uses: ./.github/actions/install_env_and_hb
-        with:
-          program-cache-hit: ${{steps.program-changes.outputs.cache-hit}}
-          dependencies-cache-hit: ${{steps.conda-dependencies.outputs.cache-hit}}
 
       # Only the pre-commit checks are conditional on code changes.
       - name: Run pre-commit hooks on diff
-        shell: bash
         if: steps.program-changes.outputs.cache-hit != 'true' || steps.conda-dependencies.outputs.cache-hit != 'true'
         run: |
-          source $CONDA/etc/profile.d/conda.sh
-          conda activate hummingbot
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             pre-commit run --files $(git diff --name-only origin/${{ github.base_ref }})
           else
@@ -69,10 +61,7 @@ jobs:
           fi
 
       - name: Run stable tests and calculate coverage
-        shell: bash
         run: |
-          source $CONDA/etc/profile.d/conda.sh
-          conda activate hummingbot
           PYTEST_ADDOPTS="-rs --junitxml=$RUNNER_TEMP/backend-tests.xml" make test
           python - "$RUNNER_TEMP/backend-tests.xml" <<'PY'
           import sys
@@ -87,25 +76,13 @@ jobs:
           PY
 
       - name: Admin OpenAPI contract drift check
-        shell: bash
-        run: |
-          source $CONDA/etc/profile.d/conda.sh
-          conda activate hummingbot
-          make swagger-backend-check
+        run: make swagger-backend-check
 
       - name: PostgreSQL integration (required, no missing-DSN skip)
-        shell: bash
-        run: |
-          source $CONDA/etc/profile.d/conda.sh
-          conda activate hummingbot
-          make test-postgres
+        run: make test-postgres
 
       - name: PostgreSQL port regression (required)
-        shell: bash
-        run: |
-          source $CONDA/etc/profile.d/conda.sh
-          conda activate hummingbot
-          make test-cloudrun-regression
+        run: make test-cloudrun-regression
 
       - name: Build Cloud Run image and prefetch offline infrastructure
         env:
@@ -120,10 +97,7 @@ jobs:
       - name: Offline deployment image E2E (required)
         env:
           CLOUDRUN_PREVIOUS_IMAGE: ${{ vars.HBOT_PREVIOUS_COMPATIBLE_IMAGE }}
-        shell: bash
         run: |
-          source $CONDA/etc/profile.d/conda.sh
-          conda activate hummingbot
           make test-e2e-offline
           python scripts/review_cloudrun.py deploy/cloudrun/service.example.yaml --template
 
@@ -137,18 +111,11 @@ jobs:
             build/cloudrun-image.json
 
       - name: Check and report global coverage
-        shell: bash
-        run: |
-          source $CONDA/etc/profile.d/conda.sh
-          conda activate hummingbot
-          make report_coverage
+        run: make report_coverage
 
       - name: Validate coverage for the changes
         if: github.event_name == 'pull_request'
-        shell: bash
         run: |
-          source $CONDA/etc/profile.d/conda.sh
-          conda activate hummingbot
           git fetch --all -q
           git checkout -b $GITHUB_SHA
           coverage xml
@@ -157,12 +124,12 @@ jobs:
       # Notify results to discord
       - name: Discord Webhook Action
         id: discord-direct-webhook
-        if: always() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request' && hashFiles('build_report.json') != ''
         continue-on-error: true
         uses: tsickert/discord-webhook@v7.0.0
         with:
           webhook-url: ${{ secrets.WEBHOOK_URL }}
-          raw-data: ${{ matrix.target }}-build_report.json
+          raw-data: build_report.json
 
       # Notify results to discord
       - uses: ruby/setup-ruby@v1
