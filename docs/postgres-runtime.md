@@ -563,12 +563,12 @@ runs as one background task so an optional read cannot occupy the owner loop.
 
 Status publication prepares receipt, daily-balance and guard-history changes
 speculatively in one transaction before taking its final BotState row lock.
-The final `FOR UPDATE SKIP LOCKED` rereads owner/generation/control and compares
-the session, desired state, HALT and guard basis. A busy row or changed basis rolls
-back every speculative write and leaves heartbeat/acknowledgement unchanged;
-the existing observer can try again next cycle. Financial recorder fencing is
-unchanged. Foreign-key locks from guard inserts remain compatible with that
-recorder fence; guard inserts run after slower receipt/balance work.
+The final statement locks the row with `FOR UPDATE SKIP LOCKED` and writes the
+heartbeat in one round trip. It checks owner, generation, control version,
+session, desired state, HALT and the previous guard observation. A busy row or
+changed basis rolls back the speculative writes and the observer can retry on
+its next cycle. Guard inserts run after receipt and balance work. Their foreign
+key locks are compatible with the financial recorder's row lock.
 
 This shortens publication's exclusive critical section; it does not make the
 database lock-free. The final update/commit still holds the row, and

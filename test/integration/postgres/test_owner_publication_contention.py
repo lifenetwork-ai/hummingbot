@@ -3,6 +3,7 @@
 These are controlled mechanisms, not attribution of the historical startup exit.
 """
 from concurrent.futures import ThreadPoolExecutor
+from test.integration.postgres.test_performance import queries
 
 import pytest
 from sqlalchemy import text
@@ -24,6 +25,18 @@ def publication_store(engine):
 def publish(store):
     return store.publish(owner_uuid="owner", owner_generation=1, version=1,
                          status={"running": False}, save_balances=False)
+
+
+def test_publication_locks_and_updates_authority_in_one_roundtrip(pg_engine):
+    store = publication_store(pg_engine)
+    with queries(pg_engine) as statements:
+        assert publish(store)
+
+    final_statements = [sql for sql in statements if 'FOR UPDATE SKIP LOCKED' in sql or 'UPDATE bot_state SET' in sql]
+    assert len(final_statements) == 1, final_statements
+    assert 'FOR UPDATE SKIP LOCKED' in final_statements[0]
+    assert 'UPDATE bot_state SET' in final_statements[0]
+    assert store.read()['acknowledged_version'] == 1
 
 
 def test_publication_busy_authority_yields_without_acknowledging(pg_engine):

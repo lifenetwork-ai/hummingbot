@@ -237,14 +237,11 @@ class BotStateStore:
             # SKIP LOCKED avoids joining an exclusive-lock wait queue in front
             # of compatible financial readers. Recheck both authority and the
             # optimistic guard/session basis after all speculative work.
-            current = connection.execute(fence.with_for_update(skip_locked=True)).first()
-            if current is None:
-                transaction.rollback()
-                return False
+            # Update in the same statement so the row lock does not span a
+            # separate client round trip before writing the heartbeat.
+            target = fence.with_for_update(skip_locked=True).cte('publication_target')
             result = connection.execute(update(BotState).where(
-                BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
-                BotState.owner_generation == owner_generation, BotState.control_version == version,
-                BotState.acknowledged_version <= version,
+                BotState.bot_id == target.c.bot_id,
             ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=status_value(),
                      revision=revision).returning(BotState.bot_id)).first()
             if result is None:
