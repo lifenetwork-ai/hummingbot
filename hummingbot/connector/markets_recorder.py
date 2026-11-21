@@ -4,7 +4,7 @@ import logging
 import os.path
 import threading
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import copy_context
 from decimal import Decimal
 from itertools import islice
@@ -40,6 +40,7 @@ from hummingbot.core.event.events import (
     SellOrderCompletedEvent,
     SellOrderCreatedEvent,
 )
+from hummingbot.core.operational_warnings import OrderAcknowledgementBusy
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.controllers import Controllers
 from hummingbot.model.executors import Executors
@@ -136,34 +137,83 @@ class MarketsRecorder:
             return recorder
         return None
 
-    @asynccontextmanager
-    async def native_order_write(self, market):
-        from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
+    @contextmanager
+    def native_order_activity(self):
+        from hummingbot.core.order_submission_guard import active_guard
 
         owner = active_guard()
         task = asyncio.current_task()
         already_tracked = task in owner.terminal_tasks
         owner.terminal_tasks.add(task)
         try:
-            async with timed_submission_lock(self.order_writes, 'tracker_recorder_wait_ms'):
-                if (active_guard() is not owner or owner.engine is not self._sql_manager.engine
-                        or self._shared_instance is not self or market not in self._markets):
-                    raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
-                yield
+            yield owner
         finally:
             if not already_tracked:
                 owner.terminal_tasks.discard(task)
 
+    @asynccontextmanager
+    async def native_order_lock(self, market, owner):
+        from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
+
+        async with timed_submission_lock(self.order_writes, 'tracker_recorder_wait_ms'):
+            if (active_guard() is not owner or owner.engine is not self._sql_manager.engine
+                    or self._shared_instance is not self or market not in self._markets):
+                raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
+            yield
+
+    @asynccontextmanager
+    async def native_order_write(self, market):
+        with self.native_order_activity() as owner:
+            async with self.native_order_lock(market, owner):
+                yield
+
     @staticmethod
     async def _drain_order_write(write):
-        cancelled = None
         job = asyncio.get_running_loop().run_in_executor(None, copy_context().run, write)
+        return await MarketsRecorder._drain_order_job(job)
+
+    @staticmethod
+    async def _drain_order_job(job):
+        cancelled = None
         while not job.done():
             try:
                 await asyncio.shield(job)
             except asyncio.CancelledError as error:
                 cancelled = error
         return job.result(), cancelled
+
+    async def retry_order_acknowledgement(self, market, owner, apply):
+        """Run a native OPEN update, rebuilding its snapshot on each proven retry."""
+        loop = asyncio.get_running_loop()
+        async with self.native_order_lock(market, owner):
+            deadline = loop.time() + _ORDER_FENCE_RETRY_SECONDS
+            try:
+                return await apply()
+            except OrderAcknowledgementBusy as error:
+                failure, cancelled = error.error, error.cancellation
+
+        async def finish():
+            current_failure = failure
+            while loop.time() < deadline:
+                await asyncio.sleep(min(deadline - loop.time(), _ORDER_FENCE_RETRY_INTERVAL))
+                if loop.time() >= deadline:
+                    break
+                async with self.native_order_lock(market, owner):
+                    if loop.time() >= deadline:
+                        break
+                    try:
+                        return await apply()
+                    except OrderAcknowledgementBusy as error:
+                        current_failure = error.error
+            self._sql_manager.persistence_healthy = False
+            raise current_failure
+
+        # The caller retains its per-order slot and its shutdown registration.
+        # Drain the received ACK even if cancellation arrives during backoff.
+        result, interrupted = await self._drain_order_job(loop.create_task(finish()))
+        if interrupted is not None or cancelled is not None:
+            raise interrupted or cancelled
+        return result
 
     async def _run_native_write(self, stage, *args, defer_contention=None):
         from hummingbot.core.bot_ownership import OwnershipLost
@@ -210,6 +260,8 @@ class MarketsRecorder:
                                            extra={'event': 'order_recorder_write_completed'})
                     return result, cancelled
                 if defer_contention is not None:
+                    if defer_contention is OrderAcknowledgementBusy:
+                        raise OrderAcknowledgementBusy(lock_error, cancelled) from None
                     raise defer_contention from None
                 remaining = deadline - loop.time()
                 if remaining <= 0:
@@ -222,7 +274,7 @@ class MarketsRecorder:
                     cancelled = error
                 if loop.time() >= deadline:
                     raise lock_error
-        except (ExecutorArchiveBusy, PositionCheckpointBusy):
+        except (ExecutorArchiveBusy, PositionCheckpointBusy, OrderAcknowledgementBusy):
             if defer_contention is None:
                 self._sql_manager.persistence_healthy = False
             raise
@@ -1435,7 +1487,7 @@ class MarketsRecorder:
         with self._sql_manager.get_new_session() as session, session.begin():
             self._stage_order_status(session, event_tag, market, evt)
 
-    async def persist_order_update(self, market, events, tracking_states):
+    async def persist_order_update(self, market, events, tracking_states, *, defer_ack_contention=False):
         def stage(session):
             for tag, payload in events:
                 if tag in (MarketEvent.BuyOrderCreated, MarketEvent.SellOrderCreated):
@@ -1444,7 +1496,8 @@ class MarketsRecorder:
                 else:
                     self._stage_order_status(session, tag.value, market, payload, tracking_states=tracking_states)
 
-        _, cancelled = await self._run_native_write(stage)
+        _, cancelled = await self._run_native_write(
+            stage, defer_contention=OrderAcknowledgementBusy if defer_ack_contention else None)
         return cancelled
 
     @trace_runtime('order.terminal', order_parameter='evt')

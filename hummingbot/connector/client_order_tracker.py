@@ -6,6 +6,7 @@ from copy import copy
 from decimal import Decimal
 from itertools import chain
 from typing import TYPE_CHECKING, Callable, Dict, Optional
+from weakref import WeakValueDictionary
 
 from cachetools import TTLCache
 
@@ -60,6 +61,8 @@ class ClientOrderTracker:
         self._in_flight_orders: Dict[str, InFlightOrder] = {}
         self._cached_orders: TTLCache = TTLCache(maxsize=self.MAX_CACHE_SIZE, ttl=self.CACHED_ORDER_TTL)
         self._lost_orders: Dict[str, InFlightOrder] = {}
+        # Only in-flight event tasks retain the per-order locks.
+        self._order_event_locks = WeakValueDictionary()
 
         self._order_tracking_task: Optional[asyncio.Task] = None
         self._last_poll_timestamp: int = -1
@@ -239,8 +242,15 @@ class ClientOrderTracker:
         if recorder is None:
             self.process_trade_update(update)
             return
-        async with recorder.native_order_write(self._connector):
-            await self._apply_recorded_trade_update(recorder, update)
+        with recorder.native_order_activity() as owner:
+            async with self._order_event_lock(update.client_order_id), recorder.native_order_lock(self._connector, owner):
+                await self._apply_recorded_trade_update(recorder, update)
+
+    def _order_event_lock(self, identity):
+        lock = self._order_event_locks.get(identity)
+        if lock is None:
+            lock = self._order_event_locks[identity] = asyncio.Lock()
+        return lock
 
     async def _apply_recorded_trade_update(self, recorder, update):
         order = self.all_fillable_orders.get(update.client_order_id)
@@ -393,16 +403,7 @@ class ClientOrderTracker:
             if recorder is None:
                 self._apply_order_update(tracked_order, order_update)
             else:
-                async with recorder.native_order_write(self._connector):
-                    current = self.fetch_order(order_update.client_order_id, order_update.exchange_order_id)
-                    if current is not tracked_order or self._late_order_update(tracked_order, order_update):
-                        return
-                    if proved_fills is not None and tuple(tracked_order.order_fills) != proved_fills:
-                        # A fill committed while this terminal update waited.
-                        # Let normal polling obtain a proof with the new fills.
-                        tracked_order._terminal_proof_pending = True
-                        return
-                    await self._persist_order_update(recorder, tracked_order, order_update)
+                await self._apply_native_order_update(recorder, tracked_order, order_update, proved_fills)
         else:
             lost_order = self.fetch_lost_order(
                 client_order_id=order_update.client_order_id, exchange_order_id=order_update.exchange_order_id
@@ -413,6 +414,29 @@ class ClientOrderTracker:
                     del self._lost_orders[lost_order.client_order_id]
             else:
                 self.logger().debug(f"Order is not/no longer being tracked ({order_update})")
+
+    async def _apply_native_order_update(self, recorder, order, update, proved_fills):
+        with recorder.native_order_activity() as owner:
+            async with self._order_event_lock(order.client_order_id):
+                retry_open = update.new_state is OrderState.OPEN and order.is_pending_create
+
+                async def apply():
+                    current = self.fetch_order(update.client_order_id, update.exchange_order_id)
+                    if current is not order or self._late_order_update(order, update):
+                        return
+                    if proved_fills is not None and tuple(order.order_fills) != proved_fills:
+                        # Let normal polling obtain a proof with the new fills.
+                        order._terminal_proof_pending = True
+                        return
+                    if retry_open and not order.is_pending_create:
+                        return
+                    await self._persist_order_update(recorder, order, update, defer_ack_contention=retry_open)
+
+                if retry_open:
+                    await recorder.retry_order_acknowledgement(self._connector, owner, apply)
+                else:
+                    async with recorder.native_order_lock(self._connector, owner):
+                        await apply()
 
     @staticmethod
     def _late_order_update(order, update):
@@ -432,7 +456,7 @@ class ClientOrderTracker:
             self._trigger_order_creation(order, previous_state, update.new_state)
             self._trigger_order_completion(order, update)
 
-    async def _persist_order_update(self, recorder, order, update):
+    async def _persist_order_update(self, recorder, order, update, *, defer_ack_contention=False):
         staged = copy(order)
         # The copy must not wake the live waiters before PostgreSQL commits.
         staged.exchange_order_id_update_event = asyncio.Event()
@@ -450,7 +474,8 @@ class ClientOrderTracker:
             tracking = dict(self._connector.tracking_states)
             if order.client_order_id in tracking:
                 tracking[order.client_order_id] = staged.to_json()
-            cancelled = await recorder.persist_order_update(self._connector, events, tracking)
+            cancelled = await recorder.persist_order_update(self._connector, events, tracking,
+                                                            defer_ack_contention=defer_ack_contention)
 
         order.update_with_order_update(update)
         if created:

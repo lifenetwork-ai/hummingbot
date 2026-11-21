@@ -46,6 +46,15 @@ class ExecutorArchiveBusy(RuntimeError):
     """The executor archive rolled back before any writes while acquiring ownership."""
 
 
+class OrderAcknowledgementBusy(RuntimeError):
+    """The first ownership fence rejected an ACK before it could write."""
+
+    def __init__(self, error, cancellation):
+        super().__init__('Order acknowledgement waits for the ownership row.')
+        self.error = error
+        self.cancellation = cancellation
+
+
 class DrawdownValuationUnavailable(ValueError):
     def __init__(self, connector, pair, reason, age=None):
         self.connector, self.pair, self.reason, self.age = connector, pair, reason, age

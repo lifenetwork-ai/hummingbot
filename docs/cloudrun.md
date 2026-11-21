@@ -297,7 +297,10 @@ final send authorization (`final_authority_ms`), dispatch through receipt of
 HTTP headers (`wire_headers_ms`), body read and durable receipt storage
 (`transport_receipt_ms`), and tracker ACK processing (`tracker_ack_ms`). The
 `tracker_recorder_wait_ms` field measures lock acquisition within the tracker
-ACK interval. The HTTP interval includes local scheduling. A receipt transaction
+ACK interval. A native OPEN acknowledgement releases the shared recorder lock
+during backoff after a confirmed prewrite rollback. Tracker events for the same
+order remain serialized, and each retry rebuilds the write from current tracking
+state. The HTTP interval includes local scheduling. A receipt transaction
 may combine up to four responses already waiting for the recorder. `order.receipt_write`
 measures that shared write once, including commit.
 

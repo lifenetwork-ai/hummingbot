@@ -1,24 +1,33 @@
 """Intent/ACK durability must not spend separate guarded flushes on metadata reads."""
+import asyncio
+import json
+import time
 from dataclasses import replace
 from decimal import Decimal
 from test.integration.postgres.test_ownership import intent, owned as _owned
 from test.integration.postgres.test_performance import queries
 from test.integration.postgres.test_recorder import create
+from test.integration.postgres.test_submission_admission_fairness import native as native_fixture
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import event, select
+from sqlalchemy import event, select, text
+from sqlalchemy.exc import OperationalError
 
-from hummingbot.core.bot_ownership import OwnershipLost
-from hummingbot.core.data_type.in_flight_order import OrderState
+from hummingbot.connector import markets_recorder
+from hummingbot.core.bot_ownership import ORDER_PATH, OwnershipLost
+from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
 from hummingbot.core.event.events import MarketEvent
+from hummingbot.core.order_submission_guard import session_order_scope
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.order import Order
 from hummingbot.model.order_status import OrderStatus
 from hummingbot.model.runtime_journal import RuntimeJournal, SubmissionAttempt
 
 owned = _owned
+native = native_fixture
 
 
 def acknowledge(context, identity='order-1'):
@@ -28,6 +37,92 @@ def acknowledge(context, identity='order-1'):
     context.recorder._did_create_order(MarketEvent.BuyOrderCreated.value, context.market, replace(
         create(), order_id=identity, exchange_order_id=order.exchange_order_id,
         price=order.price, creation_timestamp=order.creation_timestamp))
+
+
+@pytest.mark.parametrize('outcome', ['confirmed', 'cancelled', 'commit_rejected'])
+def test_native_open_ack_yields_recorder_during_rollback_retry(native, monkeypatch, outcome):
+    monkeypatch.setattr(markets_recorder, '_ORDER_FENCE_RETRY_INTERVAL', .8)
+    tracker = native.market._order_tracker
+    if outcome == 'commit_rejected':
+        # A lock error at COMMIT is outside the verified prewrite failure path.
+        with native.engine.begin() as connection:
+            connection.execute(text("""
+                CREATE FUNCTION reject_ack_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION 'lock error at ACK commit' USING ERRCODE = '55P03'; END
+                $$
+            """))
+            connection.execute(text("""
+                CREATE CONSTRAINT TRIGGER reject_ack_commit AFTER UPDATE ON orders
+                DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+                WHEN (NEW.id = 'busy-ack' AND NOT NEW.creation_pending) EXECUTE FUNCTION reject_ack_commit()
+            """))
+
+    async def exercise():
+        now = time.time()
+        for identity in ('busy-ack', 'independent-receipt'):
+            order = InFlightOrder(identity, 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
+                                  Decimal('5'), now, Decimal('10'))
+            tracker.start_tracking_order(order)
+            with session_order_scope(native.session.id, native.session.generation):
+                await native.owner.admit_order(native.market, order)
+            native.owner._record_send_attempt(identity, {'clOrdId': identity}, 123456, {})
+        tracked = tracker.fetch_tracked_order('busy-ack')
+        loop = asyncio.get_running_loop()
+        rejected = asyncio.Event()
+
+        def notice_rejected_fence(context):
+            if getattr(context.original_exception, 'pgcode', None) == '55P03' and 'FOR SHARE NOWAIT' in (context.statement or ''):
+                loop.call_soon_threadsafe(rejected.set)
+
+        open_update = OrderUpdate('LIFE-USDT', now, OrderState.OPEN, 'busy-ack', 'venue-ack')
+        cancel_update = open_update._replace(new_state=OrderState.PENDING_CANCEL, update_timestamp=now + 1)
+        request = SimpleNamespace(url='https://offline.invalid' + ORDER_PATH,
+                                  data=json.dumps({'clOrdId': 'independent-receipt'}))
+        response = SimpleNamespace(status=200, json=AsyncMock(return_value={'code': '0'}))
+        tasks = []
+        event.listen(native.engine, 'handle_error', notice_rejected_fence)
+        try:
+            with native.engine.connect() as blocker:
+                blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE').all()
+                ack = asyncio.create_task(tracker._process_order_update(open_update))
+                tasks.append(ack)
+                await asyncio.wait_for(rejected.wait(), 2)
+                if outcome == 'cancelled':
+                    ack.cancel()
+                if outcome != 'commit_rejected':
+                    cancel = asyncio.create_task(tracker._process_order_update(cancel_update))
+                    tasks.append(cancel)
+                receipt = asyncio.create_task(native.owner.record_transport_receipt(request, response))
+                tasks.append(receipt)
+                await asyncio.wait_for(asyncio.shield(receipt), .4)
+                assert ack in native.owner.terminal_tasks and not ack.done()
+                assert tracked.current_state is OrderState.PENDING_CREATE
+                if outcome != 'commit_rejected':
+                    assert not cancel.done()
+                with native.manager.get_new_session() as db:
+                    assert db.get(SubmissionAttempt, 'independent-receipt').receipt == {'http_status': 200, 'code': '0'}
+                    assert db.get(Order, 'busy-ack').creation_pending
+                blocker.rollback()
+            result, *others = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), 2)
+            assert all(other is None for other in others) and not native.owner.terminal_tasks
+            if outcome == 'commit_rejected':
+                assert isinstance(result, OperationalError) and result.orig.pgcode == '55P03'
+                assert tracked.current_state is OrderState.PENDING_CREATE and not native.manager.persistence_healthy
+            else:
+                if outcome == 'cancelled':
+                    assert isinstance(result, asyncio.CancelledError)
+                else:
+                    assert result is None
+                assert tracked.current_state is OrderState.PENDING_CANCEL and native.manager.persistence_healthy
+        finally:
+            event.remove(native.engine, 'handle_error', notice_rejected_fence)
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    native.loop.run_until_complete(exercise())
+    with native.manager.get_new_session() as db:
+        committed = outcome != 'commit_rejected'
+        assert db.get(SubmissionAttempt, 'busy-ack').state == ('acknowledged' if committed else 'possibly_sent')
+        assert db.query(OrderStatus).filter_by(order_id='busy-ack', status='BuyOrderCreated').count() == int(committed)
 
 
 @pytest.mark.parametrize('stage', ['intent', 'acknowledged'])
