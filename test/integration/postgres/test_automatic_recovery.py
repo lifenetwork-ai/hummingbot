@@ -101,7 +101,7 @@ def test_attempt_is_durable_before_transport_and_contains_no_auth_headers(owned)
 
 
 @pytest.fixture
-def managed_native(owned, expiry_code=None, *, perpetual=False, side=TradeType.BUY):
+def managed_native(owned, expiry_code=None, *, perpetual=False, side=TradeType.BUY, connection_reset=False):
     from test.integration.postgres.test_ownership import assistant
 
     from bidict import bidict
@@ -146,6 +146,10 @@ def managed_native(owned, expiry_code=None, *, perpetual=False, side=TradeType.B
             if expiry_code else {'code': '50013', 'data': []})
     response.text = AsyncMock(return_value=json.dumps(body))
     response.json = AsyncMock(return_value=body)
+    if connection_reset:
+        owned.owner.scoped_recovery_enabled = True
+        owned.owner.automatic_recovery.status['cold_recovery_supported'] = True
+        transport.call.side_effect = ConnectionResetError('Connection reset before the order response')
 
     async def create():
         extra = {'position_action': PositionAction.OPEN} if perpetual else {}
@@ -252,6 +256,112 @@ def test_repeated_not_found_does_not_retire_an_uncertain_native_order(managed_na
     context.loop.run_until_complete(observe())
     assert exchange.in_flight_orders['auto-order'].current_state == OrderState.PENDING_CREATE
     assert context.owner.automatic_recovery.active and not context.owner.allow_new_orders
+    assert transport.call.await_count == 1
+
+
+@pytest.fixture
+def disconnected_sell(owned):
+    yield from managed_native.__wrapped__(owned, side=TradeType.SELL, connection_reset=True)
+
+
+@pytest.mark.parametrize('settle', ['confirmed_cancel', 'stop'])
+def test_random_step_resumes_uncertain_sell_recovery_on_the_same_owner(disconnected_sell, settle):
+    from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+    from hummingbot.core.order_submission_guard import SessionSubmissionBlocked
+    from hummingbot.model.order import Order
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+    from hummingbot.model.trade_fill import TradeFill
+
+    context, exchange, recorder, transport = disconnected_sell
+    owner = context.owner
+    owner_generation = owner.generation
+    recovery = owner.automatic_recovery
+    assert recovery.active and not recovery.isolated and not owner.allow_new_orders
+    assert transport.call.await_count == 1
+    with context.manager.get_new_session() as db:
+        attempt = db.get(SubmissionAttempt, 'auto-order')
+        assert attempt.state == 'uncertain' and attempt.receipt is None
+
+    core = SimpleNamespace(strategy=SimpleNamespace(config=None, controllers={}), trade_fill_db=context.manager,
+                           markets_recorder=recorder, connector_manager=SimpleNamespace(connectors={'okx': exchange}),
+                           KILL_TIMEOUT=20)
+    missing, proved = asyncio.Event(), asyncio.Event()
+    cancellation = dict(clOrdId='auto-order', ordId='venue-auto', instId='BTC-USDT', side='sell',
+                        ordType='post_only', px='100', sz='.1', accFillSz='0', uTime='1700000001000', state='canceled')
+
+    async def read_status(*args, **kwargs):
+        if not proved.is_set():
+            missing.set()
+            raise OKXOrderNotFoundError('51603')
+        return {'code': '0', 'data': [cancellation]}
+
+    async def shutdown(**kwargs):
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = shutdown
+
+    async def scenario():
+        # Observe the venue miss, then advance the scheduler's step without
+        # changing the session, control version or PostgreSQL owner.
+        await recovery.step(core, force=True)
+        assert recovery.status['reason_code'] == 'order_not_found_inconclusive'
+        missing.clear()
+        state = context.store.read()
+        session = dict(state['mm_session'], generation=1, step_index=1, status='preparing')
+        with context.engine.begin() as connection:
+            connection.execute(text('UPDATE bot_state SET mm_session=CAST(:session AS jsonb)'),
+                               {'session': json.dumps(session)})
+        await recovery.close()
+        assert await owner.shutdown_core(core)
+        assert owner.generation == owner_generation and not context.store.read()['recovery_state'].get('halt')
+        owner.prepare(state['control_version'], state['config_file_path'])
+        task = asyncio.create_task(owner.reconcile(core))
+        try:
+            await asyncio.wait_for(missing.wait(), 2)
+            async with asyncio.timeout(2):
+                while not task.done() and recovery.status['reason_code'] != 'order_not_found_inconclusive':
+                    await asyncio.sleep(.01)
+            # Before the fix this raises 51603 and persists a technical HALT.
+            if task.done():
+                await task
+            assert not owner.allow_new_orders and not context.store.read()['recovery_state'].get('halt')
+            reported = context.store.read()['recovery_state']['automatic_recovery']
+            assert reported['phase'] == 'bootstrapping_recovery' and reported['reason_code'] == 'order_not_found_inconclusive'
+            with context.manager.get_new_session() as db:
+                assert db.get(Order, 'auto-order').creation_pending and db.query(TradeFill).count() == 0
+            if settle == 'stop':
+                with context.engine.begin() as connection:
+                    connection.execute(text("UPDATE bot_state SET desired_state='stopped', control_version=control_version+1"))
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+                assert await owner.shutdown_core(core)
+                assert not owner.allow_new_orders and recovery.status['phase'] == 'settled_stopped'
+                with context.manager.get_new_session() as db:
+                    assert db.get(Order, 'auto-order').creation_pending
+            else:
+                proved.set()
+                await asyncio.wait_for(task, 3)
+                assert owner.allow_new_orders and not recovery.active and recovery.resume_scope is None
+                with pytest.raises(SessionSubmissionBlocked):
+                    owner._check_mm_authority(context.store.read(), ('mm-auto', 0))
+                with context.manager.get_new_session() as db:
+                    saved = db.get(Order, 'auto-order')
+                    assert not saved.creation_pending and saved.exchange_order_id == 'venue-auto'
+                    assert db.get(SubmissionAttempt, 'auto-order').state == 'terminal'
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+    with patch.object(type(exchange), 'ready', PropertyMock(return_value=True)), \
+            patch.object(owner, '_open_orders', AsyncMock(return_value=[])), \
+            patch.object(exchange, '_request_order_update', AsyncMock(side_effect=read_status)), \
+            patch.object(exchange, '_request_order_fills', AsyncMock(return_value={'code': '0', 'data': []})), \
+            patch.object(exchange, '_api_get', AsyncMock(return_value={'code': '0', 'data': []})):
+        context.loop.run_until_complete(scenario())
+    assert not context.store.read()['recovery_state'].get('halt')
     assert transport.call.await_count == 1
 
 

@@ -1213,6 +1213,7 @@ class BotOwnership:
             status.update(phase='reconciling' if isolated else 'idle', reason_code='order_outcome_unknown' if isolated else None,
                           operator_required=operator_required)
             self.automatic_recovery.bootstrap_orders.clear()
+            self.automatic_recovery.resume_scope = None
 
             def recovered(state):
                 state.update(automatic_recovery=dict(self.automatic_recovery.status))
@@ -1598,7 +1599,20 @@ class BotOwnership:
                 if state.get('halt_kind') == 'shutdown_pending':
                     state.pop('halt_kind', None)
                 if deferred:
-                    self.automatic_recovery.status.update(phase='settled_stopped', reason_code='uncertain_effects_retained')
+                    # A profile rollover can replace the strategy without a new
+                    # DB owner. Carry its proved recovery scope into startup too.
+                    session = finishing_row.get('mm_session') or {}
+                    generation = session.get('generation')
+                    previous_scope = self.automatic_recovery.resume_scope
+                    continuing = (finishing_row['desired_state'] == 'running'
+                                  and session.get('status') == 'preparing' and previous_scope is not None
+                                  and session.get('id') == previous_scope[0]
+                                  and type(generation) is int and type(previous_scope[1]) is int
+                                  and generation > previous_scope[1]
+                                  and not self.shutdown_requested and not self.stopping())
+                    self.automatic_recovery.status.update(
+                        phase='bootstrapping_recovery' if continuing else 'settled_stopped',
+                        reason_code='uncertain_effects_retained')
                     state['automatic_recovery'] = dict(self.automatic_recovery.status)
                 elif self.automatic_recovery.active or state.get('automatic_recovery'):
                     self.automatic_recovery.status.update(phase='idle', reason_code=None, operator_required=False)

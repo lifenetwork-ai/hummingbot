@@ -21,6 +21,7 @@ from sqlalchemy import text
 from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.order_submission_guard import session_order_scope
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.model.order import Order
 from hummingbot.model.runtime_journal import RuntimeJournal, SubmissionAttempt
 from hummingbot.model.trade_fill import TradeFill
@@ -52,6 +53,12 @@ def assert_one_fill(context):
         assert fill.amount == Decimal('.04') and fill.price == Decimal('100')
         assert fill.trade_fee['flat_fees'] == [{'token': 'USDT', 'amount': '0.01'}]
         assert db.query(RuntimeJournal).filter_by(kind='fill', order_id='auto-order').count() == 1
+
+
+def assert_only_original_mutation(transport):
+    requests = [args[0] for args, _ in transport.call.await_args_list]
+    post, = [request for request in requests if request.method != RESTMethod.GET]
+    assert post.method == RESTMethod.POST and json.loads(post.data)['clOrdId'] == 'auto-order'
 
 
 def test_simultaneous_native_sells_cannot_each_spend_the_same_unreserved_cash(managed_native):
@@ -150,7 +157,8 @@ def test_late_ws_fill_and_duplicate_rest_fill_release_only_the_proved_order(mana
         core.strategy.sell.assert_not_called()
     context.loop.run_until_complete(scenario())
     assert_one_fill(context)
-    assert transport.call.await_count == 1 and not context.store.read()['recovery_state'].get('halt')
+    assert_only_original_mutation(transport)
+    assert not context.store.read()['recovery_state'].get('halt')
 
 
 def test_late_private_ack_waits_for_proof_and_does_not_release_a_different_unknown(managed_native):
@@ -187,7 +195,8 @@ def test_late_private_ack_waits_for_proof_and_does_not_release_a_different_unkno
     with context.manager.get_new_session() as db:
         assert db.get(SubmissionAttempt, 'still-unknown').state == 'uncertain'
         assert db.query(TradeFill).count() == 0
-    assert transport.call.await_count == 1 and not context.store.read()['recovery_state'].get('halt')
+    assert_only_original_mutation(transport)
+    assert not context.store.read()['recovery_state'].get('halt')
 
 
 @pytest.mark.parametrize('settled_before_error', [False, True], ids=['before-receipt', 'after-receipt'])
@@ -219,7 +228,8 @@ def test_retry_between_durable_fill_and_verification_receipt_does_not_apply_twic
     assert_one_fill(context)
     assert set(recovery.quarantined) == {'still-unknown'}
     assert Decimal(recovery.status['reserved_base']['BTC']) == Decimal('.1')
-    assert context.owner.allow_new_orders and transport.call.await_count == 1
+    assert_only_original_mutation(transport)
+    assert context.owner.allow_new_orders
     assert not context.store.read()['recovery_state'].get('halt')
 
 
@@ -285,7 +295,7 @@ def test_delayed_scoped_proof_never_overrides_a_newer_authority_or_failed_databa
             if interruption in ('owner_loss', 'persistence'):
                 assert db.get(SubmissionAttempt, 'auto-order').state == 'uncertain'
                 assert db.query(TradeFill).count() == 0
-        assert transport.call.await_count == 1
+        assert_only_original_mutation(transport)
         if interruption == 'risk':
             assert context.store.read()['recovery_state']['reason'] == 'drawdown_controller_limit'
         if successor:
