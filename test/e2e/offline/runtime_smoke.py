@@ -1,4 +1,5 @@
 """Credential-free ABI/runtime checks for the slim deployment image."""
+import hashlib
 import importlib
 import importlib.util
 import io
@@ -123,13 +124,9 @@ def main():
     ssl.create_default_context()
     trust = ssl.get_default_verify_paths()
     assert trust.cafile and Path(trust.cafile).is_file()
-    assert len(list(SCRIPTS.glob("*.sql"))) == 24
-    for name in ('018_create_admin_access.sql', '019_create_exchange_credentials.sql', '020_add_cleanup_order_scope.sql',
-                 '021_create_runtime_journal.sql', '022_create_overview_fee_projection.sql',
-                 '023_create_recovery_proof_fills.sql', '024_create_session_cash_baselines.sql'):
-        assert (SCRIPTS / name).is_file(), name
-    assert (SCRIPTS / "017_add_session_discovery_index.sql").is_file()
-    assert (SCRIPTS / "016_create_mm_events.sql").is_file()
+    expected_migrations = json.loads(Path(__file__).with_name("postgres-migrations.json").read_text())
+    packaged_migrations = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in SCRIPTS.glob("*.sql")}
+    assert expected_migrations and packaged_migrations == expected_migrations, "Packaged PostgreSQL migrations differ from the checkout"
     assert (SCRIPTS.parent / "manual_scripts/001_normalize_legacy_names.sql").is_file()
     cli_version = subprocess.check_output(["hbot", "--version"], text=True, timeout=20).strip()
     assert cli_version
@@ -137,7 +134,7 @@ def main():
     assert report["environment_bytes_after"] < report["environment_bytes_before"]
     logging_smoke = check_service_logging()
     print(json.dumps({"passed": True, "numba_jit": True, "ta_lib": True, "tls_trust": True,
-                      "connector_count": len(connectors), "sql_scripts": len(list(SCRIPTS.glob("*.sql"))),
+                      "connector_count": len(connectors), "sql_scripts": len(packaged_migrations),
                       "build_tools_absent": True, "cli_version": cli_version,
                       "environment_bytes": report["environment_bytes_after"], "service_logging": logging_smoke}))
 

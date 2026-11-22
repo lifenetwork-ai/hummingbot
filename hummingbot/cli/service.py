@@ -516,7 +516,8 @@ class ServiceHost:
         def prepare_database(settings):
             engine = SQLConnectionManager.initialize_postgres(settings, allow_migration_standby=True)
             try:
-                store = BotStateStore(engine, settings.bot_id)
+                store = BotStateStore(engine, settings.bot_id,
+                                      checkpoint_schema_pending=SQLConnectionManager._postgres_migrations_pending)
                 store.ensure()
                 return engine, store, SQLConnectionManager._postgres_migrations_pending, store.read()
             except BaseException:
@@ -730,6 +731,7 @@ class ServiceHost:
                 self.phase = "standby"
                 return
             self.migrations_pending = False
+            self.store.checkpoint_schema_pending = False
 
         # Existing owners are checked immediately below. try_acquire also checks
         # them, so calling both repeats the same synchronous DB round trip.

@@ -92,9 +92,10 @@ def _overview_policy_projection():
 
 
 class BotStateStore:
-    def __init__(self, engine: Engine, bot_id: str):
+    def __init__(self, engine: Engine, bot_id: str, *, checkpoint_schema_pending=False):
         self.engine = engine
         self.bot_id = bot_id
+        self.checkpoint_schema_pending = checkpoint_schema_pending
         self._published_coverage = None
 
     def read(self, *, publication: bool = False) -> Optional[dict]:
@@ -119,18 +120,26 @@ class BotStateStore:
                    "CASE WHEN jsonb_typeof(mm_session)='object' "
                    "THEN mm_session - 'catalogue' ELSE mm_session END AS mm_session, "
                    + _overview_policy_projection())
-        if not publication:
-            # Only the checkpoint referenced by the committed status may be
-            # restored. Inline snapshots written by earlier revisions still read directly.
-            source += (" LEFT JOIN public.bot_liquidity_checkpoints p ON p.bot_id=b.bot_id "
-                       f"AND p.token=b.status->>'{_CHECKPOINT_REF}'")
-            columns = 'b.*, p.payload AS checkpoint_payload'
+        checkpoint_join = (" LEFT JOIN public.bot_liquidity_checkpoints p ON p.bot_id=b.bot_id "
+                           f"AND p.token=b.status->>'{_CHECKPOINT_REF}'")
         with self.engine.connect() as connection:
-            row = connection.execute(text(f"""
-                SELECT {columns}, EXTRACT(EPOCH FROM (clock_timestamp() - b.heartbeat)) AS heartbeat_age_s,
-                    EXTRACT(EPOCH FROM clock_timestamp()) AS database_now
-                FROM {source} WHERE b.bot_id=:bot_id
-            """), {"bot_id": self.bot_id}).mappings().first()
+            def read_row(projection, tables):
+                return connection.execute(text(f"""
+                    SELECT {projection}, EXTRACT(EPOCH FROM (clock_timestamp() - b.heartbeat)) AS heartbeat_age_s,
+                        EXTRACT(EPOCH FROM clock_timestamp()) AS database_now
+                    FROM {tables} WHERE b.bot_id=:bot_id
+                """), {"bot_id": self.bot_id}).mappings().first()
+
+            if publication:
+                row = read_row(columns, source)
+            else:
+                # The pending schema can only publish inline snapshots. If an
+                # owner starts publishing references, the table is now visible.
+                row = read_row('b.*', source) if self.checkpoint_schema_pending else None
+                status = row['status'] if row else None
+                if not self.checkpoint_schema_pending or (isinstance(status, dict) and status.get(_CHECKPOINT_REF)):
+                    row = read_row('b.*, p.payload AS checkpoint_payload', source + checkpoint_join)
+                    self.checkpoint_schema_pending = False
         if row is None:
             return None
         result = dict(row)

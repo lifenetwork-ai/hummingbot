@@ -18,6 +18,8 @@ SCRIPTS = Path(__file__).resolve().parent / "scripts"
 MIGRATION_LOCK = 0x48424F544D494752  # HBOTMIGR; locks are scoped to the connected database
 HISTORY_TABLE = "hbot_schema_migrations"
 BOOTSTRAP_TIMEOUT = 180
+LIQUIDITY_CHECKPOINT_MIGRATION = "025_create_bot_liquidity_checkpoints.sql"
+LIQUIDITY_CHECKPOINT_TABLE = "bot_liquidity_checkpoints"
 SESSION_CASH_BASELINES_MIGRATION = (
     "024_create_session_cash_baselines.sql",
     # SHA-256 of the packaged SQL script.
@@ -56,7 +58,7 @@ def _type_matches(actual, expected, dialect) -> bool:
     return str(actual.compile(dialect=dialect)) == str(expected.compile(dialect=dialect))
 
 
-def validate_schema(connection: Connection) -> None:
+def validate_schema(connection: Connection, *, allow_missing_liquidity_checkpoint=False) -> bool:
     """Read-only catalog validation; safe with a DML-only runtime role."""
     reject_legacy_schema(connection)
     inspector = inspect(connection)
@@ -65,6 +67,8 @@ def validate_schema(connection: Connection) -> None:
     errors = []
     for table in metadata.sorted_tables:
         if table.name not in tables:
+            if allow_missing_liquidity_checkpoint and table.name == LIQUIDITY_CHECKPOINT_TABLE:
+                continue
             errors.append(f"missing table public.{table.name}")
             continue
         actual_columns = {column["name"]: column for column in inspector.get_columns(table.name, schema="public")}
@@ -152,6 +156,7 @@ def validate_schema(connection: Connection) -> None:
             errors.append("check constraint mismatch chk_bot_state_desired_state")
     if errors:
         raise PostgreSQLBootstrapError("Incompatible PostgreSQL schema: " + "; ".join(errors))
+    return LIQUIDITY_CHECKPOINT_TABLE in tables
 
 
 def _pending_scripts(connection, manifest):
@@ -178,7 +183,7 @@ def _adopt_existing_migration(connection, name, checksum):
             OR to_regclass('public.idx_daily_balance_snapshots_scope_day') IS NOT NULL
     """)).scalar_one()
     if existing:
-        validate_schema(connection)
+        validate_schema(connection, allow_missing_liquidity_checkpoint=True)
     return existing
 
 
@@ -189,10 +194,12 @@ def migration_owner_available(engine):
                                        {"namespace": OWNER_NAMESPACE, "key": OWNER_KEY}).scalar_one())
 
 
-def _migration_standby(connection, allow_standby):
+def _migration_standby(connection, allow_standby, pending):
     if allow_standby:
-        # Only a schema this revision can already use may pass startup in standby.
-        validate_schema(connection)
+        # The predecessor's inline reporting still works while migration 025
+        # waits for ownership. Other missing or incompatible tables fail startup.
+        validate_schema(connection, allow_missing_liquidity_checkpoint=any(
+            name == LIQUIDITY_CHECKPOINT_MIGRATION for name, _, _ in pending))
         return False
     raise PostgreSQLBootstrapError(
         "PostgreSQL migrations are pending while a trading owner or migration is active; stop writers or use runtime standby.",
@@ -203,12 +210,13 @@ def _migration_standby(connection, allow_standby):
 def bootstrap_postgres(
     engine: Engine, *, auto_migrate: bool, scripts: Optional[Path] = None,
     lock_wait: float = 60, statement_timeout: float = 30, total_timeout: float = BOOTSTRAP_TIMEOUT,
-    legacy_cutover: bool = False, allow_standby: bool = False,
+    legacy_cutover: bool = False, allow_standby: bool = False, allow_missing_liquidity_checkpoint: bool = False,
 ) -> bool:
     """Run a batch under one physical session lock, then always validate its schema.
 
-    True means validated/complete; False is compatible read-only standby with
-    pending SQL. A standby caller must retry before acquiring trading ownership.
+    True means validated/complete. False means the schema can serve standby
+    reads while SQL is pending. A standby engine must retry before acquiring
+    trading ownership.
     A deadline watchdog cancels a running command even when a multi-statement file
     contains several statements individually shorter than statement_timeout.
     """
@@ -255,7 +263,7 @@ def bootstrap_postgres(
                             if locked:
                                 break
                             if allow_standby:
-                                return _migration_standby(connection, allow_standby)
+                                return _migration_standby(connection, allow_standby, pending)
                             if time.monotonic() >= lock_deadline:
                                 raise PostgreSQLBootstrapError("PostgreSQL migration lock deadline exceeded.", retryable=True)
                             time.sleep(min(0.1, max(0, lock_deadline - time.monotonic())))
@@ -272,7 +280,7 @@ def bootstrap_postgres(
                             owner_locked = cursor.fetchone()[0]
                         raw.commit()
                         if not owner_locked:
-                            return _migration_standby(connection, allow_standby)
+                            return _migration_standby(connection, allow_standby, pending)
                         # Exclude existing/future trading owners before ANY DDL.
                         with raw.cursor() as cursor:
                             cursor.execute("""CREATE TABLE IF NOT EXISTS public.hbot_schema_migrations (
@@ -297,12 +305,13 @@ def bootstrap_postgres(
                             raw.commit()
                         action = "Validated existing schema for" if adopted else "Staged" if legacy_cutover else "Applied"
                         LOGGER.info("%s PostgreSQL script %s sha256=%s", action, name, checksum)
-                validate_schema(connection)
+                schema_complete = validate_schema(
+                    connection, allow_missing_liquidity_checkpoint=allow_missing_liquidity_checkpoint and not auto_migrate)
                 if time.monotonic() >= deadline:
                     raise PostgreSQLBootstrapError("PostgreSQL bootstrap deadline exceeded.", retryable=True)
                 if legacy_cutover:
                     raw.commit()
-                return True
+                return schema_complete
             finally:
                 timer.cancel()
                 timer.join()

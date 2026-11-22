@@ -15,6 +15,7 @@ async def test_deferred_migration_keeps_startup_healthy_and_blocks_trading_until
     settings = RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test', 'ENABLE_AUTO_MIGRATION': 'true'})
     host = ServiceHost(settings, asyncio.Event(), MagicMock())
     host.engine = MagicMock()
+    host.store = SimpleNamespace(checkpoint_schema_pending=True)
     host.owner = MagicMock()
     host.owner.connection = None
     host.owner.try_acquire.return_value = False
@@ -24,10 +25,12 @@ async def test_deferred_migration_keeps_startup_healthy_and_blocks_trading_until
         await host.observe_once()
         assert host.phase == 'standby'
         assert host.service_status()['reason_code'] == 'migration_pending'
+        assert host.store.checkpoint_schema_pending
         host.owner.try_acquire.assert_not_called()
         assert (await host.health(SimpleNamespace(path='/startup'))).status == 200
         assert (await host.health(SimpleNamespace(path='/ready'))).status == 503
         await host.observe_once()
+        assert not host.store.checkpoint_schema_pending
         host.owner.try_acquire.assert_called_once()
         await host.observe_once()
         assert migrate.call_count == 2  # Completed bootstrap never enters the quote hot path.

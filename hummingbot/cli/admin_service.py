@@ -97,8 +97,9 @@ class AdminService:
                 self.engine = create_postgres_engine(self.settings)
                 # Only the engine migrates/ensures bot state. API startup is
                 # read-only schema validation and never acquires ownership.
-                await asyncio.to_thread(bootstrap_postgres, self.engine, auto_migrate=False)
-                self.store = BotStateStore(self.engine, self.settings.bot_id)
+                complete = await asyncio.to_thread(bootstrap_postgres, self.engine, auto_migrate=False,
+                                                   allow_missing_liquidity_checkpoint=True)
+                self.store = BotStateStore(self.engine, self.settings.bot_id, checkpoint_schema_pending=not complete)
                 self.bootstrapped, self.phase = True, 'api_running'
                 await self.stop.wait()
         finally:

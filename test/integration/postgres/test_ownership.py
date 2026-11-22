@@ -795,27 +795,35 @@ def test_shutdown_proof_drains_both_connectors_without_head_of_line_wait(owned, 
             assert connector._all_trade_updates_for_order.await_count == 8
 
 
-def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned, caplog):
+def test_incomplete_shutdown_preserves_owner_and_durable_halt(owned, caplog, monkeypatch):
     core = reconciliation_core(owned)
+    budget = 8.0
+    clock = owned.loop.time
+    queued_time = 0.0
+    monkeypatch.setattr(owned.loop, 'time', lambda: clock() + queued_time)
 
     async def stuck_shutdown(**kwargs):
+        nonlocal queued_time
+        # Advance the deadline after PostgreSQL has committed the shutdown fence.
+        queued_time += budget
         await asyncio.Event().wait()
 
     core.shutdown = AsyncMock(side_effect=stuck_shutdown)
-    assert not owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=0.02))
+    assert not owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=budget))
+    core.shutdown.assert_awaited_once()
     recovery = owned.store.read()["recovery_state"]
     assert recovery["halt"] and recovery["shutdown_incomplete"] and recovery["runtime_active"]
     successor = BotOwnership(owned.engine, "hummingbot")
     assert not successor.try_acquire()
 
     assert any(getattr(record, 'event', None) == 'runtime_shutdown_timeout'
-               and record.tracked_order_count == 0 and record.timeout_seconds == 0.02
+               and record.tracked_order_count == 0 and record.timeout_seconds == budget
                for record in caplog.records)
     from hummingbot.logger.service_logging import ServiceFormatter
     record = next(record for record in caplog.records if getattr(record, 'event', None) == 'runtime_shutdown_timeout')
     payload = json.loads(ServiceFormatter('json', {}).format(record))
     assert payload['severity'] == 'ERROR' and payload['reason_code'] == 'runtime_shutdown_timeout'
-    assert 'timeout_s=0.020 tracked_orders=0' in payload['message']
+    assert f'timeout_s={budget:.3f} tracked_orders=0' in payload['message']
 
 
 @pytest.mark.parametrize('waiting_stage,timeout', [

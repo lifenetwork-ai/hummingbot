@@ -14,10 +14,20 @@ import pytest
 from hummingbot.model.bot_state_store import BotStateStore
 
 
-def free_port():
-    with socket.socket() as connection:
-        connection.bind(("127.0.0.1", 0))
-        return connection.getsockname()[1]
+def free_port(*, with_engine=False):
+    while True:
+        with socket.socket() as connection:
+            connection.bind(("127.0.0.1", 0))
+            port = connection.getsockname()[1]
+            if not with_engine:
+                return port
+            # The supervisor binds a second listener next to the API port.
+            with socket.socket() as engine:
+                try:
+                    engine.bind(("127.0.0.1", port + 1 if port < 65535 else 65534))
+                except OSError:
+                    continue
+                return port
 
 
 def eventually(check, timeout=25):
@@ -40,6 +50,19 @@ def health(port, path):
         return None, None
 
 
+def wait_for_startup(process, port, log):
+    try:
+        eventually(lambda: process.poll() is not None or health(port, '/startup')[0] == 200)
+    except pytest.fail.Exception as error:
+        reason = str(error)
+    else:
+        if process.poll() is None:
+            return
+        reason = f'Service exited during startup (code {process.returncode}).'
+    output = Path(log.name).read_text(errors='replace')[-4000:]
+    pytest.fail(f'{reason}\nLast service logs\n{output}')
+
+
 def start_service(tmp_path, *, auto_migrate=True, admin_enabled=False, basic_enabled=None):
     tmp_path.mkdir()
     conf = tmp_path / "conf"
@@ -49,7 +72,7 @@ def start_service(tmp_path, *, auto_migrate=True, admin_enabled=False, basic_ena
     for path in conf.rglob("*"):
         path.chmod(0o555 if path.is_dir() else 0o444)
     conf.chmod(0o555)
-    port = free_port()
+    port = free_port(with_engine=True)
     env = {**os.environ, "DATABASE_URL": os.environ["HBOT_TEST_POSTGRES_URL"], "K_SERVICE": "offline-test",
            "K_REVISION": tmp_path.name, "BOT_ID": "hummingbot", "PORT": str(port),
            "ENABLE_AUTO_MIGRATION": str(auto_migrate).lower(), "PYTHONDONTWRITEBYTECODE": "1",

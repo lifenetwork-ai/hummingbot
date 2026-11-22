@@ -2083,6 +2083,10 @@ def main():
         assets.chmod(0o755)
         for name in ("exchange.py", "runtime_smoke.py", "availability_service.py", "oom_entrypoint.py", "pmm.yml", "controller-spot.yml", "controller-perpetual.yml", "script-perpetual.yml"):
             assets.joinpath(name).write_bytes((ROOT / "test/e2e/offline" / name).read_bytes())
+        scripts = ROOT / "hummingbot/model/db_migration/postgres/scripts"
+        assets.joinpath("postgres-migrations.json").write_text(json.dumps({
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(scripts.glob("*.sql"))
+        }))
         write_fixtures(assets / "fixtures.json")
         import yaml
         profiles = yaml.safe_load((ROOT / "deploy/cloudrun/conf/life_mm_profiles.yaml").read_text())

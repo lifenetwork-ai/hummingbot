@@ -3,7 +3,7 @@ import base64
 import json
 import time
 from test.integration.postgres.test_managed_service import call
-from test.integration.postgres.test_service import eventually, health, start_service, terminate
+from test.integration.postgres.test_service import eventually, start_service, terminate, wait_for_startup
 
 import pytest
 from sqlalchemy import text
@@ -41,7 +41,7 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
     try:
         process, port, log = start_service(tmp_path / 'recovery-first', admin_enabled=True)
         processes.append((process, log))
-        eventually(lambda: health(port, '/startup')[0] == 200)
+        wait_for_startup(process, port, log)
         eventually(lambda: state.read() and state.read()['owner_uuid'])
         code, saved = call(port, '/credentials/okx/okx', key='save', body=dict(expected_version=0,
                                                                                expected_control_version=0, credentials=dict(api_key='RECOVERY-CANARY-API', secret_key='RECOVERY-CANARY-SECRET',
@@ -219,7 +219,7 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
         terminate(process)
         process, port, log = start_service(tmp_path / 'recovery-restart', admin_enabled=True, auto_migrate=False)
         processes.append((process, log))
-        eventually(lambda: health(port, '/startup')[0] == 200)
+        wait_for_startup(process, port, log)
         eventually(lambda: state.read()['owner_uuid'] and state.read()['status'].get('phase') == 'stopped')
         assert state.read()['control_version'] == 2 and state.read()['desired_state'] == 'stopped'
         assert not state.read()['recovery_state'].get('halt') and not state.read()['status']['running']

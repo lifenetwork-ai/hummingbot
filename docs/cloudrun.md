@@ -483,6 +483,9 @@ Migration 025 adds `bot_liquidity_checkpoints` for the private rolling coverage
 and fill-recovery reporting histories. The new reader restores older snapshots
 with inline histories. Older images read the public status from `bot_state`;
 they start a new private reporting history after rollback.
+With automatic migration enabled, a replacement can serve standby status
+from the inline snapshot while the predecessor owns the database. Migration
+025 runs after the predecessor releases ownership.
 
 For an upgrade whose required schema cannot validate beside the old owner, use
 a stopped-writer maintenance window. API Stop preserves the engine process and

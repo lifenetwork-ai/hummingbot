@@ -305,7 +305,8 @@ async def test_api_initialization_stop_never_connects_or_acquires_ownership(monk
 
 
 @pytest.mark.asyncio
-async def test_api_bootstrap_only_validates_and_never_ensures_bot_state(monkeypatch):
+@pytest.mark.parametrize('schema_complete', [True, False])
+async def test_api_bootstrap_only_validates_and_never_ensures_bot_state(monkeypatch, schema_complete):
     import asyncio
     from unittest.mock import AsyncMock, MagicMock
 
@@ -316,9 +317,11 @@ async def test_api_bootstrap_only_validates_and_never_ensures_bot_state(monkeypa
     monkeypatch.setattr('hummingbot.model.bot_state_store.BotStateStore.ensure', ensure)
     stop, loop = asyncio.Event(), asyncio.get_running_loop()
 
-    def validate(value, *, auto_migrate):
+    def validate(value, *, auto_migrate, allow_missing_liquidity_checkpoint):
         assert value is engine and auto_migrate is False
+        assert allow_missing_liquidity_checkpoint is True
         loop.call_soon_threadsafe(stop.set)
+        return schema_complete
 
     monkeypatch.setattr('hummingbot.model.db_migration.postgres.runner.bootstrap_postgres', validate)
     settings = replace(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}), port=0)
@@ -326,6 +329,7 @@ async def test_api_bootstrap_only_validates_and_never_ensures_bot_state(monkeypa
     host.engine_health = AsyncMock(return_value=(200, {}))
     await asyncio.wait_for(host.run(), timeout=5)
     assert host.closed and host.store is not None
+    assert host.store.checkpoint_schema_pending is not schema_complete
     ensure.assert_not_called()
     engine.dispose.assert_called_once()
 
