@@ -26,3 +26,11 @@ class BotState(HummingbotBase):
     recovery_state = Column(JSONB().with_variant(JSON(), "sqlite"), nullable=False, server_default=text("'{}'"))
     # Effective current MM session only; no session-history or attribution ledger.
     mm_session = Column(JSONB().with_variant(JSON(), "sqlite"))
+
+
+class BotLiquidityCheckpoint(HummingbotBase):
+    __tablename__ = "bot_liquidity_checkpoints"
+
+    bot_id = Column(Text, primary_key=True)
+    token = Column(Text, nullable=False)
+    payload = Column(JSONB().with_variant(JSON(), "sqlite"), nullable=False)

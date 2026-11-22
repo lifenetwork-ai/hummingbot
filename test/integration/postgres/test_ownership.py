@@ -677,6 +677,52 @@ def test_terminal_checkpoint_drains_many_maker_attempts_with_bounded_parallel_re
     assert not state.get("shutdown_incomplete")
 
 
+def test_terminal_checkpoint_reads_closed_orders_while_cancelling_live_orders(owned):
+    core = reconciliation_core(owned)
+    core.strategy.executor_orchestrator = object()
+    live = intent(owned, 'live-at-shutdown')
+    closed = intent(owned, 'closed-at-shutdown')
+    closed.update_exchange_order_id('venue-closed')
+    closed.current_state = OrderState.CANCELED
+    with owned.manager.get_new_session() as session, session.begin():
+        for order in (live, closed):
+            session.get(Order, order.client_order_id).creation_pending = False
+    can_cancel = asyncio.Event()
+    reads = []
+
+    async def cancel_orders():
+        await can_cancel.wait()
+        live.current_state = OrderState.CANCELED
+
+    async def status(order):
+        if order is live:
+            assert can_cancel.is_set()
+        reads.append(order.client_order_id)
+        return SimpleNamespace(exchange_order_id=order.client_order_id)
+
+    async def fills(order):
+        if order is closed:
+            can_cancel.set()
+        return []
+
+    owned.market._request_order_status = AsyncMock(side_effect=status)
+    owned.market._all_trade_updates_for_order = AsyncMock(side_effect=fills)
+    owned.market._order_tracker.process_order_update = AsyncMock()
+    core.cancel_outstanding_orders = AsyncMock(side_effect=cancel_orders)
+
+    async def shutdown(**kwargs):
+        proof = await core.before_position_checkpoint({order.client_order_id: ('okx', order) for order in (live, closed)})
+        assert len(proof) == 2
+        assert reads == [closed.client_order_id, live.client_order_id]
+        await core.after_order_cancellation()
+        assert reads.count(closed.client_order_id) == reads.count(live.client_order_id) == 2
+        return True
+
+    core.shutdown = AsyncMock(side_effect=shutdown)
+    assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
+    assert not owned.store.read()['recovery_state'].get('halt')
+
+
 @pytest.mark.parametrize('remote_failure', [False, True])
 def test_shutdown_proof_drains_both_connectors_without_head_of_line_wait(owned, remote_failure):
     core = reconciliation_core(owned)

@@ -1464,7 +1464,7 @@ class BotOwnership:
 
     @staticmethod
     async def _refresh_orders(connector, orders, *, limiter=None, terminal_guard=None, local_rejection=None,
-                              wait_for_local_rejection=None):
+                              wait_for_local_rejection=None, cancellation=None):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
 
@@ -1477,6 +1477,10 @@ class BotOwnership:
 
         async def refresh():
             for order in pending:
+                if cancellation is not None and not (order.is_done and order.exchange_order_id):
+                    # Live or unacknowledged orders still need the cancel
+                    # barrier. A waiter must not consume a shared read slot.
+                    await asyncio.shield(cancellation)
                 async with limiter:
                     if local_rejection is not None and local_rejection(order):
                         continue
@@ -1685,8 +1689,8 @@ class BotOwnership:
                 await asyncio.wait({task})
             return local_rejection(order)
 
-        async def read_terminal_orders():
-            # Share the existing three read slots across connectors. A delayed
+        async def read_terminal_orders(cancellation=None):
+            # Share three order-proof slots across connectors. A delayed
             # Spot tail must not prevent all Perpetual proof from even starting.
             # Both checkpoint phases still read every tracked order afresh.
             limiter = asyncio.Semaphore(3)
@@ -1705,9 +1709,13 @@ class BotOwnership:
                         continue
                     remote_orders.append(order)
                 if remote_orders:
+                    if cancellation is not None:
+                        remote_orders.sort(key=lambda order: not (order.is_done and order.exchange_order_id))
                     await self._refresh_orders(connector, remote_orders, limiter=limiter,
                                                terminal_guard=self.spot_outflow, local_rejection=local_rejection,
-                                               wait_for_local_rejection=wait_for_local_rejection)
+                                               wait_for_local_rejection=wait_for_local_rejection, cancellation=cancellation)
+                if cancellation is not None:
+                    await asyncio.shield(cancellation)
                 while any(not order.is_done and order.client_order_id not in deferred for order in orders):
                     self.check_owner()
                     await asyncio.sleep(0.1)
@@ -1717,6 +1725,8 @@ class BotOwnership:
                                                wait_for_local_rejection=wait_for_local_rejection)
 
             refreshes = [asyncio.create_task(refresh_connector(connector, orders)) for connector, orders in tracked]
+            if cancellation is not None:
+                refreshes.append(cancellation)
             try:
                 await asyncio.gather(*refreshes)
             finally:
@@ -1763,8 +1773,9 @@ class BotOwnership:
                 tracker = connector._order_tracker
                 if isinstance(tracker, ClientOrderTracker) and not local_rejection(order):
                     tracker.restore_terminal_checkpoint_order(order)
-            await core.cancel_outstanding_orders()
-            await read_terminal_orders()
+            # Read already terminal orders while the venue cancels live orders.
+            # The full proof still joins cancellation before any snapshot.
+            await read_terminal_orders(asyncio.create_task(core.cancel_outstanding_orders()))
             if not changed_orders() <= checkpoint_orders.keys():
                 reject_checkpoint_change()  # An older/already-processed hold is not repairable here.
             proof = {order.client_order_id: order.to_json() for _, orders in tracked for order in orders

@@ -118,6 +118,39 @@ def test_fresh_post_checkpoint_proof_still_detects_a_late_fill(owned, monkeypatc
     assert owned.store.read()['recovery_state']['halt']
 
 
+@pytest.mark.parametrize('fills_changed', [False, True])
+def test_shutdown_prefetches_fills_and_reloads_a_page_behind_terminal_status(owned, monkeypatch, fills_changed):
+    _, order, state, fills, requests = canceled_buy(owned, monkeypatch)
+    guard = owned.owner.spot_outflow
+    read_status = owned.market._request_order_update.side_effect
+    read_fills = owned.market._request_order_fills.side_effect
+    first_page = asyncio.Event()
+    statuses = 0
+
+    async def status(order):
+        nonlocal statuses
+        statuses += 1
+        if statuses == 1:
+            await first_page.wait()
+            if fills_changed:
+                state['accFillSz'] = '3'
+                fills.append(dict(fills[0], tradeId='2', billId='2', fillSz='1'))
+        return await read_status(order)
+
+    async def trades(*args, **kwargs):
+        result = await read_fills(*args, **kwargs)
+        first_page.set()
+        return result
+
+    owned.market._request_order_update.side_effect = status
+    owned.market._request_order_fills.side_effect = trades
+    assert owned.loop.run_until_complete(
+        asyncio.wait_for(guard.refresh_canceled_order(owned.market, order), timeout=1))
+    assert requests.count('status') == 2
+    assert requests.count('fills') == 1 + int(fills_changed)
+    assert order.executed_amount_base == (3 if fills_changed else 2)
+
+
 def test_changed_terminal_terms_keep_reservation_and_checkpoint_fence(owned, monkeypatch):
     core, order, state, _, requests = canceled_buy(owned, monkeypatch)
     state['px'] = '11'

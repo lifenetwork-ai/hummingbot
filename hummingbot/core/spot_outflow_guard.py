@@ -363,27 +363,57 @@ class SpotOutflowGuard:
                 return 'spot_outflow_terminal_' + failure[0]
         return None
 
+    @staticmethod
+    def _complete_first_page(response, amount):
+        try:
+            return (str(response['code']) == '0' and isinstance(response['data'], list)
+                    and sum((Decimal(fill['fillSz']) for fill in response['data']), ZERO) == amount)
+        except (ValueError, TypeError, KeyError, ArithmeticError):
+            return False
+
     async def _confirm(self, client_id, *, apply_terminal=False):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         connector, order = self.orders[client_id]
         self.terminal_stages[client_id] = 'order_read'
-        response = await connector._request_order_update(order)
-        if str(response.get("code")) != "0" or len(response.get("data", [])) != 1:
-            raise ValueError("Incomplete terminal order")
-        first = response["data"][0]
-        self.terminal_stages[client_id] = 'order_terminal'
-        if first.get("state") not in ("filled", "canceled"):
-            return False
-        self.terminal_stages[client_id] = 'order_identity'
-        if (first.get("clOrdId") != client_id or str(first.get("ordId")) != order.exchange_order_id
-                or first.get("instId") != order.trading_pair or first.get("side") != "buy"
-                or Decimal(first["sz"]) != order.amount or Decimal(first["px"]) != order.price):
-            raise ValueError("Terminal order identity/terms mismatch")
+        # Shutdown already has a bound venue identity for the order. Fetch
+        # the first page alongside status, use it only if it covers the final
+        # cumulative amount, and still re-read status after checking fills.
+        fetch = (asyncio.create_task(connector._request_order_fills(order, after=None, limit=100))
+                 if apply_terminal else None)
+        prefetched = None
+        try:
+            response = await connector._request_order_update(order)
+            if str(response.get("code")) != "0" or len(response.get("data", [])) != 1:
+                raise ValueError("Incomplete terminal order")
+            first = response["data"][0]
+            self.terminal_stages[client_id] = 'order_terminal'
+            if first.get("state") not in ("filled", "canceled"):
+                return False
+            self.terminal_stages[client_id] = 'order_identity'
+            if (first.get("clOrdId") != client_id or str(first.get("ordId")) != order.exchange_order_id
+                    or first.get("instId") != order.trading_pair or first.get("side") != "buy"
+                    or Decimal(first["sz"]) != order.amount or Decimal(first["px"]) != order.price):
+                raise ValueError("Terminal order identity/terms mismatch")
+            expected_amount = Decimal(first["accFillSz"])
+            if fetch is not None:
+                self.terminal_stages[client_id] = 'fills_read'
+                try:
+                    candidate = await fetch
+                except (ValueError, OSError, KeyError, ArithmeticError):
+                    pass  # The ordered path below makes a fresh request.
+                else:
+                    if self._complete_first_page(candidate, expected_amount):
+                        prefetched = candidate
+        finally:
+            if fetch is not None:
+                fetch.cancel()
+                await asyncio.gather(fetch, return_exceptions=True)
         fills, after, cursors = {}, None, set()
         seen_amount = ZERO
         for page_index in range(100):
             self.terminal_stages[client_id] = 'fills_read'
-            response = await connector._request_order_fills(order, after=after, limit=100)
+            response = (prefetched if page_index == 0 and prefetched is not None
+                        else await connector._request_order_fills(order, after=after, limit=100))
             if str(response.get("code")) != "0" or not isinstance(response.get("data"), list):
                 raise ValueError("Incomplete terminal fills")
             page = response["data"]
@@ -397,7 +427,7 @@ class SpotOutflowGuard:
                     raise ValueError("Invalid fill quantity")
                 seen_amount += size
                 fills[identity] = fill
-            if len(page) < 100 or seen_amount == Decimal(first["accFillSz"]):
+            if len(page) < 100 or seen_amount == expected_amount:
                 break
             after = str(page[-1].get("billId") or "")
             if not after or after in cursors or page_index == 99:
@@ -405,7 +435,7 @@ class SpotOutflowGuard:
             cursors.add(after)
         self.terminal_stages[client_id] = 'fill_coverage'
         total = sum((Decimal(fill["fillSz"]) for fill in fills.values()), ZERO)
-        if total != Decimal(first["accFillSz"]) or (first["state"] == "filled" and total != order.amount):
+        if total != expected_amount or (first["state"] == "filled" and total != order.amount):
             raise ValueError("Terminal cumulative fills are incomplete")
         self.terminal_stages[client_id] = 'order_recheck'
         final = await connector._request_order_update(order)

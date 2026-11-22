@@ -110,6 +110,40 @@ def test_publication_preserves_status_without_liquidity(pg_engine):
     assert store.read()['status'] == status
 
 
+def test_private_checkpoint_is_written_before_the_ownership_lock_and_restored_atomically(owned):
+    status = large_status()
+    public_frame = {key: value for key, value in status['mm_liquidity'].items()
+                    if not key.startswith('_')}
+    args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
+                version=1, save_balances=False)
+    statements = []
+
+    def measure(connection, cursor, statement, parameters, context, executemany):
+        if context.execution_options.get('ownership_row_writer') == 'publication':
+            statements.append(len(cursor.mogrify(statement, parameters)))
+
+    event.listen(owned.engine, 'before_cursor_execute', measure)
+    try:
+        assert owned.store.publish(**args, status=status)
+        with owned.engine.connect() as connection:
+            raw = connection.scalar(select(BotState.status))
+        assert raw['mm_liquidity'] == public_frame
+        assert statements[0] < 16_000
+        assert owned.store.read()['status'] == status
+        assert owned.store.read(publication=True)['status'] == {**status, 'mm_liquidity': public_frame}
+
+        updated = deepcopy(status)
+        updated['mm_liquidity']['_coverage_buckets']['spot'].pop('0')
+        with Session(owned.engine) as financial, financial.begin(), ThreadPoolExecutor(max_workers=1) as work:
+            owned.owner.fence_session(financial, nowait=True)
+            assert work.submit(owned.store.publish, **args, status=updated).result(timeout=3) is False
+        assert owned.store.read()['status'] == status
+        assert owned.store.publish(**args, status=updated)
+        assert owned.store.read()['status'] == updated
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', measure)
+
+
 def test_publication_transfers_changed_buckets_and_preserves_restart_payload(owned):
     status = large_status()
     status['mm_liquidity'].pop('_overview_recovery')
@@ -118,7 +152,7 @@ def test_publication_transfers_changed_buckets_and_preserves_restart_payload(own
     payloads = []
 
     def measure(connection, cursor, statement, parameters, context, executemany):
-        if context.execution_options.get('ownership_row_writer') == 'publication':
+        if statement.startswith(('INSERT INTO bot_liquidity_checkpoints', 'UPDATE bot_liquidity_checkpoints')):
             payloads.append(len(cursor.mogrify(statement, parameters)))
 
     event.listen(owned.engine, 'before_cursor_execute', measure)
@@ -168,11 +202,36 @@ def test_publication_rechecks_bucket_basis_after_speculative_work(owned, monkeyp
     assert owned.store.read()['status'] == updated
 
 
-def test_publication_stages_bucket_merge_before_locking_authority(owned):
+def test_large_private_history_is_not_resent_as_uncompressed_json(owned):
     status = large_status()
     args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
                 version=1, save_balances=False)
     assert owned.store.publish(**args, status=status)
+    payloads = []
+
+    def measure(connection, cursor, statement, parameters, context, executemany):
+        if statement.startswith('UPDATE bot_liquidity_checkpoints'):
+            payloads.append(len(cursor.mogrify(statement, parameters)))
+
+    status['mm_liquidity']['_coverage_buckets']['spot'].pop('0')
+    event.listen(owned.engine, 'before_cursor_execute', measure)
+    try:
+        assert owned.store.publish(**args, status=status)
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', measure)
+    assert len(payloads) == 1 and payloads[0] < 50_000
+    assert owned.store.read()['status'] == status
+
+
+def test_publication_stages_bucket_merge_before_locking_authority(owned):
+    status = large_status()
+    status['mm_session'] = dict(id='session', generation=7)
+    args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
+                version=1, save_balances=False)
+    with owned.engine.begin() as connection:
+        connection.execute(update(BotState).values(mm_session={**status['mm_session'], 'profile_id': 'follow_market'}))
+    assert owned.store.publish(**args, status=status)
+    status['phase'] = 'waiting_for_mm_readiness'
     with owned.engine.begin() as connection:
         connection.execute(text('''
             CREATE FUNCTION pause_bucket_merge(jsonb, text[], jsonb) RETURNS jsonb LANGUAGE plpgsql AS $$
@@ -184,7 +243,7 @@ def test_publication_stages_bucket_merge_before_locking_authority(owned):
         '''))
 
     def hold_merge(connection, cursor, statement, params, context, executemany):
-        if context.execution_options.get('ownership_row_writer') == 'publication':
+        if statement.startswith('UPDATE bot_liquidity_checkpoints'):
             statement = statement.replace('jsonb_set(', 'pause_bucket_merge(')
         return statement, params
 
@@ -201,6 +260,7 @@ def test_publication_stages_bucket_merge_before_locking_authority(owned):
                     time.sleep(.01)
                 with Session(owned.engine) as session, session.begin():
                     owned.owner.fence_session(session, nowait=True)
+                    session.execute(select(BotState.bot_id).with_for_update(nowait=True)).one()
             assert pending.result(timeout=3)
     finally:
         event.remove(owned.engine, 'before_cursor_execute', hold_merge)
