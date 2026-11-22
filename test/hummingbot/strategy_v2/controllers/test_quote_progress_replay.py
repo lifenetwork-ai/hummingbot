@@ -27,11 +27,11 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import TrackedOrder
 
 
-async def eventually(predicate):
+async def eventually(predicate, *, timeout=1):
     async def wait():
         while not predicate():
             await asyncio.sleep(.001)
-    await asyncio.wait_for(wait(), 1)
+    await asyncio.wait_for(wait(), timeout)
 
 
 @asynccontextmanager
@@ -218,19 +218,42 @@ async def test_full_loop_reserves_canceling_quote_until_ack_including_late_fill(
 @pytest.mark.parametrize('side', [TradeType.BUY, TradeType.SELL])
 async def test_late_account_after_session_revocation_cannot_reopen_quote(monkeypatch, side):
     async with replay(monkeypatch, side) as state:
+        waiting_for_account = asyncio.Event()
+        held_report_consumed = asyncio.Event()
+        covers_fill = state.controller._entry_account_covers_fill
+        control_task = state.controller.control_task
+        executor_id = state.executor.config.id
+
+        def observe_coverage(executor, fill_at):
+            covered = covers_fill(executor, fill_at)
+            if executor.config.id == executor_id and not covered:
+                waiting_for_account.set()
+            return covered
+
+        async def observe_control():
+            await control_task()
+            if executor_id in state.orchestrator.executors_ids_position_held:
+                held_report_consumed.set()
+
+        monkeypatch.setattr(state.controller, '_entry_account_covers_fill', observe_coverage)
+        monkeypatch.setattr(state.controller, 'control_task', observe_control)
         complete(state)
-        await asyncio.sleep(.08)
+        await asyncio.wait_for(waiting_for_account.wait(), 5)
         assert state.executor.is_active and not state.creates
+
         state.controller.revoke_session()
         account_observed(state, side, initial=(2000, 0))
         state.account_event.set()
         # A revoked controller cannot use account progress to resume trading.
-        await asyncio.sleep(.08)
+        await eventually(lambda: not state.account_event.is_set(), timeout=5)
         assert not state.creates
+
         # Even an ordinary report cannot bypass session admission.
         state.strategy.update_executors_info()
-        await eventually(lambda: state.executor.is_closed)
-        await asyncio.sleep(.08)
+        await asyncio.wait_for(held_report_consumed.wait(), 5)
+        assert state.executor.is_closed
+        state.recorder.checkpoint_held_positions.assert_called_once()
+        assert state.controller.actions_queue.empty()
         assert not state.creates and not state.controller.session_admitted
 
 
