@@ -2,6 +2,9 @@ import fnmatch
 import os
 import subprocess
 import sys
+from collections import Counter
+from contextlib import ExitStack
+from threading import Lock
 
 import numpy as np
 from Cython.Build import cythonize
@@ -18,7 +21,26 @@ class BuildExt(build_ext):
     def build_extensions(self):
         if os.name != "nt" and "-Wstrict-prototypes" in self.compiler.compiler_so:
             self.compiler.compiler_so.remove("-Wstrict-prototypes")
+        self._shared_object_locks = {}
+        if self.parallel:
+            object_counts = Counter(path for ext in self.extensions for path in self._object_paths(ext))
+            self._shared_object_locks = {path: Lock() for path, count in object_counts.items() if count > 1}
         super().build_extensions()
+
+    def _object_paths(self, ext):
+        return {os.path.normcase(os.path.abspath(path))
+                for path in self.compiler.object_filenames(ext.sources, output_dir=self.build_temp)}
+
+    def build_extension(self, ext):
+        if not self._shared_object_locks:
+            return super().build_extension(ext)
+        # setuptools builds extensions on separate threads but writes common
+        # C++ sources to the same object paths. Protect the objects until the
+        # linker has consumed them. Sorted acquisition handles multiple overlaps.
+        with ExitStack() as locks:
+            for path in sorted(self._object_paths(ext) & self._shared_object_locks.keys()):
+                locks.enter_context(self._shared_object_locks[path])
+            super().build_extension(ext)
 
 
 def main():
