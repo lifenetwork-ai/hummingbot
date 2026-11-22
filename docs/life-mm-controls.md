@@ -681,6 +681,8 @@ for a market use that market's shared template.
 The [Demo YAML](../deploy/cloudrun/demo/life_mm_profiles.yaml) sets ten
 Sideways Spot levels per side with increasing spacings from 0.30% to 1.56%.
 The three closest levels receive 56% of each side's base quote allocation.
+Follow market and Follow token Spot use three levels at 0.10%, 0.20%
+and 0.40%, with 50/30/20 weights per side.
 A new Start or Switch uses the deployed YAML.
 Random uses the levels of the profile selected for each step from the pinned
 session catalogue.

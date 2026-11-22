@@ -26,6 +26,16 @@ profiles:
         weight: "0.6"
       - pair: ETH-USDT
         weight: "0.4"
+    quote_levels:
+      spot:
+        buy:
+          - {spread_pct: "0.1", weight: "50"}
+          - {spread_pct: "0.2", weight: "30"}
+          - {spread_pct: "0.4", weight: "20"}
+        sell:
+          - {spread_pct: "0.1", weight: "50"}
+          - {spread_pct: "0.2", weight: "30"}
+          - {spread_pct: "0.4", weight: "20"}
   sideways:
     scenario: sideways
     anchor: session_start_mid
@@ -60,6 +70,16 @@ profiles:
     references:
       - pair: AVAX-USDT
         weight: "1"
+    quote_levels:
+      spot:
+        buy:
+          - {spread_pct: "0.1", weight: "50"}
+          - {spread_pct: "0.2", weight: "30"}
+          - {spread_pct: "0.4", weight: "20"}
+        sell:
+          - {spread_pct: "0.1", weight: "50"}
+          - {spread_pct: "0.2", weight: "30"}
+          - {spread_pct: "0.4", weight: "20"}
 random:
   profile_ids: [follow_market, sideways, follow_token]
   step_duration_seconds: 600

@@ -24,12 +24,21 @@ async def test_profile_quote_levels_apply_to_sideways_spot_after_restore_and_ran
     base = MMProfilesConfig.model_validate(raw)
     assert 'quote_levels' not in base.model_dump(mode='json')['profiles']['sideways']
     assert catalogue.catalogue_hash() != base.catalogue_hash()
+    for profile_id in ('follow_market', 'follow_token'):
+        spot, perpetual = catalogue.controller_configs(profile_id, 'both', None)
+        assert perpetual.buy_spreads == perpetual.sell_spreads == [.001, .002]
+        assert spot.spread_policy.volatility.fallback_buy_spreads == [Decimal('.001'), Decimal('.002'), Decimal('.004')]
+        assert spot.spread_policy.volatility.fallback_buy_spreads == spot.spread_policy.volatility.fallback_sell_spreads
+        for side in (TradeType.BUY, TradeType.SELL):
+            spreads, notionals = spot.get_spreads_and_amounts_in_quote(side)
+            assert spreads == [.001, .002, .004]
+            assert notionals == [25, 15, 10]
     request = MMSessionRequest(market_mode='spot', profile_id='sideways', duration_seconds=1800)
     fixed = MMSession.create(catalogue, request, rng=MagicMock())
     rng = MagicMock()
     rng.choice.side_effect = ['follow_market', 'sideways']
     random = MMSession.create(catalogue, MMSessionRequest(market_mode='spot', selection='random', duration_seconds=1800), rng=rng)
-    assert len(random.catalogue.controller_configs(random.profile_id, 'spot', None)[0].buy_spreads) == 2
+    assert random.profile_id == 'follow_market'
     random.ready(now=1000, anchors={'demo_btc_spot': {'life': '60000', 'sources': {'BTC-USDT': '60000', 'ETH-USDT': '2000'}}})
     assert random.advance(now=1600, rng=rng)
     expected_spreads = [.003, .0036, .0044, .0054, .0066, .008, .0096, .0114, .0134, .0156]
