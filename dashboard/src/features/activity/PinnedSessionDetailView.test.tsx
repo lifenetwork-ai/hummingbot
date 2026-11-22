@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { PinnedSessionDetailView } from './PinnedSessionDetailView'
 import type { components } from '../../core/api/schema'
+import { marketConfig } from '../../test/mocks/marketConfig'
 
 describe('PinnedSessionDetailView', () => {
   const sampleSessionState = {
@@ -48,6 +49,21 @@ describe('PinnedSessionDetailView', () => {
   it('renders loading state when isLoading is true', () => {
     render(<PinnedSessionDetailView isLoading={true} />)
     expect(screen.getByText('Loading pinned session configuration…')).toBeInTheDocument()
+  })
+
+  it('shows the quote levels for the profile referenced by pinned history', () => {
+    const pinnedConfig: components['schemas']['SessionConfigurationResponseOutput'] = {
+      ...samplePinnedConfig,
+      profile_id: 'sideways',
+      catalogue: { ...samplePinnedConfig.catalogue, markets: { spot: marketConfig }, profiles: {
+        sideways: { scenario: 'sideways', anchor: 'session_start_mid', sideways_range: null, quote_levels: { spot: {
+          buy: [{ spread_pct: '0.4', weight: '2' }], sell: [{ spread_pct: '0.9', weight: '1' }],
+        } } },
+      } },
+    }
+    render(<PinnedSessionDetailView pinnedConfig={pinnedConfig} />)
+    expect(screen.getByText('Buy (1) · 0.4% ×2')).toBeInTheDocument()
+    expect(screen.getByText('Sell (1) · 0.9% ×1')).toBeInTheDocument()
   })
 
   it('renders error alert when error is provided', () => {

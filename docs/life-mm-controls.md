@@ -670,6 +670,21 @@ independently; spot and perpetual use their own existing candle feed and maker
 fee helper. The three reference formulas and session anchors are unchanged.
 
 The existing engine supports weighted multiple levels without a new strategy.
+To set levels for one profile, use `profiles.<id>.quote_levels.<market>` in
+`life_mm_profiles.yaml`. Add 1–10 entries to each `buy` and `sell` list in
+increasing distance from the target price. `spread_pct: "0.4"` means 0.4%,
+and `weight` defaults to 1. The sum of weights across both sides divides the
+market's existing `total_amount_quote` budget. With static candle fallback,
+the same price levels apply at the base spreads. Profiles without an override
+for a market use that market's shared template.
+
+The [Demo YAML](../deploy/cloudrun/demo/life_mm_profiles.yaml) sets ten
+Sideways Spot levels per side with increasing spacings from 0.30% to 1.56%.
+The three closest levels receive 56% of each side's base quote allocation.
+A new Start or Switch uses the deployed YAML.
+Random uses the levels of the profile selected for each step from the pinned
+session catalogue.
+
 For example, three levels can use `buy_spreads: [0.004, 0.009, 0.018]`, the same
 `sell_spreads`, and `buy_amounts_pct: [50, 30, 20]` /
 `sell_amounts_pct: [50, 30, 20]`. These symmetric weights assign half the market

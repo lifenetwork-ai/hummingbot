@@ -98,6 +98,8 @@ describe('LiquidityVerdictCard eligible coverage', () => {
       />,
     )
     expect(screen.getByText('Depth Ladder')).toBeInTheDocument()
+    expect(screen.getByText('Value of the bot’s working orders by distance from mid price.')).toBeInTheDocument()
+    expect(screen.getByText('Bid / Ask (USDT)')).toBeInTheDocument()
     expect(screen.getByText('0–25 bps')).toBeInTheDocument()
     expect(screen.getByText('25–50 bps')).toBeInTheDocument()
     expect(screen.getByText('50–100 bps')).toBeInTheDocument()

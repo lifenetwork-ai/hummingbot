@@ -352,7 +352,7 @@ not synthesize outside liquidity or automatically turn bootstrap on when blocked
 | Quote allocation | 100 USDT per market, combined maximum 200 USDT |
 | Follow market | BTC-USDT 60%, ETH-USDT 40% |
 | Follow token | AVAX-USDT 100% |
-| Sideways | Captures `session_start_mid`; no price-specific absolute range |
+| Sideways | Uses `session_start_mid` as the anchor. Spot uses ten levels per side from 0.30% to 1.56%, with 56% of each side's allocation in the three closest levels. |
 | Random | Equal selection among the three profiles, ten-minute steps |
 | Sessions | Default 30 minutes; accepted duration 60–7200 seconds |
 | Quote guard | Strict, 200-bps deviation limit, 100-bps resume boundary, five-second recovery delay |
@@ -360,7 +360,7 @@ not synthesize outside liquidity or automatically turn bootstrap on when blocked
 | Spot outflow | 500 USDT per rolling hour, with a 1% fee allowance for admission |
 | Maker fee floor | Enabled on both markets |
 | NATR | Enabled, completed one-minute candles, length 14, target 0.01, multiplier 0.5–3 |
-| Candle fallback | Explicit 0.1%/0.2% spreads; fee floor still applies |
+| Candle fallback | Sideways Spot uses its ten base spreads. Other cases use 0.1%/0.2%. The fee floor applies to both. |
 | Spot inventory skew | Enabled; target 50% BTC share of observed BTC+USDT cash value, range multiplier 1 |
 | Perpetual | HEDGE/CROSS, leverage 1; long/short/gross caps 0.05/0.05/0.1 BTC |
 

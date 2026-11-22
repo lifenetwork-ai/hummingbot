@@ -5,6 +5,7 @@ import { Button } from '../../shared/components/Button'
 import { CopyableId } from '../../shared/components/CopyableId'
 import { Surface } from '../../shared/components/Surface'
 import { cn } from '../../shared/utils/cn'
+import { formatProfileQuoteLevels } from '../session-control/configuration-review'
 
 export interface PinnedSessionDetailViewProps {
   sessionId?: string
@@ -26,6 +27,7 @@ export function PinnedSessionDetailView({
   className,
 }: PinnedSessionDetailViewProps) {
   const activeSessionId = sessionId || sessionState?.id || pinnedConfig?.session_id
+  const profile = pinnedConfig?.catalogue.profiles?.[pinnedConfig.profile_id]
 
   return (
     <Surface className={cn('p-5 md:p-6 space-y-4', className)}>
@@ -158,9 +160,7 @@ export function PinnedSessionDetailView({
                   <p className="text-[10px] text-app-muted">
                     Budget: <strong className="font-mono text-app-text">{mConfig.total_amount_quote ?? '—'} Quote</strong> · Leverage: {mConfig.leverage}x
                   </p>
-                  <p className="text-[10px] text-app-muted">
-                    Buy Spreads: <span className="font-mono">{mConfig.buy_spreads?.join(', ') || '—'}</span> · Sell: <span className="font-mono">{mConfig.sell_spreads?.join(', ') || '—'}</span>
-                  </p>
+                  <MarketQuoteLevels levels={profile?.quote_levels?.[market]} market={mConfig} />
                 </div>
               ))}
             </div>
@@ -182,5 +182,21 @@ export function PinnedSessionDetailView({
         </div>
       )}
     </Surface>
+  )
+}
+
+function MarketQuoteLevels({ levels, market }: {
+  levels?: components['schemas']['MMQuoteLevelsOutput']
+  market: components['schemas']['LifeMMConfigOutput']
+}) {
+  return levels ? (
+    <div className="text-[10px] text-app-muted">
+      <p>{formatProfileQuoteLevels(levels, 'buy')}</p>
+      <p>{formatProfileQuoteLevels(levels, 'sell')}</p>
+    </div>
+  ) : (
+    <p className="text-[10px] text-app-muted">
+      Buy Spreads: <span className="font-mono">{market.buy_spreads?.join(', ') || '—'}</span> · Sell: <span className="font-mono">{market.sell_spreads?.join(', ') || '—'}</span>
+    </p>
   )
 }

@@ -4734,6 +4734,20 @@
             "title": "Anchor",
             "type": "string"
           },
+          "quote_levels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MMQuoteLevelsOutput"
+            },
+            "description": "Optional profile quote levels for each market.",
+            "propertyNames": {
+              "enum": [
+                "spot",
+                "perpetual"
+              ]
+            },
+            "title": "Quote Levels",
+            "type": "object"
+          },
           "references": {
             "items": {
               "$ref": "#/components/schemas/ReferencePairOutput"
@@ -4881,6 +4895,56 @@
           "max_total_amount_quote"
         ],
         "title": "MMProfilesConfig",
+        "type": "object"
+      },
+      "MMQuoteLevelOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "spread_pct": {
+            "description": "Distance from the target price in percent. Use 0.5 for 0.5%.",
+            "title": "Spread Pct",
+            "type": "string"
+          },
+          "weight": {
+            "default": "1",
+            "description": "Relative share of the market quote budget across both sides.",
+            "title": "Weight",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spread_pct"
+        ],
+        "title": "MMQuoteLevel",
+        "type": "object"
+      },
+      "MMQuoteLevelsOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "buy": {
+            "items": {
+              "$ref": "#/components/schemas/MMQuoteLevelOutput"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Buy",
+            "type": "array"
+          },
+          "sell": {
+            "items": {
+              "$ref": "#/components/schemas/MMQuoteLevelOutput"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Sell",
+            "type": "array"
+          }
+        },
+        "required": [
+          "buy",
+          "sell"
+        ],
+        "title": "MMQuoteLevels",
         "type": "object"
       },
       "MMSessionRequestOutput": {

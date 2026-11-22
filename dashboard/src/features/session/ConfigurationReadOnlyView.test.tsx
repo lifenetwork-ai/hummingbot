@@ -6,6 +6,22 @@ import { completionConfiguration } from '../../test/mocks/completionFixtures'
 import { marketConfig } from '../../test/mocks/marketConfig'
 
 describe('ConfigurationReadOnlyView', () => {
+  it('shows profile-specific quote levels in the pinned configuration and catalogue comparison', async () => {
+    const user = userEvent.setup()
+    const snapshot = completionConfiguration.pinned!
+    const profiles = snapshot.profiles.map(({ id, value }) => ({ id, value: id === snapshot.activeProfileId ? {
+      ...value, quote_levels: { spot: { buy: [{ spread_pct: '0.1', weight: '2' }, { spread_pct: '0.2', weight: '1' }],
+        sell: [{ spread_pct: '0.15', weight: '1' }] } },
+    } : value }))
+    render(<ConfigurationReadOnlyView model={{ ...completionConfiguration, pinned: { ...snapshot, profiles } }} />)
+    expect(screen.getByText('spot quote levels')).toBeInTheDocument()
+    expect(screen.getByText('Buy (2) · 0.1% ×2, 0.2% ×1')).toBeInTheDocument()
+    expect(screen.getByText('Sell (1) · 0.15% ×1')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Detailed Diff View/ }))
+    expect(screen.getByText('spot buy quote levels')).toBeInTheDocument()
+    expect(screen.getAllByText('Market defaults')).toHaveLength(2)
+  })
+
   it('shows the selected percentage or legacy range without conflating their units', () => {
     const snapshot = completionConfiguration.pinned!
     const markets = [{ market: 'spot', value: { ...marketConfig,

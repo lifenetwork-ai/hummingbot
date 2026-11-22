@@ -2536,6 +2536,13 @@ export interface components {
              * @constant
              */
             anchor: "session_start_mid";
+            /**
+             * Quote Levels
+             * @description Optional profile quote levels for each market.
+             */
+            quote_levels?: {
+                [key: string]: components["schemas"]["MMQuoteLevelsOutput"];
+            };
             /** References */
             references?: components["schemas"]["ReferencePairOutput"][];
             /**
@@ -2605,6 +2612,27 @@ export interface components {
             reference_connector: "okx";
             /** @default null */
             spot_outflow: components["schemas"]["SpotOutflowConfigOutput"] | null;
+        };
+        /** MMQuoteLevel */
+        MMQuoteLevelOutput: {
+            /**
+             * Spread Pct
+             * @description Distance from the target price in percent. Use 0.5 for 0.5%.
+             */
+            spread_pct: string;
+            /**
+             * Weight
+             * @description Relative share of the market quote budget across both sides.
+             * @default 1
+             */
+            weight: string;
+        };
+        /** MMQuoteLevels */
+        MMQuoteLevelsOutput: {
+            /** Buy */
+            buy: components["schemas"]["MMQuoteLevelOutput"][];
+            /** Sell */
+            sell: components["schemas"]["MMQuoteLevelOutput"][];
         };
         /** MMSessionRequest */
         MMSessionRequestOutput: {

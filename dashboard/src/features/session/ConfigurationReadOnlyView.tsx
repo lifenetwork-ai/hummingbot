@@ -12,7 +12,7 @@ import {
   Shield,
   Sliders,
 } from 'lucide-react'
-import type { ConfigurationReviewModel, ConfigurationSnapshot } from '../session-control/configuration-review'
+import { formatProfileQuoteLevels, type ConfigurationReviewModel, type ConfigurationSnapshot } from '../session-control/configuration-review'
 import { Badge } from '../../shared/components/Badge'
 import { CopyableId } from '../../shared/components/CopyableId'
 import { Surface } from '../../shared/components/Surface'
@@ -228,6 +228,13 @@ function SnapshotDisplay({
                   {value.sideways_range && (
                     <p>Sideways Range: <span className="font-mono text-app-text">{value.sideways_range.lower_price} - {value.sideways_range.upper_price}</span></p>
                   )}
+                  {Object.entries(value.quote_levels ?? {}).map(([market, levels]) => (
+                    <div key={market} className="pt-1">
+                      <p className="font-medium text-app-text capitalize">{market} quote levels</p>
+                      <p>{formatProfileQuoteLevels(levels, 'buy')}</p>
+                      <p>{formatProfileQuoteLevels(levels, 'sell')}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )
@@ -437,6 +444,20 @@ function SideBySideDiffTable({
     catVal: current.catalogueHash ?? '—',
     isDiff: pinned.catalogueHash !== current.catalogueHash,
   })
+
+  const pinnedProfiles = new Map(pinned.profiles.map(({ id, value }) => [id, value]))
+  const currentProfiles = new Map(current.profiles.map(({ id, value }) => [id, value]))
+  for (const id of new Set([...pinnedProfiles.keys(), ...currentProfiles.keys()])) {
+    const pinnedLevels = pinnedProfiles.get(id)?.quote_levels ?? {}
+    const currentLevels = currentProfiles.get(id)?.quote_levels ?? {}
+    for (const market of new Set([...Object.keys(pinnedLevels), ...Object.keys(currentLevels)])) {
+      for (const side of ['buy', 'sell'] as const) {
+        const pinnedVal = pinnedLevels[market] ? formatProfileQuoteLevels(pinnedLevels[market], side) : 'Market defaults'
+        const catVal = currentLevels[market] ? formatProfileQuoteLevels(currentLevels[market], side) : 'Market defaults'
+        rows.push({ group: `Profile: ${id}`, name: `${market} ${side} quote levels`, pinnedVal, catVal, isDiff: pinnedVal !== catVal })
+      }
+    }
+  }
 
   // Markets
   for (const pMarket of pinned.markets) {

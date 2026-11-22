@@ -15,8 +15,30 @@ from hummingbot.core.spot_outflow import SpotOutflowConfig, SpotOutflowPolicy
 from hummingbot.strategy_v2.utils.quote_guard import SidewaysRange
 
 Scenario = Literal["follow_market", "sideways", "follow_token"]
+Market = Literal["spot", "perpetual"]
 MarketMode = Literal["spot", "perpetual", "both"]
 DurationMode = Literal['timed', 'until_stopped']
+
+
+class MMQuoteLevel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    spread_pct: Decimal = Field(gt=0, lt=100, allow_inf_nan=False,
+                                description="Distance from the target price in percent. Use 0.5 for 0.5%.")
+    weight: Decimal = Field(default=Decimal(1), gt=0, allow_inf_nan=False,
+                            description="Relative share of the market quote budget across both sides.")
+
+
+class MMQuoteLevels(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    buy: List[MMQuoteLevel] = Field(min_length=1, max_length=10)
+    sell: List[MMQuoteLevel] = Field(min_length=1, max_length=10)
+
+    @model_validator(mode="after")
+    def ordered(self):
+        for side in (self.buy, self.sell):
+            if any(inner.spread_pct >= outer.spread_pct for inner, outer in zip(side, side[1:])):
+                raise ValueError("Quote spreads must strictly increase on each side")
+        return self
 
 
 class MMProfile(BaseModel):
@@ -25,6 +47,15 @@ class MMProfile(BaseModel):
     references: List[ReferencePair] = Field(default_factory=list)
     anchor: Literal["session_start_mid"] = "session_start_mid"
     sideways_range: Optional[SidewaysRange] = None
+    quote_levels: Dict[Market, MMQuoteLevels] = Field(default_factory=dict,
+                                                      description="Optional profile quote levels for each market.")
+
+    @model_serializer(mode='wrap')
+    def serialize_quote_levels(self, handler):
+        values = handler(self)
+        if not self.quote_levels:
+            values.pop('quote_levels', None)  # Preserve existing saved catalogues and hashes.
+        return values
 
     @model_validator(mode="after")
     def range_scenario(self):
@@ -49,7 +80,7 @@ class MMProfilesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     reference_connector: Literal["okx"] = "okx"
     profiles: Dict[str, MMProfile]
-    markets: Dict[Literal["spot", "perpetual"], LifeMMConfig]
+    markets: Dict[Market, LifeMMConfig]
     random: RandomSelection
     min_duration_seconds: int = Field(default=60, gt=0, strict=True)
     default_duration_mode: DurationMode = Field(default='timed', description='Default for new Start/Switch commands omitting both duration mode and seconds. Until stopped also requires allow_until_stopped.')
@@ -127,6 +158,9 @@ class MMProfilesConfig(BaseModel):
             raise ValueError("Market controller IDs must be unique")
         if len({template.trading_pair for template in self.markets.values()}) != 1:
             raise ValueError("Both markets must use the same LIFE trading pair")
+        for profile in self.profiles.values():
+            if not profile.quote_levels.keys() <= self.markets.keys():
+                raise ValueError("Profile quote levels require a configured market template")
         for market, template in self.markets.items():
             if self.drawdown_policy() is not None and template.initial_positions:
                 raise ValueError("Managed drawdown restores recorded exposure; initial position overrides are unsupported")
@@ -137,11 +171,23 @@ class MMProfilesConfig(BaseModel):
             if template.total_amount_quote > self.max_total_amount_quote:
                 raise ValueError("Market budget exceeds total budget")
             for profile in self.profiles.values():
-                LifeMMConfig.model_validate({**template.model_dump(), "scenario": profile.scenario,
-                                             "references": profile.references,
-                                             "sideways_range": profile.sideways_range,
-                                             "reference_connector": self.reference_connector})
+                self._controller_config(profile, market, template, profile.references)
         return self
+
+    def _controller_config(self, profile, market, template, references):
+        config = template.model_dump()
+        levels = profile.quote_levels.get(market)
+        if levels is not None:
+            volatility = config['spread_policy']['volatility']
+            for side, entries in (("buy", levels.buy), ("sell", levels.sell)):
+                spreads = [level.spread_pct / 100 for level in entries]
+                config[f'{side}_spreads'] = spreads
+                config[f'{side}_amounts_pct'] = [level.weight for level in entries]
+                if volatility['enabled'] and volatility['on_unavailable'] == 'static':
+                    volatility[f'fallback_{side}_spreads'] = spreads
+        config.update(scenario=profile.scenario, reference_connector=self.reference_connector,
+                      references=references, sideways_range=profile.sideways_range, runtime_config_managed=True)
+        return LifeMMConfig.model_validate(config)
 
     def validate_duration(self, duration_seconds, *, duration_mode='timed'):
         if duration_mode == 'until_stopped':
@@ -166,7 +212,7 @@ class MMProfilesConfig(BaseModel):
         for market in selected:
             if market not in self.markets:
                 raise ValueError(f"Market is not configured: {market}")
-        return self.profiles[profile_id], [self.markets[market] for market in selected]
+        return self.profiles[profile_id], {market: self.markets[market] for market in selected}
 
     def controller_ids(self, profile_id: str, market_mode: MarketMode):
         """IDs from an admitted catalogue, whose template/profile combinations were validated.
@@ -174,7 +220,8 @@ class MMProfilesConfig(BaseModel):
         This is an identity projection, not runtime admission or a config factory.
         Selection and combined budgets remain fresh; nothing is cached.
         """
-        _, templates = self._market_selection(profile_id, market_mode)
+        _, markets = self._market_selection(profile_id, market_mode)
+        templates = markets.values()
         if sum(template.total_amount_quote for template in templates) > self.max_total_amount_quote:
             raise ValueError("Combined market budgets exceed the configured total")
         return tuple(template.id for template in templates)
@@ -184,16 +231,10 @@ class MMProfilesConfig(BaseModel):
                            references: Optional[List[ReferencePair]] = None,
                            available_quote: Optional[Decimal] = None):
         """Select defaults or API references against full, tradable instrument metadata."""
-        profile, templates = self._market_selection(profile_id, market_mode)
+        profile, markets = self._market_selection(profile_id, market_mode)
         configs = []
-        for template in templates:
-            config = LifeMMConfig.model_validate({
-                **template.model_dump(), "scenario": profile.scenario,
-                "reference_connector": self.reference_connector,
-                "references": profile.references if references is None else references,
-                "sideways_range": profile.sideways_range,
-                "runtime_config_managed": True,
-            })
+        for market, template in markets.items():
+            config = self._controller_config(profile, market, template, profile.references if references is None else references)
             if supported_pairs is not None and config.trading_pair not in supported_pairs.get(config.connector_name, set()):
                 raise ValueError(f"Trading pair unavailable on {config.connector_name}")
             if supported_pairs is not None and any(

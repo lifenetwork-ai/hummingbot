@@ -2,6 +2,14 @@ import type { ReadResponse } from '../../core/api/admin'
 import type { components } from '../../core/api/schema'
 
 type Catalogue = components['schemas']['MMProfilesConfigOutput']
+type QuoteLevels = components['schemas']['MMQuoteLevelsOutput']
+
+export function formatProfileQuoteLevels(levels: QuoteLevels, side: 'buy' | 'sell') {
+  const entries = levels[side]
+  const label = side === 'buy' ? 'Buy' : 'Sell'
+  return `${label} (${entries.length}) · ${entries.map(({ spread_pct, weight }) => `${spread_pct}% ×${weight}`).join(', ')}`
+}
+
 export type ConfigurationSnapshot = {
   source: 'current_catalogue' | 'pinned_session'
   profileContext?: 'current' | 'at_creation' | null

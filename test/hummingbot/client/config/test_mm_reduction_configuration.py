@@ -30,6 +30,7 @@ async def test_disabled_policy_preserves_the_pre_reduction_catalogue_hash(path, 
         template.pop('inventory_reduction', None)
     if Path(path) == DEMO:
         # Reconstruct the Demo settings from the pre-reduction catalogue.
+        raw['profiles']['sideways'].pop('quote_levels', None)
         raw.update(max_global_drawdown_quote='2000', max_controller_drawdown_quote='1000')
         perpetual = raw['markets']['perpetual']
         perpetual.pop('perpetual_exposure_budget', None)

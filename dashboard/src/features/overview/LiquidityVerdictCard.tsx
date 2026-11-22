@@ -201,9 +201,12 @@ function MarketVerdict({ market, mode }: { market: LiquidityMarketView; mode: De
                 className="font-mono text-[9px] text-app-muted/70 cursor-help"
                 title="Incremental depth per band: Bid USDT / Ask USDT. Hover on any band to see cumulative totals."
               >
-                USDT / Band (Bid / Ask)
+                Bid / Ask (USDT)
               </span>
             </div>
+            <p className="mb-1.5 text-[10px] text-app-muted">
+              Value of the bot’s working orders by distance from mid price.
+            </p>
             <div
               className="grid gap-1.5"
               style={{ gridTemplateColumns: `repeat(${depthLevels.length}, minmax(0, 1fr))` }}

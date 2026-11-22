@@ -8,9 +8,53 @@ import yaml
 from controllers.market_making.life_mm import LifeMMController
 from hummingbot.client.config.config_helpers import load_yml_into_dict
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
+from hummingbot.core.data_type.common import TradeType
+from hummingbot.core.mm_session import MMSession, MMSessionRequest
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base, StrategyV2ConfigBase
 
 CATALOGUE = Path(__file__).resolve().parents[4] / "deploy/cloudrun/conf/life_mm_profiles.yaml"
+DEMO_CATALOGUE = CATALOGUE.parent.parent / "demo/life_mm_profiles.yaml"
+
+
+@pytest.mark.asyncio
+async def test_profile_quote_levels_apply_to_sideways_spot_after_restore_and_random_rotation():
+    catalogue = await MMProfilesConfig.load(DEMO_CATALOGUE)
+    raw = catalogue.model_dump(mode='json')
+    raw['profiles']['sideways'].pop('quote_levels')
+    base = MMProfilesConfig.model_validate(raw)
+    assert 'quote_levels' not in base.model_dump(mode='json')['profiles']['sideways']
+    assert catalogue.catalogue_hash() != base.catalogue_hash()
+    request = MMSessionRequest(market_mode='spot', profile_id='sideways', duration_seconds=1800)
+    fixed = MMSession.create(catalogue, request, rng=MagicMock())
+    rng = MagicMock()
+    rng.choice.side_effect = ['follow_market', 'sideways']
+    random = MMSession.create(catalogue, MMSessionRequest(market_mode='spot', selection='random', duration_seconds=1800), rng=rng)
+    assert len(random.catalogue.controller_configs(random.profile_id, 'spot', None)[0].buy_spreads) == 2
+    random.ready(now=1000, anchors={'demo_btc_spot': {'life': '60000', 'sources': {'BTC-USDT': '60000', 'ETH-USDT': '2000'}}})
+    assert random.advance(now=1600, rng=rng)
+    expected_spreads = [.003, .0036, .0044, .0054, .0066, .008, .0096, .0114, .0134, .0156]
+    expected_notionals = [12, 9, 7, 5, 4, 3, 3, 3, 2, 2]
+    for session in (fixed, random):
+        restored = MMSession.model_validate(session.model_dump(mode='json'))
+        spot, perpetual = restored.catalogue.controller_configs(restored.profile_id, 'both', None)
+        assert perpetual.buy_spreads == perpetual.sell_spreads == [.001, .002]
+        assert spot.spread_policy.volatility.fallback_buy_spreads == spot.spread_policy.volatility.fallback_sell_spreads
+        assert spot.spread_policy.volatility.fallback_buy_spreads == [Decimal(str(spread)) for spread in expected_spreads]
+        for side in (TradeType.BUY, TradeType.SELL):
+            spreads, notionals = spot.get_spreads_and_amounts_in_quote(side)
+            assert spreads == expected_spreads
+            assert notionals == expected_notionals
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('spreads', [[], [1, 1], [2, 1], [0], list(range(1, 12))])
+async def test_profile_quote_levels_reject_invalid_price_or_level_count(spreads):
+    raw = (await MMProfilesConfig.load(CATALOGUE)).model_dump(mode='json')
+    raw['profiles']['sideways']['quote_levels'] = {'spot': {
+        'buy': [dict(spread_pct=spread) for spread in spreads], 'sell': [dict(spread_pct=1)],
+    }}
+    with pytest.raises(ValueError, match='quote_levels'):
+        MMProfilesConfig.model_validate(raw)
 
 
 @pytest.mark.asyncio
