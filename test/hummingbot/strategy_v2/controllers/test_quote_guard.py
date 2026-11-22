@@ -93,6 +93,30 @@ def test_transition_or_partial_fill_uses_full_original_quantity_not_smaller_priv
     assert observation([own], bids=[(99, 100)]).market_mid == Decimal("100")
 
 
+@pytest.mark.parametrize('state', [OrderState.PENDING_CREATE, OrderState.FAILED])
+def test_proven_local_sell_cannot_mask_external_depth_or_restart_guard_recovery(state):
+    own = order(side=TradeType.SELL, price='101', amount='20', state=state, exchange_id=None)
+    own._managed_before_transport = True
+    guard = ready_guard()
+    local = observation([own], timestamp=1003, now=1003)
+    assert guard.evaluate(local, Decimal('100'), 3, sample=True)['ready']
+    own._managed_before_transport = False
+    possibly_sent = observation([own], timestamp=1004, now=1004)
+    assert not guard.evaluate(possibly_sent, Decimal('100'), 4, sample=True)['ready']
+
+
+def test_proven_local_quote_cannot_hide_uncertain_tracker_evidence_or_exceed_order_limit():
+    local = order(state=OrderState.PENDING_CREATE, exchange_id=None)
+    local._managed_before_transport = True
+    uncertain = order(state=OrderState.FAILED, exchange_id=None)
+    connector = SimpleNamespace(name='okx', in_flight_orders={'own': local},
+                                _order_tracker=SimpleNamespace(cached_orders={}, lost_orders={'own': uncertain}))
+    value = observe_market(connector, book(bids=[(99, 10)]), 'LIFE-USDT', now=1000, max_age_seconds=10,
+                           max_levels=5, max_orders=1)
+    assert value.market_mid is None
+    assert observation([local, order('second')], max_orders=1).detail == 'own_order_limit'
+
+
 def test_book_before_private_ack_masks_ambiguous_price_and_missing_competitive_own_level_blocks():
     assert observation([order(updated_at=1000)], bids=[(99, 10)]).market_mid is None
     assert observation([order(price="100")], bids=[(99, 100)]).detail == "inconsistent_own_depth"

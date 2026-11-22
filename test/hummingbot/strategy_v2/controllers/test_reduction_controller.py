@@ -57,6 +57,7 @@ def maker(long='0', short='0', *, levels=1, **updates):
     connector = controller.market_data_provider.get_connector_with_fallback.return_value
     controller.market_data_provider.connectors = {'okx_perpetual': connector}
     connector.name, connector.position_mode = 'okx_perpetual', PositionMode.HEDGE
+    connector.post_only_close_cancel_ms.return_value = None
     from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
     connector._poll_notifier = asyncio.Event()
     connector._position_refresh_notifier = asyncio.Event()
@@ -280,6 +281,12 @@ def test_identity_is_revalidated_against_venue_shrink_and_price_before_transport
     state[0] = ReductionRuntime(state[0].long, state[0].short, (
         ExecutorQuoteState(config, RunnableStatus.RUNNING, False, ('close',), (order,)),), True)
     assert controller.reduction_order_valid(order, config.model_dump(mode='json'))
+    connector.post_only_close_cancel_ms.return_value = 1_000_001
+    controller.market_data_provider.get_order_book.side_effect = lambda *args: SimpleNamespace(
+        snapshot_uid=1_000_000, last_diff_uid=1_000_001)
+    assert not controller.reduction_order_valid(order, config.model_dump(mode='json'))
+    assert controller._reduction_rejection == 'reduction_waiting_for_public_book'
+    connector.post_only_close_cancel_ms.return_value = None
     connector.account_positions['long'].amount = D('.05')
     assert not controller.reduction_order_valid(order, config.model_dump(mode='json'))
     connector.account_positions['long'].amount = D('1')
@@ -360,6 +367,36 @@ def test_small_close_budgets_the_passive_book_bound_before_identity(long, short,
     prepared = controller.prepare_reduction_quote(close)
     assert prepared is not None
     assert (prepared.id, prepared.price, prepared.amount) == (close.id, close.price, close.amount)
+
+
+@pytest.mark.parametrize('long,short,level,model,moved', [
+    ('.001', '0', 'sell_0', '101', '101.03'),
+    ('0', '.001', 'buy_0', '99', '98.97'),
+])
+def test_post_only_close_waits_for_a_book_after_the_venue_rejection(long, short, level, model, moved):
+    controller, connector, _ = maker(long, short)
+    provider = controller.market_data_provider
+    maker_price = D(model)
+    book = SimpleNamespace(snapshot_uid=999_000, last_diff_uid=1_000_000)
+    provider.get_price_by_type.side_effect = lambda *args: maker_price
+    provider.get_order_book.side_effect = lambda *args: book
+    controller._fresh_price = lambda *args: D('100')
+    controller.update_reference = lambda: None
+    controller.get_price_and_amount = lambda level: (D(model), D('.1'))
+    original = controller.get_executor_config(level, D(model), D('.1'))
+    assert original is not None
+    connector.post_only_close_cancel_ms.return_value = 1_000_001
+    assert controller.get_executor_config(level, D(model), D('.1')) is None
+    assert controller.prepare_reduction_quote(original) is None
+    book.last_diff_uid = 1_000_001
+    assert controller.prepare_reduction_quote(original) is None
+    book.last_diff_uid = 1_000_002
+    maker_price = D(moved)
+    refreshed = controller.get_executor_config(level, D(model), D('.1'))
+    assert refreshed is not None and refreshed.price == D(moved) and refreshed.amount == original.amount
+    prepared = controller.prepare_reduction_quote(refreshed)
+    assert prepared is not None and prepared.price == refreshed.price and prepared.amount == refreshed.amount
+    connector.post_only_close_cancel_ms.assert_called_with('BTC-USDT', original.side)
 
 
 def test_reduction_status_is_cached_and_reports_capacity_separately_from_opening_limits():

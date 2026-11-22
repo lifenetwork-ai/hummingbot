@@ -1,4 +1,5 @@
 """Physical HTTP faults: positive evidence resumes; absence stays inconclusive."""
+import json
 import time
 
 
@@ -12,6 +13,8 @@ def scoped_positive_scenario(harness):
     path.write_text(yaml.safe_dump(profiles))
     harness.env['MM_SCOPED_RECOVERY_ENABLED'] = 'true'
     try:
+        # Make account identity arrive after the cold trading connector starts.
+        harness.control(account_read_delay_seconds=1)
         positive_scenario(harness)
     finally:
         path.write_bytes(original)
@@ -166,7 +169,12 @@ def positive_scenario(harness):
                          and all(any(o['side'] == side and o['state'] == 'live' for o in ledger['orders'])
                                  for side in ('buy', 'sell'))) else None
 
-    state = poll(resumed, timeout=30, description='verified order restores both quote sides without restarting the owner')
+    try:
+        state = poll(resumed, timeout=30, description='verified order restores both quote sides without restarting the owner')
+    except AssertionError:
+        _, status = harness.admin(port, '/status')
+        harness.report.joinpath('recovery-wait-status.json').write_text(json.dumps(status, indent=2))
+        raise
     assert state['recovery_state']['automatic_recovery']['cold_recovery_supported']
     assert harness.sql('SELECT count(*) FROM runtime_checkpoints') == '1'
     assert (state['owner_uuid'], state['owner_generation']) == identity

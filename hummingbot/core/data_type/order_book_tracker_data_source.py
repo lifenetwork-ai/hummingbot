@@ -25,6 +25,7 @@ class OrderBookTrackerDataSource(metaclass=ABCMeta):
         self._order_book_create_function = lambda: OrderBook()
         self._message_queue: Dict[str, asyncio.Queue] = defaultdict(asyncio.Queue)
         self._ws_assistant: Optional[WSAssistant] = None
+        self._subscriptions_ready = asyncio.Event()
 
     @classmethod
     def logger(cls) -> HummingbotLogger:
@@ -79,17 +80,20 @@ class OrderBookTrackerDataSource(metaclass=ABCMeta):
                 ws: WSAssistant = await self._connected_websocket_assistant()
                 self._ws_assistant = ws  # Store reference for incremental subscriptions
                 await self._subscribe_channels(ws)
+                self._subscriptions_ready.set()
                 await self._process_websocket_messages(websocket_assistant=ws)
             except asyncio.CancelledError:
                 raise
             except ConnectionError as connection_exception:
                 self.logger().warning(f"The websocket connection was closed ({connection_exception})")
             except Exception:
+                self._subscriptions_ready.clear()
                 self.logger().exception(
                     "Unexpected error occurred when listening to order book streams. Retrying in 5 seconds...",
                 )
                 await self._sleep(1.0)
             finally:
+                self._subscriptions_ready.clear()
                 self._ws_assistant = None  # Clear reference on disconnect
                 await self._on_order_stream_interruption(websocket_assistant=ws)
 

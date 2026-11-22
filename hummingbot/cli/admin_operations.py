@@ -164,7 +164,11 @@ def operator_view(row, process):
             drawdown.update(ready=False, stale=True, global_pnl_quote=None, global_drawdown_quote=None)
             for value in drawdown.get("controllers", {}).values():
                 value.update(pnl_quote=None, drawdown_quote=None)
+    public_phase = snapshot.get('phase', 'unknown') if available else 'owner_unavailable'
+    if available and shutdown_pending:
+        public_phase = 'stopping'
     return dict(process_identity=process, owner_identity=owner, quote_activity=quotes,
+                phase=public_phase, running=available and not shutdown_pending and bool(snapshot.get('running')),
                 observation=dict(stale=stale, session_matches=matches, observed_at=observed_at,
                                  reason_code="owner_unavailable" if not available else "session_transition" if not matches else
                                  "observation_stale" if observation_old else None),

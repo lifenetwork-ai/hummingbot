@@ -134,7 +134,7 @@ def scenario(harness, leg, *, previous_image=None):
                   asks=[['.10115', '100000'], ['.10120', '100000']]) if leg == 'long' else
              dict(bids=[['.09885', '100000'], ['.09880', '100000']],
                   asks=[['.09895', '100000'], ['.09900', '100000']]))
-    harness.control(enforce_post_only=True, post_only_move_on_submit={'LIFE-USDT-SWAP': moved},
+    harness.control(enforce_post_only=True, post_only_move_on_submit={'LIFE-USDT-SWAP': moved}, post_only_public_book_delay=1,
                     post_only_move_on_submit_side='sell' if leg == 'long' else 'buy')
     upgraded, port = harness.start('reduction-restart-' + leg, auto_migrate=False)
     harness.mm_command(port, 'start', market_mode='perpetual', selection='fixed', profile_id='sideways', duration_seconds=600)
@@ -142,8 +142,8 @@ def scenario(harness, leg, *, previous_image=None):
     assert positions() == {leg: Decimal(opening['sz']) - quantity}
     cancellations = [row for row in harness.ledger()['orders'] if row.get('cancelSource') == '31'
                      and row.get('posSide') == leg and row['side'] == ('sell' if leg == 'long' else 'buy')]
-    assert cancellations and all(row['accFillSz'] == '0' for row in cancellations)
-    assert len(cancellations) <= 2, 'Managed CLOSE replayed its stale prepared price'
+    assert len(cancellations) == 1, f'Managed CLOSE must cross only once after the injected price move, got {len(cancellations)} cancels'
+    assert cancellations[0]['accFillSz'] == '0'
     passive = closing()
     assert all(Decimal(row['px']) >= Decimal('.10115') if leg == 'long'
                else Decimal(row['px']) <= Decimal('.09885') for row in passive)

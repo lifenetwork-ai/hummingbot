@@ -291,6 +291,15 @@ class PerpetualReductionMixin:
             rounded = connector.quantize_order_price(self.config.trading_pair, rounded + tick)
         return rounded
 
+    def _reduction_close_book_ready(self, connector, side):
+        pair = self.config.trading_pair
+        rejected_at = connector.post_only_close_cancel_ms(pair, side)
+        if rejected_at is None:
+            return True
+        # The private cancel can arrive before the public book movement.
+        book = self.market_data_provider.get_order_book(self.config.connector_name, pair)
+        return max(book.snapshot_uid, book.last_diff_uid) > rejected_at
+
     def perpetual_opening_caps(self):
         """Resolve caps from the pinned budget and the resident OKX mark."""
         hard = (self.config.max_long_base, self.config.max_short_base, self.config.max_gross_base)
@@ -345,6 +354,9 @@ class PerpetualReductionMixin:
             fee = self._closing_fee()
             basis = view.short if side == TradeType.BUY else view.long
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+            if not self._reduction_close_book_ready(connector, side):
+                self._reduction_wait('reduction_waiting_for_public_book', side)
+                return None
             budget = price * amount
             quantity = connector.quantize_order_amount(self.config.trading_pair, min(amount, decision.available))
             if quantity <= 0:
@@ -490,8 +502,10 @@ class PerpetualReductionMixin:
             if decision.effect == PositionAction.CLOSE:
                 basis = view.short if config.side == TradeType.BUY else view.long
                 fee = self._closing_fee()
-                available = Decimal(str(self.market_data_provider.get_connector_with_fallback(
-                    self.config.connector_name).get_available_balance('USDT')))
+                connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
+                if not self._reduction_close_book_ready(connector, config.side):
+                    return reject('reduction_waiting_for_public_book')
+                available = Decimal(str(connector.get_available_balance('USDT')))
                 reserved = sum((other.amount * quote_price(other) * fee.rate + fee.flat_quote
                                 for other in self._reduction_configs(state)
                                 if other.id != config.id and quote_effect(other) == PositionAction.CLOSE), ZERO)

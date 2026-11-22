@@ -2,7 +2,6 @@
 import asyncio
 import copy
 import json
-import time
 from decimal import Decimal
 from test.hummingbot.core.test_spot_outflow import fill
 from test.integration.postgres.test_spot_outflow import buy, owned as _owned, setup
@@ -27,6 +26,15 @@ def expiring(context, count=4096):
     return stamp
 
 
+async def wait_for_expiry(context, stamp):
+    # Expiry uses the database clock, which can lag the test host.
+    earliest = stamp + 1001
+    async with asyncio.timeout(5):
+        while (now := int(context.owner.check_owner()['database_now'] * 1000)) < earliest:
+            await asyncio.sleep((earliest - now) / 1000)
+    return now
+
+
 def test_partial_expiry_rejects_final_send_without_halt_and_resumes_after_proof(owned):
     session, _ = setup(owned, window_seconds=1)
     queued = buy(owned, session)
@@ -37,7 +45,7 @@ def test_partial_expiry_rejects_final_send_without_halt_and_resumes_after_proof(
                               clOrdId='a', instId='LIFE-USDT', side='buy', sz='5', px='10', tdMode='cash')))
 
     async def scenario():
-        await asyncio.sleep(max(0, (stamp + 1001) / 1000 - time.time()))
+        await wait_for_expiry(owned, stamp)
         with pytest.raises(SubmissionBlocked, match='spot_outflow_projection_catching_up') as denied:
             await owned.owner.authorize_rest(request)
         assert type(denied.value).__name__ == 'SpotOutflowPending'
@@ -64,8 +72,7 @@ def test_database_stop_interrupts_bulk_expiry_without_clearing_guard_or_checkpoi
     before = owned.store.read()['recovery_state']
 
     async def scenario():
-        await asyncio.sleep(max(0, (stamp + 1001) / 1000 - time.time()))
-        target = int(owned.owner.check_owner()['database_now'] * 1000)
+        target = await wait_for_expiry(owned, stamp)
         reference = copy.deepcopy(guard.projection)
         reference.advance(target)
         asyncio.get_running_loop().call_soon(lambda: owned.store.control(

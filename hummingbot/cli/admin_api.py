@@ -435,8 +435,7 @@ class AdminAPI(AdminAccessAPI, AdminCredentialsAPI, AdminRecoveryAPI):
                        "reserved_quote": None, "remaining_quote": None}
         model = StatusResponse(service=service, bot_id=row["bot_id"], desired_state=row["desired_state"], control_version=row["control_version"],
                                acknowledged_version=row["acknowledged_version"], owner_available=owner_available,
-                               heartbeat_age_seconds=age, running=owner_available and bool(snapshot.get("running")),
-                               phase=snapshot.get("phase", "unknown") if owner_available else "owner_unavailable",
+                               heartbeat_age_seconds=age,
                                session=session, observed_session=snapshot.get("mm_session"),
                                **operator_view(row, process_identity(self.host)),
                                spot_outflow=outflow,

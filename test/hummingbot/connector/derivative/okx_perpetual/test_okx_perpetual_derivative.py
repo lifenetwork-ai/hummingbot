@@ -119,6 +119,25 @@ class OkxPerpetualDerivativeTests(
             self.run_async_with_timeout(self.exchange._process_order_event_message(event))
         self.assertEqual(1700000000.123, process.call_args.args[0].fill_timestamp)
 
+    async def test_post_only_close_book_fence_uses_native_cancel_evidence_from_rest_and_websocket(self):
+        order = InFlightOrder(client_order_id='close-book-fence', exchange_order_id='1', trading_pair=self.trading_pair,
+                              order_type=OrderType.LIMIT_MAKER, trade_type=TradeType.BUY, amount=Decimal('1'),
+                              price=Decimal('100'), creation_timestamp=1700000000, position=PositionAction.CLOSE)
+        order._managed_recovery_order = True
+        self.exchange._order_tracker.start_tracking_order(order)
+        cancellation = dict(clOrdId=order.client_order_id, ordId='1', state='canceled', cancelSource='31',
+                            side='buy', posSide='short', uTime='1700000000123')
+        with patch.object(self.exchange, '_api_request', AsyncMock(return_value={'code': '0', 'data': [cancellation]})):
+            await self.exchange._request_order_update(order)
+        self.assertEqual(1700000000123, self.exchange.post_only_close_cancel_ms(self.trading_pair, TradeType.BUY))
+
+        with patch.object(self.exchange._order_tracker, 'process_order_update'):
+            await self.exchange._process_order_event_message({**cancellation, 'cancelSource': '0', 'uTime': '1700000000423'})
+            await self.exchange._process_order_event_message({**cancellation, 'uTime': '1700000000323'})
+            await self.exchange._process_order_event_message(cancellation)
+        self.assertEqual(1700000000323, self.exchange.post_only_close_cancel_ms(self.trading_pair, TradeType.BUY))
+        self.assertIsNone(self.exchange.post_only_close_cancel_ms(self.trading_pair, TradeType.SELL))
+
     @property
     def all_symbols_url(self):
         url = web_utils.get_rest_url_for_endpoint(endpoint=CONSTANTS.REST_GET_INSTRUMENTS[CONSTANTS.ENDPOINT])

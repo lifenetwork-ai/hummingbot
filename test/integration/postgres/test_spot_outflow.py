@@ -20,7 +20,7 @@ from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount, TradeFeeSchema
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
 from hummingbot.core.mm_session import MMSession, MMSessionRequest
-from hummingbot.core.order_submission_guard import SubmissionBlocked, session_order_scope
+from hummingbot.core.order_submission_guard import SpotOutflowPending, SubmissionBlocked, session_order_scope
 from hummingbot.core.spot_outflow import SpotOutflowPolicy
 from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest
@@ -31,7 +31,7 @@ from hummingbot.model.trade_fill import TradeFill
 owned = _owned
 
 
-def setup(context, **changes):
+def setup(context, *, initialize=True, **changes):
     data = asyncio.run(MMProfilesConfig.load(CATALOGUE)).model_dump(mode="json")
     data["spot_outflow"] = dict(window_seconds=10, max_net_outflow_quote="100", fee_allowance_rate=".01")
     data["spot_outflow"].update(changes)
@@ -49,7 +49,8 @@ def setup(context, **changes):
         context.market.current_timestamp = float('nan')
     context.market.get_fee.return_value = AddedToCostTradeFee(percent=Decimal(".001"))
     context.owner.spot_outflow = SpotOutflowGuard(context.owner, catalogue.outflow_policy())
-    asyncio.run(context.owner.spot_outflow.initialize())
+    if initialize:
+        asyncio.run(context.owner.spot_outflow.initialize())
     return session, catalogue
 
 
@@ -75,6 +76,29 @@ def test_binding_and_parallel_pre_intent_final_gate_count_one_reservation(owned)
     assert owned.owner.spot_outflow.status()["reserved_quote"] == Decimal("50.5")
     assert first.client_order_id in owned.owner.sent_intents
     assert owned.store.read()["recovery_state"]["spot_outflow"]["binding"] == dict(account_id="account-A", environment="demo", trading_pair="LIFE-USDT")
+
+
+def test_cold_start_cannot_create_spot_history_before_pinning_outflow_coverage(owned):
+    session, _ = setup(owned, initialize=False)
+    guard = owned.owner.spot_outflow
+    owned.market.account_uid = None
+    assert not asyncio.run(guard.initialize())
+    owned.market.account_uid = 'account-A'
+
+    # Account identity can arrive after startup reconciliation, before the
+    # observer has bound the policy. A first SELL must not create legacy history.
+    with pytest.raises(SpotOutflowPending, match='spot_outflow_initializing'):
+        buy(owned, session, 'early-sell', side=TradeType.SELL)
+    with pytest.raises(SpotOutflowPending, match='spot_outflow_initializing'):
+        guard.authorize({'clOrdId': 'early-sell', 'instId': 'LIFE-USDT', 'side': 'sell'}, owned.owner.check_owner())
+    with owned.manager.get_new_session() as db:
+        assert db.get(Order, 'early-sell') is None
+
+    assert asyncio.run(guard.initialize())
+    assert guard.status()['buy_allowed']
+    buy(owned, session, 'first-sell', side=TradeType.SELL)
+    buy(owned, session, 'first-buy')
+    assert guard.status()['reserved_quote'] == Decimal('50.5')
 
 
 def test_delayed_commit_partial_fill_and_duplicates_do_not_return_capacity_early(owned):

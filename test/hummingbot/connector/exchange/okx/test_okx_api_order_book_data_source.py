@@ -590,6 +590,63 @@ class OkxAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
 
     # Dynamic subscription tests for subscribe_to_trading_pair and unsubscribe_from_trading_pair
 
+    async def test_dynamic_subscription_waits_for_connection_and_initial_channels(self):
+        new_pair = "ETH-USDT"
+        self.connector._set_trading_pair_symbol_map(bidict({self.trading_pair: self.trading_pair, new_pair: new_pair}))
+        ws = AsyncMock()
+        connected, initial_started, initial_done = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+        async def connect():
+            await connected.wait()
+            return ws
+
+        async def subscribe_initial(assistant):
+            self.assertIs(assistant, ws)
+            initial_started.set()
+            await initial_done.wait()
+
+        async def listen(websocket_assistant):
+            await asyncio.Event().wait()
+
+        with (patch.object(self.data_source, '_connected_websocket_assistant', side_effect=connect),
+              patch.object(self.data_source, '_subscribe_channels', side_effect=subscribe_initial),
+              patch.object(self.data_source, '_process_websocket_messages', side_effect=listen)):
+            listener = asyncio.create_task(self.data_source.listen_for_subscriptions())
+            dynamic = asyncio.create_task(self.data_source.subscribe_to_trading_pair(new_pair))
+            try:
+                await asyncio.sleep(0)
+                self.assertFalse(dynamic.done())
+                connected.set()
+                await asyncio.wait_for(initial_started.wait(), 2)
+                self.assertFalse(dynamic.done())
+                ws.send.assert_not_awaited()
+                initial_done.set()
+                self.assertTrue(await asyncio.wait_for(dynamic, 2))
+                self.assertEqual([request.args[0].payload['args'][0]['channel'] for request in ws.send.await_args_list],
+                                 ['trades', 'books'])
+                self.assertIn(new_pair, self.data_source._trading_pairs)
+            finally:
+                dynamic.cancel()
+                listener.cancel()
+                await asyncio.gather(dynamic, listener, return_exceptions=True)
+            self.assertFalse(self.data_source._subscriptions_ready.is_set())
+
+    async def test_dynamic_subscription_does_not_split_channels_across_connections(self):
+        new_pair = "ETH-USDT"
+        self.connector._set_trading_pair_symbol_map(bidict({self.trading_pair: self.trading_pair, new_pair: new_pair}))
+        previous, current = AsyncMock(), AsyncMock()
+
+        async def reconnect(request):
+            self.data_source._ws_assistant = current
+
+        self.data_source._ws_assistant = previous
+        self.data_source._subscriptions_ready.set()
+        previous.send.side_effect = reconnect
+        self.assertFalse(await self.data_source.subscribe_to_trading_pair(new_pair))
+        previous.send.assert_awaited_once()
+        current.send.assert_not_awaited()
+        self.assertNotIn(new_pair, self.data_source._trading_pairs)
+
     async def test_subscribe_to_trading_pair_successful(self):
         """Test successful subscription to a new trading pair."""
         new_pair = "ETH-USDT"
@@ -602,6 +659,7 @@ class OkxAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         # Create a mock WebSocket assistant
         mock_ws = AsyncMock()
         self.data_source._ws_assistant = mock_ws
+        self.data_source._subscriptions_ready.set()
 
         result = await self.data_source.subscribe_to_trading_pair(new_pair)
 
@@ -623,7 +681,8 @@ class OkxAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         # Ensure ws_assistant is None
         self.data_source._ws_assistant = None
 
-        result = await self.data_source.subscribe_to_trading_pair(new_pair)
+        with patch.object(self.data_source, '_DYNAMIC_SUBSCRIPTION_READY_TIMEOUT', 0):
+            result = await self.data_source.subscribe_to_trading_pair(new_pair)
 
         self.assertFalse(result)
         self.assertTrue(
@@ -641,6 +700,7 @@ class OkxAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         mock_ws = AsyncMock()
         mock_ws.send.side_effect = asyncio.CancelledError
         self.data_source._ws_assistant = mock_ws
+        self.data_source._subscriptions_ready.set()
 
         with self.assertRaises(asyncio.CancelledError):
             await self.data_source.subscribe_to_trading_pair(new_pair)
@@ -656,6 +716,7 @@ class OkxAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         mock_ws = AsyncMock()
         mock_ws.send.side_effect = Exception("Test Error")
         self.data_source._ws_assistant = mock_ws
+        self.data_source._subscriptions_ready.set()
 
         result = await self.data_source.subscribe_to_trading_pair(new_pair)
 

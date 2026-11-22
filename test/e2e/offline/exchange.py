@@ -140,6 +140,8 @@ class Exchange:
         self.enforce_post_only = False
         self.post_only_move_on_submit = {}
         self.post_only_move_on_submit_side = 'sell'
+        self.post_only_public_book_delay = 0
+        self.post_only_public_book_resume_at = {}
         self.include_own_orders = False
         self.markets_task = None
         self.target_updates_per_second = 0
@@ -323,6 +325,10 @@ class Exchange:
                         if (socket.closed or arg.get("channel") != "books" or pair.removesuffix("-SWAP") in self.stale_pairs
                                 or pair in self.stale_instruments):
                             continue
+                        if pair in self.post_only_public_book_resume_at:
+                            if time.monotonic() < self.post_only_public_book_resume_at[pair]:
+                                continue
+                            self.post_only_public_book_resume_at.pop(pair)
                         if diagnostics is None:
                             await socket.send_json({"arg": arg, "action": "snapshot", "data": [self.book(pair)]})
                         else:
@@ -559,6 +565,8 @@ class Exchange:
                 movement = self.post_only_move_on_submit.get(data['instId'])
                 if movement and data['side'] == self.post_only_move_on_submit_side:
                     self.book_overrides[data['instId']] = self.post_only_move_on_submit.pop(data['instId'])
+                    if self.post_only_public_book_delay:
+                        self.post_only_public_book_resume_at[data['instId']] = time.monotonic() + self.post_only_public_book_delay
                 book = self.book(data['instId'])
                 opposite = book['asks' if data['side'] == 'buy' else 'bids']
                 crosses = opposite and (Decimal(data['px']) >= Decimal(opposite[0][0]) if data['side'] == 'buy'
@@ -791,6 +799,10 @@ class Exchange:
             self.post_only_move_on_submit_side = data['post_only_move_on_submit_side']
         if 'post_only_move_on_submit' in data:
             self.post_only_move_on_submit = copy.deepcopy(data['post_only_move_on_submit'])
+        if 'post_only_public_book_delay' in data:
+            delay = float(data['post_only_public_book_delay'])
+            assert 0 <= delay <= 2
+            self.post_only_public_book_delay = delay
         if "stale_instruments" in data:
             self.stale_instruments = set(data["stale_instruments"])
         if 'rest_stale_instruments' in data:

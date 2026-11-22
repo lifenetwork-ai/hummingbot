@@ -90,16 +90,24 @@ def _decimal(value):
 def _orders(connector, pair, maximum):
     tracker = getattr(connector, "_order_tracker", None)
     sources = (connector.in_flight_orders, getattr(tracker, "cached_orders", {}), getattr(tracker, "lost_orders", {}))
-    values, seen = [], set()
+    values, seen = [], {}
     for order in chain.from_iterable(source.values() for source in sources):
-        if order.client_order_id in seen:
+        identity = order.client_order_id
+        if seen.get(identity):
             continue
-        seen.add(order.client_order_id)
+        seen.setdefault(identity, False)
         if len(seen) > maximum:
             raise ValueError("own_order_limit")
+        # A process-local proof applies only to this object. A second tracker
+        # entry for the same identity can still carry transport evidence.
+        if (getattr(order, '_managed_before_transport', False) is True
+                and order.exchange_order_id is None and order.executed_amount_base == 0
+                and order.current_state in (OrderState.PENDING_CREATE, OrderState.FAILED, OrderState.CANCELED)):
+            continue
+        seen[identity] = True
         if order.trading_pair != pair:
             continue
-        values.append((order.client_order_id, order.exchange_order_id, order.trade_type, order.current_state,
+        values.append((identity, order.exchange_order_id, order.trade_type, order.current_state,
                        _decimal(order.price), _decimal(order.amount), _decimal(order.executed_amount_base),
                        float(_decimal(order.last_update_timestamp))))
     return tuple(values)
@@ -111,6 +119,7 @@ def observe_market(connector, book, pair, *, now, max_age_seconds, max_levels, m
     Stable acknowledged, unfilled orders contribute their remaining base quantity.
     Pending, partially filled and recently terminal orders contribute their full
     original amount as an upper bound, never their smaller private remainder.
+    Quotes known to be local to this process contribute no public quantity.
     Insufficient ambiguous depth is masked, rather than treated as independent.
     The connector's existing 30s terminal cache supplies that bounded history.
     """

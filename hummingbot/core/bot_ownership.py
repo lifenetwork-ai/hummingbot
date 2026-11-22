@@ -1157,6 +1157,10 @@ class BotOwnership:
                 raise PositionCheckpointOrderWait("The unsent quote expired while waiting for its position checkpoint.")
             headers["expTime"] = str(expiry)
             request.headers = headers
+            # Stop granting local-only depth evidence before the journal write.
+            # A lost COMMIT reply cannot establish that this order stayed local.
+            if order is not None and getattr(order, '_managed_before_transport', False) is True:
+                order._managed_before_transport = False
             self._record_send_attempt(client_id, data, expiry, headers)
             return None
         if path not in ACCOUNT_PATHS:

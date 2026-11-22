@@ -464,6 +464,8 @@ class ExchangePyBase(ExchangeBase, ABC):
             from hummingbot.core.order_submission_guard import SUPPORTED_CONNECTORS, before_order, postgres_requested
             if self.name in SUPPORTED_CONNECTORS and postgres_requested():
                 order._local_submission_in_progress = True
+                if self.name == 'okx' and order_type == OrderType.LIMIT_MAKER:
+                    order._managed_before_transport = True
             with submission_timing('admission_ms'):
                 await before_order(self, order)
             await self._place_order_and_process_update(order=order, **kwargs,)

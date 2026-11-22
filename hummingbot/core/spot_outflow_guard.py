@@ -161,6 +161,14 @@ class SpotOutflowGuard:
             return False
         return True
 
+    def _require_bound_identity(self, *, spot_order):
+        if not self._identity_matches():
+            raise SubmissionBlocked(self.reason_code)
+        if spot_order and self.binding is None:
+            # The first durable Spot intent would otherwise turn this account
+            # into legacy history while the coverage baseline is still unset.
+            raise SpotOutflowPending('spot_outflow_initializing')
+
     def _flat_fee(self, connector, order):
         base, quote = order.trading_pair.split("-")
         fee = connector.get_fee(base, quote, order.order_type, order.trade_type, order.amount, order.price, is_maker=True)
@@ -182,8 +190,7 @@ class SpotOutflowGuard:
         return flat
 
     def before_order(self, connector, order, row):
-        if not self._identity_matches():
-            raise SubmissionBlocked(self.reason_code)
+        self._require_bound_identity(spot_order=connector.name == 'okx')
         if connector.name != "okx" or order.trade_type != TradeType.BUY:
             return
         now_ms = int(row['database_now'] * 1000)
@@ -240,8 +247,7 @@ class SpotOutflowGuard:
             return False
 
     def authorize(self, data, row):
-        if not self._identity_matches():
-            raise SubmissionBlocked(self.reason_code)
+        self._require_bound_identity(spot_order=data.get('instId') == self.policy['trading_pair'])
         client_id = data.get("clOrdId")
         if client_id in self.orders:
             connector, order = self.orders[client_id]

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     _logger: Optional[HummingbotLogger] = None
+    _DYNAMIC_SUBSCRIPTION_READY_TIMEOUT = 20
     _DYNAMIC_SUBSCRIBE_ID_START = 100
     _next_subscribe_id: int = _DYNAMIC_SUBSCRIBE_ID_START
 
@@ -214,12 +215,17 @@ class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
         :param trading_pair: the trading pair to subscribe to
         :return: True if subscription was successful, False otherwise
         """
-        if self._ws_assistant is None:
+        try:
+            async with asyncio.timeout(self._DYNAMIC_SUBSCRIPTION_READY_TIMEOUT):
+                while not self._subscriptions_ready.is_set():
+                    await self._subscriptions_ready.wait()
+        except asyncio.TimeoutError:
             self.logger().warning(
                 f"Cannot subscribe to {trading_pair}: WebSocket not connected"
             )
             return False
 
+        ws = self._ws_assistant
         try:
             symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
 
@@ -235,10 +241,13 @@ class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
             }
             subscribe_orderbook_request: WSJSONRequest = WSJSONRequest(payload=orderbook_payload)
 
-            async with self._api_factory.throttler.execute_task(limit_id=CONSTANTS.WS_SUBSCRIPTION_LIMIT_ID):
-                await self._ws_assistant.send(subscribe_trade_request)
-            async with self._api_factory.throttler.execute_task(limit_id=CONSTANTS.WS_SUBSCRIPTION_LIMIT_ID):
-                await self._ws_assistant.send(subscribe_orderbook_request)
+            for request in (subscribe_trade_request, subscribe_orderbook_request):
+                async with self._api_factory.throttler.execute_task(limit_id=CONSTANTS.WS_SUBSCRIPTION_LIMIT_ID):
+                    if ws is not self._ws_assistant or not self._subscriptions_ready.is_set():
+                        return False
+                    await ws.send(request)
+            if ws is not self._ws_assistant or not self._subscriptions_ready.is_set():
+                return False
 
             self.add_trading_pair(trading_pair)
             self.logger().info(f"Subscribed to {trading_pair} order book and trade channels")

@@ -55,12 +55,14 @@ async def test_verified_shutdown_fence_is_wait_not_manual_recovery(desired, avai
         id='session', generation=0, status='running', config_hash='a' * 64, profile_id='follow_market',
         request=dict(market_mode='both', selection='fixed', profile_id='follow_market', duration_mode='until_stopped'),
         step_index=0, started_at=row['database_now'], expires_at=None, step_expires_at=None, anchors={})
-    row['recovery_summary'].update(halted=True, shutdown_pending=True,
+    row['recovery_summary'].update(halted=True, shutdown_pending=True, halt_kind='shutdown_pending',
                                    automatic_recovery={'phase': 'idle', 'cold_recovery_supported': True})
     async with client(state=row) as (http, _):
         response = await http.get(ADMIN_PREFIX + '/status')
         body = await response.json()
     assert response.status == 200
+    assert body['phase'] == ('stopping' if available else 'owner_unavailable')
+    assert not body['running']
     assert body['recovery']['halted']  # Preserve the real admission fence.
     assert body['recovery']['next_action'] == 'wait'
     assert not body['recovery']['check_available'] and not body['recovery']['reset_available']

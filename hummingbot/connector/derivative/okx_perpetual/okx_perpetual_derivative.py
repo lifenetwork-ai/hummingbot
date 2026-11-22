@@ -73,6 +73,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         self.position_absence_times = {}
         self._position_event_versions = {}
         self._position_leg_event_versions = {}
+        self._post_only_close_cancel_ms = {}
         self._position_read_lock = asyncio.Lock()
         self._position_refresh_notifier = asyncio.Event()
 
@@ -566,13 +567,37 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
         return order_update
 
     async def _request_order_update(self, order: InFlightOrder) -> Dict[str, Any]:
-        return await self._api_request(
+        response = await self._api_request(
             method=RESTMethod.GET,
             path_url=CONSTANTS.REST_QUERY_ACTIVE_ORDER[CONSTANTS.ENDPOINT],
             params={
                 "instId": await self.exchange_symbol_associated_to_pair(order.trading_pair),
                 "clOrdId": order.client_order_id},
             is_auth_required=True)
+        rows = response.get('data')
+        if str(response.get('code')) == CONSTANTS.RET_CODE_OK and isinstance(rows, list) and rows and isinstance(rows[0], dict):
+            self._observe_post_only_close_cancel(order, rows[0])
+        return response
+
+    def post_only_close_cancel_ms(self, trading_pair: str, side: TradeType) -> Optional[int]:
+        return self._post_only_close_cancel_ms.get((trading_pair, side))
+
+    def _observe_post_only_close_cancel(self, order: InFlightOrder, data: Dict[str, Any]):
+        if (getattr(order, '_managed_recovery_order', False) is not True or order.position != PositionAction.CLOSE
+                or order.order_type != OrderType.LIMIT_MAKER or data.get('state') != 'canceled'
+                or str(data.get('cancelSource')) != '31' or data.get('clOrdId') != order.client_order_id
+                or data.get('side') != order.trade_type.name.lower()
+                or data.get('posSide') != ('short' if order.trade_type == TradeType.BUY else 'long')
+                or not data.get('ordId')
+                or order.exchange_order_id and str(data.get('ordId')) != order.exchange_order_id):
+            return
+        try:
+            rejected_at = int(data['uTime'])
+        except (KeyError, ValueError, TypeError):
+            return
+        key = (order.trading_pair, order.trade_type)
+        if rejected_at > self._post_only_close_cancel_ms.get(key, 0):
+            self._post_only_close_cancel_ms[key] = rejected_at
 
     async def _user_stream_event_listener(self):
         """
@@ -953,6 +978,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         updatable_order = self._order_tracker.all_updatable_orders.get(client_order_id)
         if updatable_order is not None:
+            self._observe_post_only_close_cancel(updatable_order, order_msg)
             new_order_update: OrderUpdate = OrderUpdate(
                 trading_pair=updatable_order.trading_pair,
                 update_timestamp=self.current_timestamp,

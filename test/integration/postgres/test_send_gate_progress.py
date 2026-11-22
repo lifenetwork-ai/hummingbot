@@ -17,10 +17,13 @@ from sqlalchemy.exc import DBAPIError
 from hummingbot.core.bot_ownership import ORDER_PATH, OwnershipLost
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
+from hummingbot.core.data_type.order_book import OrderBook
+from hummingbot.core.data_type.order_book_row import OrderBookRow
 from hummingbot.core.order_submission_guard import SubmissionBlocked, session_order_scope
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.model.order import Order
 from hummingbot.model.runtime_journal import SubmissionAttempt, digest
+from hummingbot.strategy_v2.utils.quote_guard import observe_market
 
 owned = owned_fixture
 native = native_fixture
@@ -359,7 +362,8 @@ def test_failed_transition_validation_leaves_the_entire_journal_row_unchanged(ow
 
 @pytest.mark.parametrize('committed', [False, True], ids=['commit-not-applied', 'commit-reply-lost'])
 def test_send_commit_failure_never_reaches_transport_or_retries_an_uncertain_send(owned, monkeypatch, committed):
-    intent(owned)
+    order = intent(owned)
+    order._managed_before_transport = True
     raw = owned.owner.connection.connection.driver_connection
     original = type(raw).commit
     faults = []
@@ -378,6 +382,7 @@ def test_send_commit_failure_never_reaches_transport_or_retries_an_uncertain_sen
     rest, transport = assistant()
     with pytest.raises(DBAPIError):
         owned.loop.run_until_complete(send(rest, 'order-1'))
+    assert order._managed_before_transport is False
     assert faults == [True] and owned.owner.sent_intents == {'order-1'}
     transport.call.assert_not_awaited()
     with owned.manager.get_new_session() as db:
@@ -388,6 +393,50 @@ def test_send_commit_failure_never_reaches_transport_or_retries_an_uncertain_sen
         owned.loop.run_until_complete(send(rest, 'order-1'))
     transport.call.assert_not_awaited()
     assert owned.owner.lost and not owned.owner.allow_new_orders
+
+
+def test_native_quote_remains_local_until_the_final_journal_write(native):
+    entered, release = asyncio.Event(), asyncio.Event()
+    rest, transport = assistant(Throttler(entered, release))
+    rest._auth = native.market.authenticator
+    order_id = 'local-before-send'
+    record = native.owner._record_send_attempt
+    now = native.market.current_timestamp
+    book = OrderBook()
+    update_id = int(now)
+    book.apply_snapshot([OrderBookRow(9.9, 5, update_id)], [OrderBookRow(10, 5, update_id)], update_id)
+
+    def outside_price(connector, order):
+        return observe_market(connector, book, order.trading_pair, now=now, max_age_seconds=10,
+                              max_levels=5, max_orders=20).market_mid
+
+    native.owner.mm_order_ready_check = lambda connector, order: outside_price(connector, order) is not None
+
+    def record_attempt(*args):
+        order = native.market.in_flight_orders[order_id]
+        assert order._managed_before_transport is False
+        assert outside_price(native.market, order) is None
+        return record(*args)
+
+    async def run():
+        with session_order_scope(native.session.id, native.session.generation):
+            task = asyncio.create_task(native.market._create_order(
+                TradeType.SELL, order_id, 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            order = native.market.in_flight_orders[order_id]
+            assert order._managed_before_transport is True
+            assert '_managed_before_transport' not in order.to_json()
+            transport.call.assert_not_awaited()
+        finally:
+            release.set()
+            await asyncio.wait_for(task, 2)
+        transport.call.assert_awaited_once()
+
+    with (patch.object(native.market._web_assistants_factory, 'get_rest_assistant', AsyncMock(return_value=rest)),
+          patch.object(native.owner, '_record_send_attempt', side_effect=record_attempt) as gate):
+        native.loop.run_until_complete(run())
+        gate.assert_called_once()
 
 
 @pytest.mark.parametrize('retirement', ['task_cancel', 'tracker_cancel', 'tracker_remove'])
