@@ -14,15 +14,46 @@ on:
       - '.github/workflows/frontend.yml'
 
 jobs:
+  postgres_integration:
+    name: PostgreSQL integration (${{ matrix.shard }})
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/4', '2/4', '3/4', '4/4']
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Restore Conda packages
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.temp }}/conda-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-conda-packages-${{ hashFiles('setup/environment.yml', '.github/actions/install_env_and_hb/action.yml') }}
+      - name: Install environment and Hummingbot
+        uses: ./.github/actions/install_env_and_hb
+      - name: Run isolated PostgreSQL shard
+        env:
+          POSTGRES_TEST_SHARD: ${{ matrix.shard }}
+        run: python scripts/test_postgres.py --postgres-shard "$POSTGRES_TEST_SHARD" --durations=20
+
   build_hummingbot:
     name: Hummingbot build + stable tests
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: postgres_integration
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash -el {0}
 
     steps:
+      - name: Require all PostgreSQL integration shards
+        env:
+          POSTGRES_INTEGRATION_RESULT: ${{ needs.postgres_integration.result }}
+        run: test "$POSTGRES_INTEGRATION_RESULT" = success
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -77,9 +108,6 @@ jobs:
 
       - name: Admin OpenAPI contract drift check
         run: make swagger-backend-check
-
-      - name: PostgreSQL integration (required, no missing-DSN skip)
-        run: make test-postgres
 
       - name: PostgreSQL port regression (required)
         run: make test-cloudrun-regression

@@ -278,6 +278,11 @@ failure to provide test infrastructure fails the command instead of skipping tes
 Direct integration invocation requires `HBOT_TEST_POSTGRES_URL` and a database
 name starting `hbot_test_`; **that test database's public schema is erased**.
 
+CI runs four PostgreSQL integration shards in parallel, each with its own
+disposable database. All four must pass before the main backend job runs.
+Reproduce the third shard locally with
+`python scripts/test_postgres.py --postgres-shard 3/4 --durations=20`.
+
 `test_commit_outcome_unknown.py` uses a separate recorder process and a TCP proxy
 to cut traffic exactly when the real transaction is about to COMMIT. Each row is
 tested twice: COMMIT never reaches PostgreSQL, or COMMIT reaches it but its reply
