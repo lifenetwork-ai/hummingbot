@@ -1,5 +1,6 @@
 import asyncio
 import random
+from contextlib import nullcontext
 from decimal import Decimal
 from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
 from types import SimpleNamespace
@@ -65,6 +66,92 @@ async def test_effective_service_config_reuses_runner_and_binds_session_scope():
     for controller in config["controller_config_overrides"]:
         assert controller["mm_session_id"] == host.mm_session.id
         assert controller["mm_generation"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('stop_while_preparing', [False, True])
+async def test_profile_preparation_leaves_current_controller_admitted_until_promotion(stop_while_preparing):
+    host, controllers, provider = await setup_host()
+    old = host.mm_session
+    old.status = 'running'
+    host.running = True
+    host.applied_mm_identity = (old.id, old.generation)
+    host.owner.allow_new_orders = True
+    host.owner.order_write_scope.side_effect = nullcontext
+    for controller in controllers.values():
+        controller.admit_session(old.id, old.generation)
+    next_session = MMSession.create(old.catalogue, MMSessionRequest(
+        market_mode='both', profile_id='follow_market', duration_seconds=3600), rng=random.Random(2))
+    preparing = dict(control_version=1, desired_state='running', database_now=1010,
+                     mm_session=old.model_dump(mode='json'), recovery_state={'mm_profile_switch': dict(
+                         version=1, session_id=old.id, generation=old.generation, queued_at=1010,
+                         target=next_session.model_dump(mode='json', exclude={'catalogue'}))})
+    acquired, release = asyncio.Event(), asyncio.Event()
+
+    async def acquire(name, pairs, consumer):
+        acquired.set()
+        await release.wait()
+        return dict.fromkeys(pairs, True)
+
+    provider.acquire_order_books = AsyncMock(side_effect=acquire)
+    provider.release_order_books = AsyncMock()
+    promoted = {**preparing, 'control_version': 2, 'mm_session': next_session.model_dump(mode='json'), 'recovery_state': {}}
+    host.owner.check_owner.return_value = promoted
+    host.store.finish_profile_switch.return_value = True
+    try:
+        assert await host.observe_profile_switch(preparing) is preparing
+        await asyncio.wait_for(acquired.wait(), 1)
+        assert await host.observe_profile_switch(preparing) is preparing
+        assert host.running and host.owner.allow_new_orders
+        assert all(controller.session_admitted for controller in controllers.values())
+        assert all(not controller.session_admitted for controller in host.profile_switch.controllers)
+        host.store.finish_profile_switch.assert_not_called()
+        if stop_while_preparing:
+            stopped = {**preparing, 'desired_state': 'stopped', 'recovery_state': {}}
+            assert await host.observe_profile_switch(stopped) is stopped
+            assert host.profile_switch is None
+            provider.release_order_books.assert_awaited_once()
+            host.store.finish_profile_switch.assert_not_called()
+        else:
+            release.set()
+            await asyncio.wait_for(host.profile_switch.task, 1)
+            assert await host.observe_profile_switch(preparing) == promoted
+            assert host.profile_switch.promoted
+            provider.release_order_books.assert_not_awaited()
+    finally:
+        if host.profile_switch is not None:
+            await host.profile_switch.close()
+
+
+@pytest.mark.asyncio
+async def test_random_preparation_is_local_until_the_db_step_deadline():
+    host, _, _ = await setup_host()
+    session = MMSession.create(host.mm_session.catalogue, MMSessionRequest(
+        market_mode='both', selection='random', profile_ids=['follow_market', 'sideways'],
+        step_duration_seconds=15, duration_seconds=600), rng=SimpleNamespace(choice=lambda pool: 'follow_market'))
+    session.ready(now=1000, anchors={name: {'life': '.1', 'sources': {'BTC-USDT': '100', 'ETH-USDT': '10'}}
+                                     for name in ('life_spot', 'life_perpetual')})
+    host.running = True
+    host.applied_mm_identity = (session.id, 0)
+    host.prepare_profile_switch = MagicMock()
+    chooser = SimpleNamespace(choice=lambda pool: 'sideways')
+    row = dict(desired_state='running', control_version=1, recovery_state={}, database_now=1001)
+    host.prepare_next_random_profile(row, session, chooser)
+    host.prepare_profile_switch.assert_not_called()
+    host.prepare_next_random_profile({**row, 'database_now': 1010}, session, chooser)
+    target = host.prepare_profile_switch.call_args.args[0]
+    assert host.prepare_profile_switch.call_args.kwargs == {'automatic': True}
+    assert session.profile_id == 'follow_market' and session.generation == 0 and session.step_expires_at == 1015
+    assert target.profile_id == 'sideways' and target.generation == 1 and target.step_expires_at == 1030
+    assert not target.permits(session_id=target.id, generation=target.generation, now=1015)
+    prepared = SimpleNamespace(automatic=True, ready=True, identity=(target.id, target.generation), session=target)
+    reroll = SimpleNamespace(choice=lambda pool: 'follow_market')
+    at_cutover = session.model_copy(deep=True)
+    host.advance_profile(at_cutover, 1015, reroll, prepared)
+    assert at_cutover.profile_id == 'sideways' and at_cutover.generation == 1
+    missed = session.model_copy(deep=True)
+    host.advance_profile(missed, 1031, reroll, prepared)
+    assert missed.profile_id == 'follow_market' and missed.step_index == 2
 
 
 @pytest.mark.asyncio

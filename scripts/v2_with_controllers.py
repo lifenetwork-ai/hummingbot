@@ -64,10 +64,11 @@ class V2WithControllers(StrategyV2Base):
     performance_report_interval: int = 1
 
     @classmethod
-    async def create_with_async_history(cls, connectors, config):
+    async def create_with_async_history(cls, connectors, config, *, market_data_provider=None):
         """Read managed history before constructing any native strategy/tasks."""
+        market_data = {} if market_data_provider is None else {'market_data_provider': market_data_provider}
         if not config.mm_drawdown_scope:
-            return cls(connectors, config)
+            return cls(connectors, config, **market_data)
         from hummingbot.connector.markets_recorder import MarketsRecorder
         recorder = MarketsRecorder.get_instance()
         recorder.sql_manager.assert_persistence_healthy()
@@ -102,14 +103,17 @@ class V2WithControllers(StrategyV2Base):
             raise ValueError('Startup performance controller scope changed')
         # Physical owner/control/credential checks still run on the loop in
         # before_strategy_start before the strategy is added to the clock.
-        return cls(connectors, config, startup_performance=snapshot)
+        return cls(connectors, config, startup_performance=snapshot, **market_data)
 
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: V2WithControllersConfig, *, startup_performance=None):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: V2WithControllersConfig, *, startup_performance=None,
+                 market_data_provider=None):
         if config.mm_drawdown_scope or config.mm_spot_outflow_policy or config.mm_bootstrap_policies:
             from hummingbot.client.config.runtime_config import postgres_requested
             if not postgres_requested():
                 raise ValueError("Managed MM drawdown requires PostgreSQL service ownership")
         history = {} if startup_performance is None else {'startup_performance': startup_performance}
+        if market_data_provider is not None:
+            history['market_data_provider'] = market_data_provider
         super().__init__(connectors, config, **history)
         self.config = config
         self.max_pnl_by_controller = {}
@@ -324,6 +328,8 @@ class V2WithControllers(StrategyV2Base):
             self.mm_valuation_task.cancel()
             await asyncio.gather(self.mm_valuation_task, return_exceptions=True)
         await super().on_stop(**kwargs)
+        if kwargs.get('keep_market_data'):
+            await self.market_data_provider.release_reference_books_for(self)
 
     def check_max_controller_drawdown(self):
         for controller_id, controller in self.controllers.items():

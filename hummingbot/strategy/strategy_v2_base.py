@@ -270,7 +270,8 @@ class StrategyV2Base(StrategyPyBase):
             interval=interval
         )
 
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: Optional[BaseModel] = None, *, startup_performance=None):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: Optional[BaseModel] = None, *, startup_performance=None,
+                 market_data_provider=None):
         """
         Initialize the strategy.
 
@@ -290,7 +291,7 @@ class StrategyV2Base(StrategyPyBase):
         self._managed_report_handle = None
         self._managed_report_pending = {}
         self._spot_account_progress_task = None
-        self.market_data_provider = MarketDataProvider(connectors)
+        self.market_data_provider = market_data_provider if market_data_provider is not None else MarketDataProvider(connectors)
         self._is_stop_triggered = False
         self._stop_triggered_before_cleanup = None
         self.mqtt_enabled = False
@@ -358,7 +359,7 @@ class StrategyV2Base(StrategyPyBase):
 
     @trace_runtime('shutdown.strategy')
     async def on_stop(self, *, shutdown_timeout: Optional[float] = None, keep_position: bool = False,
-                      before_position_checkpoint: Optional[Callable] = None):
+                      before_position_checkpoint: Optional[Callable] = None, keep_market_data: bool = False):
         """
         Called when the strategy is stopped. Shuts down controllers, executors, and market data provider.
         """
@@ -405,8 +406,9 @@ class StrategyV2Base(StrategyPyBase):
                 self.max_executors_close_attempts, **options)
         else:
             await self.executor_orchestrator.stop(self.max_executors_close_attempts)
-        self.market_data_provider.stop()
-        await self.market_data_provider.wait_closed()
+        if not keep_market_data:
+            self.market_data_provider.stop()
+            await self.market_data_provider.wait_closed()
         self.executor_orchestrator.store_all_executors()
         if self.mqtt_enabled:
             self._pub({controller_id: {} for controller_id in self.controllers.keys()})

@@ -118,7 +118,8 @@ class BotStateStore:
                    "'recovery_operation_pending', COALESCE(jsonb_typeof(recovery_state->'recovery_operation')='object', false), "
                    "'pending_mutations', COALESCE(recovery_state->'pending_mutations', '[]'::jsonb) "
                    "NOT IN ('[]'::jsonb, '{}'::jsonb, 'null'::jsonb), "
-                   "'automatic_recovery', recovery_state->'automatic_recovery') AS recovery_summary, "
+                   "'automatic_recovery', recovery_state->'automatic_recovery', "
+                   "'profile_switch_pending', jsonb_typeof(recovery_state->'mm_profile_switch')='object') AS recovery_summary, "
                    "CASE WHEN jsonb_typeof(mm_session)='object' "
                    "THEN mm_session - 'catalogue' ELSE mm_session END AS mm_session, "
                    + _overview_policy_projection())
@@ -208,6 +209,8 @@ class BotStateStore:
             if ((row['recovery_state'] or {}).get('volatility_defense') or {}).get('pauses') and desired_state != 'stopped':
                 raise ControlConflict('Active volatility pauses require admin MM commands and their bound YAML policy.',
                                       code='volatility_pause_policy_bound')
+            if (row["recovery_state"] or {}).get('mm_profile_switch'):
+                values["recovery_state"] = self._discard_profile_switch(connection, row["recovery_state"])
             if config_file_path is not None:
                 # An explicit legacy YAML selection replaces the MM intent.
                 # Its former session must not keep future admin starts blocked.
@@ -393,7 +396,8 @@ class BotStateStore:
         return True
 
     def request_mm_session(self, *, action, expected_version, catalogue=None, request=None,
-                           current_session_id=None, rng=None, connection=None, principal=None, source="control"):
+                           current_session_id=None, rng=None, connection=None, principal=None, source="control",
+                           prepare_switch=False):
         from random import SystemRandom
 
         from hummingbot.core.mm_session import MMSession, MMSessionRequest
@@ -414,6 +418,9 @@ class BotStateStore:
                     and not (action == 'start' and row['desired_state'] == 'stopped' and automatic_phase == 'bootstrapping_recovery')):
                 raise ControlConflict('Wait for exchange order reconciliation', code='automatic_recovery_in_progress')
             current = MMSession.model_validate(row["mm_session"]) if row["mm_session"] else None
+            recovery = row["recovery_state"] or {}
+            if action != 'stop' and recovery.get('mm_profile_switch'):
+                raise ControlConflict('Wait for the requested profile to finish preparing', code='profile_switch_in_progress')
             if action == "start":
                 if row["desired_state"] == "running" or (current and current.status in ("preparing", "running", "stopping")):
                     raise ControlConflict("An active strategy/session must be stopped or explicitly switched", code="session_active")
@@ -446,11 +453,72 @@ class BotStateStore:
                       "desired_state": "stopped" if action == "stop" else "running"}
             if action != "stop":
                 values.update(config_type="mm-session", config_file_path="life_mm_profiles.yaml")
+            if (action == 'switch' and prepare_switch and current.status == 'running'
+                    and row['desired_state'] == 'running' and current.request.market_mode == effective.request.market_mode
+                    and current.catalogue == effective.catalogue):
+                # The pending receipt reserves the next version. The current
+                # session and version continue to authorize its native orders.
+                pending = dict(version=expected_version, session_id=current.id, generation=current.generation,
+                               target=effective.model_dump(mode='json', exclude={'catalogue'}), principal=principal,
+                               source=source, queued_at=float(connection.scalar(select(func.extract('epoch', func.clock_timestamp())))))
+                connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(
+                    recovery_state={**recovery, 'mm_profile_switch': pending}))
+                return {"control_version": expected_version + 1, "session_id": effective.id, "generation": effective.generation}
+            if recovery.get('mm_profile_switch'):
+                values['recovery_state'] = self._discard_profile_switch(connection, recovery)
             from hummingbot.model.mm_event import record_transition
             record_transition(connection, self.bot_id, row["mm_session"], values["mm_session"], expected_version + 1,
                               source=source, principal=principal)
             connection.execute(update(BotState).where(BotState.bot_id == self.bot_id).values(**values))
             return {"control_version": expected_version + 1, "session_id": effective.id, "generation": effective.generation}
+
+    def _discard_profile_switch(self, connection, recovery, *, error=None):
+        from hummingbot.model.admin_command import AdminCommand
+
+        remaining = dict(recovery)
+        pending = remaining.pop('mm_profile_switch')
+        connection.execute(update(AdminCommand).where(
+            AdminCommand.bot_id == self.bot_id, AdminCommand.action == 'switch',
+            AdminCommand.session_id == pending['target']['id'], AdminCommand.effective_version == pending['version'] + 1,
+            AdminCommand.status.in_(('accepted', 'applying'))).values(
+                status='failed' if error else 'superseded', error=error or 'newer_control_version',
+                updated_at=func.clock_timestamp()))
+        return remaining
+
+    def finish_profile_switch(self, *, owner_uuid, owner_generation, target_id, error=None):
+        from hummingbot.model.mm_event import record_transition
+
+        with self.engine.begin() as connection:
+            condition = (BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
+                         BotState.owner_generation == owner_generation)
+            row = connection.execute(select(BotState.control_version, BotState.desired_state, BotState.mm_session,
+                                            BotState.recovery_state).where(*condition).with_for_update()).mappings().first()
+            recovery = (row['recovery_state'] or {}) if row is not None else {}
+            pending = recovery.get('mm_profile_switch')
+            if not owner_uuid or not pending or pending['target']['id'] != target_id:
+                return False
+            session = row['mm_session'] or {}
+            if (row['control_version'], session.get('id'), session.get('generation')) != (
+                    pending['version'], pending['session_id'], pending['generation']) or row['desired_state'] != 'running' or session.get('status') != 'running':
+                error = error or 'session_changed'
+            automatic = (recovery.get('automatic_recovery') or {}).get('phase')
+            if (any(recovery.get(key) for key in ('halt', 'pending_mutations', 'credential_operation', 'recovery_operation'))
+                    or automatic in ('reconciling', 'bootstrapping_recovery', 'waiting_for_readiness')):
+                error = error or 'recovery_required'
+            now = float(connection.scalar(select(func.extract('epoch', func.clock_timestamp()))))
+            if any(session.get(key) is not None and now >= session[key] for key in ('expires_at', 'step_expires_at')):
+                error = error or 'session_changed'
+            if error:
+                values = {'recovery_state': self._discard_profile_switch(connection, recovery, error=error)}
+            else:
+                target = {**pending['target'], 'catalogue': session['catalogue']}
+                version = row['control_version'] + 1
+                record_transition(connection, self.bot_id, session, target, version,
+                                  source=pending['source'], principal=pending['principal'])
+                values = dict(control_version=version, mm_session=target,
+                              recovery_state={key: value for key, value in recovery.items() if key != 'mm_profile_switch'})
+            connection.execute(update(BotState).where(*condition).values(**values))
+            return not error
 
     def update_mm_session(self, *, owner_uuid, owner_generation, version, session_id, generation, change, risk_change=None):
         from hummingbot.core.mm_session import MMSession

@@ -89,7 +89,7 @@ class AdminStore:
             result = self.store.request_mm_session(
                 action=payload["action"], expected_version=payload["expected_version"], catalogue=catalogue,
                 request=request, current_session_id=payload.get("session_id"), connection=connection,
-                principal=actor.id if actor else principal, source="admin_api")
+                principal=actor.id if actor else principal, source="admin_api", prepare_switch=True)
             receipt = self._insert_command(connection, {
                 "id": str(uuid.uuid4()), "bot_id": self.bot_id, "idempotency_key": idempotency_key,
                 "request_hash": request_hash, "action": payload["action"], "session_id": result["session_id"],

@@ -37,7 +37,7 @@ SCOPED_FAULT_SCENARIOS = ('scoped-rollover', 'scoped-disconnect', 'scoped-oom')
 
 
 def all_scenarios(*, has_previous_image):
-    names = BASE_SCENARIOS + MANAGED_SCENARIOS + CLEANUP_FAULT_SCENARIOS + REDUCTION_SCENARIOS + SCOPED_FAULT_SCENARIOS
+    names = BASE_SCENARIOS + MANAGED_SCENARIOS + CLEANUP_FAULT_SCENARIOS + REDUCTION_SCENARIOS + SCOPED_FAULT_SCENARIOS + ('profile-switch',)
     return names + ('upgrade',) if has_previous_image else names
 
 
@@ -797,6 +797,57 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                 runtime = {"unavailable": type(diagnostic_error).__name__}
             raise AssertionError(f"{error}; command={json.dumps(latest)}; runtime={json.dumps(runtime)}") from error
         return receipt
+
+    def profile_switch_scenario(self):
+        print('Offline E2E: a slow public reference leaves current quotes working until Switch', flush=True)
+        self.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED='true',
+                        ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
+        _, port = self.start('profile-switch')
+        self.mm_command(port, 'start', market_mode='spot', selection='fixed', profile_id='sideways', duration_seconds=600)
+
+        def live():
+            return [order for order in self.ledger()['orders'] if order['state'] == 'live']
+
+        old_quotes = poll(lambda: quotes if len(quotes := live()) == 4 else None, description='original two-sided quotes')
+        old_ids = {order['clOrdId'] for order in old_quotes}
+        original = self.state()
+        self.control(book_snapshot_delays={'AVAX-USDT': 3})
+        receipt = self.mm_command(port, 'switch', wait=False, market_mode='spot',
+                                  selection='fixed', profile_id='follow_token', duration_seconds=600)
+
+        def warm():
+            state = self.state()
+            if not state['recovery_state'].get('mm_profile_switch'):
+                return False
+            assert state['control_version'] == original['control_version']
+            assert state['mm_session']['id'] == original['mm_session']['id']
+            assert old_ids == {order['clOrdId'] for order in live()}
+            return True
+
+        poll(warm, timeout=10, description='original quotes remain live under the current authorization during preparation')
+
+        def switched():
+            code, command = self.admin(port, '/commands/' + receipt['id'])
+            if code != 200:
+                return False
+            assert command['status'] not in ('failed', 'superseded'), command.get('error')
+            quotes = live()
+            return quotes if command['status'] == 'succeeded' and len(quotes) == 4 else False
+
+        next_quotes = poll(switched, timeout=60, description='next profile has live quotes after terminal proof of the old profile')
+        assert not (old_ids & {order['clOrdId'] for order in next_quotes})
+        ledger = self.ledger()
+        assert sum(request.get('injected_book_snapshot_delay_s') == 3 for request in ledger['requests']) == 1
+        old = [order for order in ledger['orders'] if order['clOrdId'] in old_ids]
+        assert len(old) == len(old_ids) and all(order['state'] == 'canceled' for order in old)
+        gap_ms = min(int(order['cTime']) for order in next_quotes) - max(int(order['uTime']) for order in old)
+        assert gap_ms >= 0
+        state = self.state()
+        assert state['owner_uuid'] == original['owner_uuid'] and not state['recovery_state'].get('halt')
+        self.mm_command(port, 'stop')
+        assert not live() and not self.ledger()['unknown']
+        self.metrics['profile_switch'] = dict(old_quotes_working_during_preparation=True, terminal_before_new_posts=True,
+                                              quote_gap_ms=gap_ms, simulated=True)
 
     def shutdown_proof_scenario(self):
         # The ordinary continuous scenario does not arm Spot outflow. This
@@ -2212,6 +2263,8 @@ def main():
                     elif scenario == 'rolling-refresh':
                         from scripts.mm_quote_refresh_checks import scenario as rolling_refresh_scenario
                         rolling_refresh_scenario(harness)
+                    elif scenario == 'profile-switch':
+                        harness.profile_switch_scenario()
                     elif scenario == "inventory-skew":
                         harness.inventory_skew_scenario()
                     elif scenario == "listing-bootstrap":

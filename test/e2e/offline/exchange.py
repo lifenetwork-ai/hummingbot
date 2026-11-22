@@ -135,6 +135,7 @@ class Exchange:
         self.stale_pairs = set()
         self.stale_instruments = set()
         self.rest_stale_instruments = set()
+        self.book_snapshot_delays = {}
         self.rest_failed_instruments = set()
         self.book_overrides = {}
         self.enforce_post_only = False
@@ -460,6 +461,9 @@ class Exchange:
             if instrument in self.rest_failed_instruments:
                 return web.json_response({'error': 'snapshot_unavailable'}, status=503)
             result = self.book(instrument)
+            if delay := self.book_snapshot_delays.get(instrument):
+                observed['injected_book_snapshot_delay_s'] = delay
+                await asyncio.sleep(delay)
             if instrument in self.rest_stale_instruments:
                 result['ts'] = str(int(result['ts']) - 60000)
             return self.ok([result])
@@ -807,6 +811,10 @@ class Exchange:
             self.stale_instruments = set(data["stale_instruments"])
         if 'rest_stale_instruments' in data:
             self.rest_stale_instruments = set(data['rest_stale_instruments'])
+        if 'book_snapshot_delays' in data:
+            delays = {pair: float(delay) for pair, delay in data['book_snapshot_delays'].items()}
+            assert all(0 <= delay <= 10 for delay in delays.values())
+            self.book_snapshot_delays = delays
         if 'rest_failed_instruments' in data:
             self.rest_failed_instruments = set(data['rest_failed_instruments'])
         if "book_overrides" in data:

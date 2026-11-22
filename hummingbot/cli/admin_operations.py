@@ -38,6 +38,7 @@ def operator_view(row, process):
     automatic = recovery.get('automatic_recovery') or snapshot.get('automatic_recovery') or {}
     automatic_pending = automatic.get('phase') in ('reconciling', 'bootstrapping_recovery', 'waiting_for_readiness')
     automatic_attention = automatic_pending and automatic.get('operator_required') is True
+    switch_pending = recovery.get('profile_switch_pending') is True
     shutdown_pending = (halted and recovery.get('shutdown_pending') is True and not pending
                         and not checkpoint_reason and automatic.get('cold_recovery_supported') is True
                         and not automatic.get('operator_required'))
@@ -62,7 +63,8 @@ def operator_view(row, process):
         "start": (None if common == 'automatic_recovery_in_progress' and row['desired_state'] == 'stopped'
                   and automatic.get('phase') == 'bootstrapping_recovery' else common)
         or ("session_active" if row["desired_state"] == "running" or current_active else None),
-        "switch": common or (None if session.get("status") in ("preparing", "running") else "session_not_active"),
+        "switch": common or ("profile_switch_in_progress" if switch_pending else None)
+        or (None if session.get("status") in ("preparing", "running") else "session_not_active"),
         # Stop is a durable intent and remains useful during startup/owner loss.
         "stop": "recovery_operation_in_progress" if recovery_pending else "credential_operation_in_progress" if connection_pending else None if session.get("id") else "session_not_active",
     }
@@ -104,6 +106,9 @@ def operator_view(row, process):
         detail, next_action = "Positions may remain open. Check the exposure panel.", "wait" if stopping else "start"
     elif not matches:
         state, label, detail, next_action = "switching", "Applying session", "Waiting for the requested session to become active.", "wait"
+    elif switch_pending and phase == 'running':
+        state, label, detail, next_action = ("switching", "Preparing the next profile",
+                                             "The current profile continues trading while market data is prepared.", "wait")
     elif phase == "running":
         state, label, detail, next_action = "running", "Session active", "Check the liquidity panels for current orders on each market.", "monitor"
     elif phase == "waiting_for_mm_readiness":

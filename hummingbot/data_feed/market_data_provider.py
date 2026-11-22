@@ -567,6 +567,11 @@ class MarketDataProvider:
                         self._reference_book_users.pop(key, None)
         await asyncio.gather(*(release(pair) for pair in dict.fromkeys(trading_pairs)))
 
+    async def release_reference_books_for(self, consumer):
+        for (name, pair), users in tuple(self._reference_book_users.items()):
+            if consumer in users:
+                await self.release_order_books(name, [pair], consumer)
+
     async def remove_order_book(self, connector_name: str, trading_pair: str) -> bool:
         """
         Removes order book tracking for a trading pair from the specified connector.

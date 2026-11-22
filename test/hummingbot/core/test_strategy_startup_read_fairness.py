@@ -46,6 +46,7 @@ def setup(monkeypatch, *, bad=False):
             self.executor_orchestrator = ExecutorOrchestrator(self, **kwargs)
 
     core = object.__new__(TradingCore)
+    core.retained_market_data_provider = None
     core.strategy, core.strategy_name = None, 'v2_with_controllers'
     core.connector_manager = SimpleNamespace(get_all_connectors=lambda: {})
     config = SimpleNamespace(mm_drawdown_scope={'a': object()})
@@ -174,6 +175,7 @@ async def test_unmanaged_script_keeps_legacy_constructor_without_recorder_reads(
             calls.append((threading.get_ident(), config))
 
     core = object.__new__(TradingCore)
+    core.retained_market_data_provider = None
     core.strategy, core.strategy_name = None, 'legacy'
     core.connector_manager = SimpleNamespace(get_all_connectors=lambda: {})
     core.initialize_markets = AsyncMock()

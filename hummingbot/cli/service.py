@@ -97,6 +97,7 @@ class ServiceHost:
         self.outflow_task = None
         self.next_outflow_poll = 0
         self.applied_mm_identity = None
+        self.profile_switch = None
         self.catalogue = {}
         self.config_hashes = {}
         self._daily_signature = None
@@ -660,9 +661,12 @@ class ServiceHost:
                                  return_exceptions=True)
             raise
 
-    async def stop_core(self):
+    async def stop_core(self, *, keep_market_data=False):
         self.running = False
         self.owner.allow_new_orders = False
+        if not keep_market_data and getattr(self, 'profile_switch', None) is not None:
+            preparation, self.profile_switch = self.profile_switch, None
+            await preparation.close()
         if self.automatic_order_recovery is not None:
             await self.automatic_order_recovery.close()
         if self.outflow_task is not None and not self.outflow_task.done():
@@ -682,10 +686,106 @@ class ServiceHost:
             return True
         self.observer_wait_until = time.monotonic() + 9
         try:
+            if keep_market_data:
+                return await self.owner.shutdown_core(core, keep_market_data=True)
             return await self.owner.shutdown_core(core)
         finally:
             self.observer_wait_until = None
             self.observer_progress_at = time.monotonic()
+
+    def prepare_profile_switch(self, target, *, automatic=False):
+        from hummingbot.cli.profile_switch import ProfileSwitchPreparation
+
+        config = self.mm_effective_config(target)
+        provider = self.hb.trading_core.strategy.market_data_provider
+        self.profile_switch = ProfileSwitchPreparation(
+            target, provider, config['controller_config_overrides'], automatic=automatic)
+
+    async def observe_profile_switch(self, row):
+        from hummingbot.cli.profile_switch import PREPARE_SECONDS
+        from hummingbot.core.mm_session import MMSession
+
+        recovery = row['recovery_state'] or {}
+        pending = recovery.get('mm_profile_switch')
+        current = row['mm_session'] or {}
+        preparation = self.profile_switch
+        if preparation is not None:
+            current_identity = current.get('id'), current.get('generation')
+            if pending:
+                keep = preparation.identity == (pending['target']['id'], pending['target']['generation'])
+            elif preparation.promoted:
+                keep = current_identity == preparation.identity
+            else:
+                keep = preparation.automatic and current_identity == (preparation.session.id, preparation.session.generation - 1)
+            if not keep or row['desired_state'] != 'running':
+                self.profile_switch = None
+                await preparation.close()
+                preparation = None
+        if not pending:
+            return row
+        target_id = pending['target']['id']
+        error = None
+        if self.stop.is_set():
+            return row
+        expiry = current.get('step_expires_at')
+        if (row['control_version'], current.get('id'), current.get('generation')) != (
+                pending['version'], pending['session_id'], pending['generation']) or row['desired_state'] != 'running':
+            error = 'session_changed'
+        elif expiry is not None and float(row['database_now']) >= expiry:
+            error = 'session_changed'
+        elif recovery.get('halt') or recovery.get('pending_mutations'):
+            error = 'recovery_required'
+        elif float(row['database_now']) >= pending['queued_at'] + PREPARE_SECONDS:
+            error = 'profile_preparation_unavailable'
+        elif preparation is None:
+            if (not self.running or self.applied_version != row['control_version']
+                    or self.applied_mm_identity != (current['id'], current['generation'])):
+                return row
+            target = MMSession.model_validate({**pending['target'], 'catalogue': current['catalogue']})
+            self.prepare_profile_switch(target)
+            return row
+        elif not preparation.task.done():
+            return row
+        elif not preparation.ready:
+            error = 'profile_preparation_unavailable'
+        async with self.owner.order_write_scope():
+            self.owner.check_owner()
+            promoted = self.store.finish_profile_switch(
+                owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, target_id=target_id, error=error)
+        if promoted and preparation is not None:
+            preparation.promoted = True
+        elif preparation is not None:
+            self.profile_switch = None
+            await preparation.close()
+        return self.owner.check_owner()
+
+    def prepare_next_random_profile(self, row, session, rng):
+        from math import inf, nextafter
+
+        from hummingbot.cli.profile_switch import PREPARE_SECONDS
+
+        step_end = session.step_expires_at
+        recovery = row['recovery_state'] or {}
+        if (self.profile_switch is not None or not self.running or session.status != 'running'
+                or row['desired_state'] != 'running' or row['control_version'] != self.applied_version
+                or (session.id, session.generation) != self.applied_mm_identity
+                or any(recovery.get(key) for key in ('mm_profile_switch', 'halt', 'pending_mutations'))
+                or session.request.selection != 'random' or step_end is None
+                or session.expires_at is not None and step_end >= session.expires_at):
+            return
+        lead = min(PREPARE_SECONDS / 2, session.request.step_duration_seconds / 2)
+        if 0 < step_end - float(row['database_now']) <= lead:
+            target = session.model_copy(deep=True)
+            if target.advance(now=nextafter(step_end, inf), rng=rng) and target.status == 'preparing':
+                self.prepare_profile_switch(target, automatic=True)
+
+    @staticmethod
+    def advance_profile(session, now, rng, preparation):
+        session.advance(now=now, rng=rng)
+        if (preparation is not None and preparation.automatic and preparation.ready
+                and (session.id, session.generation, session.step_index, session.status) == (
+                    *preparation.identity, preparation.session.step_index, 'preparing')):
+            session.profile_id = preparation.session.profile_id
 
     def snapshot(self):
         from hummingbot.cli.admin_operations import process_identity
@@ -759,6 +859,8 @@ class ServiceHost:
         install_guard(self.owner)
         self.owner.runtime_ready_check = self.runtime_healthy
         row = self.owner.check_owner()
+        if self.profile_switch is not None or (row['recovery_state'] or {}).get('mm_profile_switch'):
+            row = await self.observe_profile_switch(row)
         if await self.observe_recovery_operation(row):
             await self.publish_status(row['control_version'])
             return
@@ -799,6 +901,8 @@ class ServiceHost:
 
             from hummingbot.core.mm_session import MMSession
             self.mm_session = MMSession.model_validate(row["mm_session"])
+            rng = SystemRandom()
+            self.prepare_next_random_profile(row, self.mm_session, rng)
             session_expired = (self.mm_session.expires_at is not None
                                and float(row['database_now']) >= self.mm_session.expires_at)
             if (row["desired_state"] == "running"
@@ -807,13 +911,20 @@ class ServiceHost:
                     and float(row["database_now"]) >= self.mm_session.step_expires_at
                     and (not (row["recovery_state"] or {}).get("halt") or session_expired)
                     and (session_expired or not self.mm_startup_pending())):
+                preparation = self.profile_switch
                 try:
                     self.mm_session = await self._update_mm_session(
                         owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=row["control_version"],
                         session_id=self.mm_session.id, generation=self.mm_session.generation,
-                        change=lambda session, now: session.advance(now=now, rng=SystemRandom()))
+                        change=lambda session, now: self.advance_profile(session, now, rng, preparation))
                 except ControlConflict:
                     return
+                if (preparation is not None and preparation.automatic and preparation.ready
+                        and preparation.identity == (self.mm_session.id, self.mm_session.generation)
+                        and self.mm_session.status == 'preparing'
+                        and self.mm_session.step_index == preparation.session.step_index
+                        and self.mm_session.profile_id == preparation.session.profile_id):
+                    preparation.promoted = True
                 row = self.owner.check_owner()
         else:
             self.mm_session = None
@@ -826,7 +937,13 @@ class ServiceHost:
         version = row["control_version"]
         if version != self.applied_version or mm_identity != self.applied_mm_identity:
             self.phase = "stopping"
-            if not await self.stop_core():
+            automatic = self.automatic_order_recovery
+            keep_market_data = (self.running and self.profile_switch is not None and self.profile_switch.promoted
+                                and row['desired_state'] == 'running' and mm_identity == self.profile_switch.identity
+                                and (automatic is None or not automatic.active)
+                                and not (row['recovery_state'] or {}).get('halt'))
+            stopped = await self.stop_core(keep_market_data=True) if keep_market_data else await self.stop_core()
+            if not stopped:
                 raise RuntimeError("Service cleanup did not complete; process exit is required.")
             latest = self.owner.check_owner()
             if latest["control_version"] != version or latest.get("mm_session") != row.get("mm_session"):
@@ -838,6 +955,7 @@ class ServiceHost:
             self.halt_requested = False
             try:
                 if self.managed_credentials is not None:
+                    previous_versions = self.managed_credentials.versions.copy() if keep_market_data else None
                     await self.detach_credential_readers()
                     operation = (row["recovery_state"] or {}).get("credential_operation") or {}
                     if operation.get("action") == "credentials_set":
@@ -850,6 +968,9 @@ class ServiceHost:
                     self.observer_wait_until = time.monotonic() + 45
                     try:
                         versions = await self.managed_credentials.reload()
+                        if previous_versions is not None and previous_versions != versions:
+                            if not await self.stop_core():
+                                raise RuntimeError('Prepared market cleanup did not complete.')
                         if operation.get("action") == "credentials_set":
                             from hummingbot.model.credential_store import CredentialStore
                             await self.managed_credentials.call(CredentialStore(self.store).finish_set,
@@ -898,6 +1019,8 @@ class ServiceHost:
                             session_id=self.mm_session.id, generation=self.mm_session.generation,
                             change=lambda session, now: setattr(session, "status", "stopped"))
             except Exception as error:
+                if keep_market_data and not await self.stop_core():
+                    raise RuntimeError('Prepared market cleanup did not complete.') from error
                 if self.managed_credentials is not None:
                     operation = (row["recovery_state"] or {}).get("credential_operation") or {}
                     if operation.get("action") == "credentials_set":
@@ -954,6 +1077,10 @@ class ServiceHost:
                     for controller in self._mm_controllers():
                         controller.revoke_session()
                         await controller.send_actions(controller.stop_quote_actions())
+                elif (self.profile_switch is not None and self.profile_switch.promoted
+                      and all(controller._startup_stage == 'ready' for controller in self._mm_controllers())):
+                    preparation, self.profile_switch = self.profile_switch, None
+                    await preparation.close()
             if (core.trade_fill_db is None or not core.trade_fill_db.persistence_healthy
                     or (not self.owner.allow_new_orders and not automatic_active) or not core._strategy_running):
                 self.owner.require_recovery("Trading/recorder health requires reconciliation.")

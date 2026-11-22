@@ -14,6 +14,8 @@ from sqlalchemy import event, text
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.mm_session import MMSession, MMSessionRequest
+from hummingbot.core.order_submission_guard import SessionSubmissionBlocked
+from hummingbot.model.admin_store import AdminStore
 from hummingbot.model.bot_state_store import BotStateStore, ControlConflict
 from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
 
@@ -189,6 +191,61 @@ def test_stale_session_id_cannot_switch_current_session(sessions):
         store.request_mm_session(action="switch", expected_version=1, current_session_id="old-session",
                                  catalogue=catalogue, request=request)
     assert store.read()["control_version"] == 1
+
+
+@pytest.mark.parametrize('outcome', ['promote', 'stop', 'failed'])
+def test_same_market_admin_switch_keeps_old_gate_until_owned_promotion(sessions, outcome):
+    store, catalogue = sessions
+    admin = AdminStore(store)
+    request = MMSessionRequest(market_mode='spot', profile_id='sideways', duration_seconds=60)
+    original = store.request_mm_session(action='start', expected_version=0, catalogue=catalogue, request=request)
+    owner = BotOwnership(store.engine, 'hummingbot')
+    assert owner.try_acquire()
+    try:
+        old_id = original['session_id']
+        old_scope = (old_id, 0)
+        store.update_mm_session(owner_uuid=owner.owner_uuid, owner_generation=owner.generation,
+                                version=1, session_id=old_id, generation=0,
+                                change=lambda session, now: session.ready(now=now, anchors={
+                                    'life_spot': {'life': '0.1', 'sources': {}}}))
+        owner.prepare(1, 'life_mm_profiles.yaml')
+        owner.allow_new_orders, owner.mm_ready_check = True, lambda: True
+        payload = dict(action='switch', expected_version=1, session_id=old_id, profile_id='follow_token')
+        replacement = request.model_copy(update={'profile_id': 'follow_token'})
+        receipt = admin.command('switch-key', payload, catalogue=catalogue, request=replacement)
+        assert admin.command('switch-key', payload, catalogue=catalogue, request=replacement)['id'] == receipt['id']
+        assert receipt['effective_version'] == 2
+        new_id = receipt['session_id']
+        before = owner.check_owner(new_risk=True)
+        assert before['mm_session']['id'] == old_id and before['control_version'] == 1
+        owner._check_mm_authority(before, old_scope)
+        with pytest.raises(SessionSubmissionBlocked):
+            owner._check_mm_authority(before, (new_id, 0))
+        with pytest.raises(ControlConflict, match='finish preparing'):
+            admin.command('another-key', payload, catalogue=catalogue, request=replacement)
+        assert store.read(publication=True)['recovery_summary']['profile_switch_pending']
+        assert not store.finish_profile_switch(owner_uuid='other', owner_generation=owner.generation, target_id=new_id)
+        if outcome == 'stop':
+            stopped = admin.command('stop-key', dict(action='stop', expected_version=1, session_id=old_id), catalogue=catalogue)
+            assert stopped['effective_version'] == 2
+            assert admin.command_by_id(receipt['id'])['status'] == 'superseded'
+        error = 'profile_preparation_unavailable' if outcome == 'failed' else None
+        assert store.finish_profile_switch(owner_uuid=owner.owner_uuid, owner_generation=owner.generation,
+                                           target_id=new_id, error=error) is (outcome == 'promote')
+        row = store.read()
+        assert not (row['recovery_state'] or {}).get('mm_profile_switch')
+        if outcome == 'failed':
+            assert admin.command_by_id(receipt['id'])['error'] == error
+            owner._check_mm_authority(owner.check_owner(new_risk=True), old_scope)
+        else:
+            with pytest.raises(SessionSubmissionBlocked):
+                owner.check_owner(new_risk=True)
+        if outcome == 'promote':
+            assert row['mm_session']['id'] == new_id and row['mm_session']['status'] == 'preparing'
+            with pytest.raises(SessionSubmissionBlocked):
+                owner._check_mm_authority(owner.check_owner(), (new_id, 0))
+    finally:
+        owner.release()
 
 
 def test_owner_update_is_atomic_and_stale_generation_cannot_change_anchors(sessions):

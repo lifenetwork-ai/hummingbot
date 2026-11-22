@@ -111,6 +111,7 @@ class TradingCore:
         self.before_strategy_start = None
         self.after_order_cancellation = None
         self.before_position_checkpoint = None
+        self.retained_market_data_provider = None
 
         # Metrics collectors mapping (connector_name -> MetricsCollector)
         self._metrics_collectors: Dict[str, MetricsCollector] = {}
@@ -512,13 +513,18 @@ class TradingCore:
         # Get markets from V2 class
         markets_list = [(conn, list(pairs)) for conn, pairs in v2_strategy_class.markets.items()]
 
-        # Initialize markets using single method
-        await self.initialize_markets(markets_list)
-
-        # Create strategy instance (config is always present)
         factory = getattr(v2_strategy_class, 'create_with_async_history', None)
-        self.strategy = (await factory(self.markets, config) if factory is not None
-                         else v2_strategy_class(self.markets, config))
+        provider = self.retained_market_data_provider
+        if provider is not None:
+            if (factory is None or self.strategy_name != 'v2_with_controllers' or self.markets != provider.connectors
+                    or set(self.markets) != {name for name, _ in markets_list}
+                    or any(not set(pairs) <= set(self.markets[name].trading_pairs) for name, pairs in markets_list)):
+                raise RuntimeError('Prepared MM profile requires the current trading connectors')
+            self.strategy = await factory(self.markets, config, market_data_provider=provider)
+        else:
+            await self.initialize_markets(markets_list)
+            self.strategy = (await factory(self.markets, config) if factory is not None
+                             else v2_strategy_class(self.markets, config))
 
     async def _initialize_regular_strategy(self):
         """Initialize a regular strategy using starter file."""
@@ -544,12 +550,13 @@ class TradingCore:
             # Add strategy to clock
             if self.strategy and self.clock:
                 # Restore market states if markets recorder exists
-                if self.markets_recorder:
+                if self.markets_recorder and self.retained_market_data_provider is None:
                     for market in self.markets.values():
                         self.markets_recorder.restore_market_states(self._strategy_file_name, market)
 
                 if self.before_strategy_start is not None:
                     await self.before_strategy_start(self)
+                self.retained_market_data_provider = None
                 self.clock.add_iterator(self.strategy)
 
                 for connector_name, connector in self.connector_manager.connectors.items():
@@ -806,7 +813,7 @@ class TradingCore:
 
     @trace_runtime('shutdown.core')
     async def shutdown(self, skip_order_cancellation: bool = False, *, keep_positions: bool = False,
-                       shutdown_timeout: Optional[float] = None) -> bool:
+                       shutdown_timeout: Optional[float] = None, keep_market_data: bool = False) -> bool:
         """
         Shutdown the trading core completely.
 
@@ -816,10 +823,18 @@ class TradingCore:
             skip_order_cancellation: Whether to skip cancelling outstanding orders
         """
         try:
+            provider = None
+            provider_has_strategy = isinstance(self.strategy, StrategyV2Base)
+            if keep_market_data:
+                if not keep_positions or not isinstance(self.strategy, StrategyV2Base) or skip_order_cancellation:
+                    raise RuntimeError('Keeping market data requires full strategy and order cleanup')
+                provider = self.strategy.market_data_provider
             # Handle V2 strategy specific cleanup first
             if self.strategy and isinstance(self.strategy, StrategyV2Base):
                 if keep_positions:
                     options = dict(keep_position=True, shutdown_timeout=shutdown_timeout)
+                    if keep_market_data:
+                        options['keep_market_data'] = True
                     if self.before_position_checkpoint is not None:
                         options['before_position_checkpoint'] = self.before_position_checkpoint
                     await self.strategy.on_stop(**options)
@@ -828,13 +843,25 @@ class TradingCore:
 
             # Stop strategy if running
             if self._strategy_running:
-                await self.stop_strategy()
+                if not await self.stop_strategy() and keep_market_data:
+                    return False
 
             # Cancel outstanding orders
             if not skip_order_cancellation:
                 await self.cancel_outstanding_orders()
                 if self.after_order_cancellation is not None:
                     await self.after_order_cancellation()
+
+            if provider is not None:
+                if self.strategy is not None:
+                    return False
+                self.retained_market_data_provider = provider
+                return True
+            if self.retained_market_data_provider is not None:
+                if not provider_has_strategy:
+                    self.retained_market_data_provider.stop()
+                    await self.retained_market_data_provider.wait_closed()
+                self.retained_market_data_provider = None
 
             # Stop all metrics collectors first
             for connector_name, collector in list(self._metrics_collectors.items()):
