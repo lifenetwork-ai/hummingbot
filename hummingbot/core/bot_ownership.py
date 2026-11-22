@@ -50,6 +50,7 @@ MAX_INTENT_BATCH = 4
 MAX_ORDER_RECEIPT_BATCH = 4
 POSITION_CHECKPOINT_ORDER_WAIT_SECONDS = 1.0
 POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS = .1
+SHUTDOWN_ORDER_PROOF_CONCURRENCY = 6
 
 
 @contextmanager
@@ -979,8 +980,15 @@ class BotOwnership:
         transaction = session.get_transaction()
         if nowait and transaction is not None and session.info.get('ownership_fenced_transaction') is not transaction:
             # Take the row lock and prove the advisory lock in one statement.
-            # Later fences still verify the physical lock.
-            self.lock_owner_row(session, nowait=True, verify_advisory=True)
+            # This worker can briefly yield to a local status commit before
+            # attempting NOWAIT. External writers still use PostgreSQL arbitration.
+            publication = self.store.publication_fence
+            held = publication.acquire(timeout=.1)
+            try:
+                self.lock_owner_row(session, nowait=True, verify_advisory=True)
+            finally:
+                if held:
+                    publication.release()
             return
         self.lock_owner_row(session, nowait=nowait)
         advisory_lock = session.connection().execute(select(self._advisory_lock_exists())).scalar_one()
@@ -1464,7 +1472,7 @@ class BotOwnership:
 
     @staticmethod
     async def _refresh_orders(connector, orders, *, limiter=None, terminal_guard=None, local_rejection=None,
-                              wait_for_local_rejection=None, cancellation=None):
+                              wait_for_local_rejection=None, cancellation=None, worker_limit=3):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
 
@@ -1473,7 +1481,7 @@ class BotOwnership:
         # unchanged shutdown deadline. A fixed worker bound avoids one task per
         # historical attempt; connector throttling still controls both endpoints.
         pending = iter(orders)
-        limiter = limiter if limiter is not None else asyncio.Semaphore(3)
+        limiter = limiter if limiter is not None else asyncio.Semaphore(worker_limit)
 
         async def refresh():
             for order in pending:
@@ -1513,7 +1521,7 @@ class BotOwnership:
                     # Apply fills before terminal state for each individual order.
                     await connector._order_tracker.process_order_update(status)
 
-        workers = [asyncio.create_task(refresh()) for _ in range(min(3, len(orders)))]
+        workers = [asyncio.create_task(refresh()) for _ in range(min(worker_limit, len(orders)))]
         try:
             await asyncio.gather(*workers)
         finally:
@@ -1525,12 +1533,12 @@ class BotOwnership:
 
     @staticmethod
     async def _open_orders(connector, max_pages=100):
+        from hummingbot.connector.exchange.okx.okx_constants import OKX_OPEN_ORDERS_PATH
+
         # OKX documents cursor pagination by ordId and a maximum page size of 100:
         # https://www.okx.com/docs-v5/en/#order-book-trading-trade-get-order-list
-        # Reuse the existing authenticated client and its conservative order-query
-        # rate bucket instead of adding another HTTP client/rate-limit subsystem.
         if connector.name == "okx":
-            limit_id = ORDER_PATH
+            limit_id = OKX_OPEN_ORDERS_PATH
         else:
             from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_web_utils import (
                 get_rest_api_limit_id_for_endpoint,
@@ -1541,7 +1549,7 @@ class BotOwnership:
             params = {"limit": "100"}
             if after:
                 params["after"] = after
-            response = await asyncio.wait_for(connector._api_get(path_url="/api/v5/trade/orders-pending", params=params,
+            response = await asyncio.wait_for(connector._api_get(path_url=OKX_OPEN_ORDERS_PATH, params=params,
                                                                  is_auth_required=True, limit_id=limit_id), timeout=5)
             if str(response.get("code")) != "0" or not isinstance(response.get("data"), list):
                 raise SubmissionBlocked("Open-order reconciliation response is invalid.")
@@ -1690,10 +1698,9 @@ class BotOwnership:
             return local_rejection(order)
 
         async def read_terminal_orders(cancellation=None):
-            # Share three order-proof slots across connectors. A delayed
-            # Spot tail must not prevent all Perpetual proof from even starting.
-            # Both checkpoint phases still read every tracked order afresh.
-            limiter = asyncio.Semaphore(3)
+            # Share the shutdown budget across connectors. Both checkpoint
+            # phases read every tracked order afresh; venue throttling is unchanged.
+            limiter = asyncio.Semaphore(SHUTDOWN_ORDER_PROOF_CONCURRENCY)
 
             async def refresh_connector(connector, orders):
                 remote_orders = []
@@ -1713,7 +1720,8 @@ class BotOwnership:
                         remote_orders.sort(key=lambda order: not (order.is_done and order.exchange_order_id))
                     await self._refresh_orders(connector, remote_orders, limiter=limiter,
                                                terminal_guard=self.spot_outflow, local_rejection=local_rejection,
-                                               wait_for_local_rejection=wait_for_local_rejection, cancellation=cancellation)
+                                               wait_for_local_rejection=wait_for_local_rejection, cancellation=cancellation,
+                                               worker_limit=SHUTDOWN_ORDER_PROOF_CONCURRENCY)
                 if cancellation is not None:
                     await asyncio.shield(cancellation)
                 while any(not order.is_done and order.client_order_id not in deferred for order in orders):
@@ -1722,7 +1730,8 @@ class BotOwnership:
                     await self._refresh_orders(connector, [order for order in orders
                                                            if not order.is_done and order.client_order_id not in deferred],
                                                limiter=limiter, local_rejection=local_rejection,
-                                               wait_for_local_rejection=wait_for_local_rejection)
+                                               wait_for_local_rejection=wait_for_local_rejection,
+                                               worker_limit=SHUTDOWN_ORDER_PROOF_CONCURRENCY)
 
             refreshes = [asyncio.create_task(refresh_connector(connector, orders)) for connector, orders in tracked]
             if cancellation is not None:

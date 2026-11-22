@@ -59,6 +59,49 @@ async def test_public_session_revocation_is_idempotent_and_identity_still_fences
 
 
 @pytest.mark.asyncio
+async def test_strict_managed_guard_reevaluates_at_its_recovery_deadline(monkeypatch):
+    from test.hummingbot.strategy_v2.controllers.test_quote_guard import observation
+
+    from controllers.market_making import life_mm
+
+    controller, _ = make_controller(configuration(runtime_config_managed=True, mm_session_id='session', mm_generation=1,
+                                                  quote_guards=dict(enabled=True, max_deviation_bps='200',
+                                                                    resume_deviation_bps='100', recovery_delay_seconds='5')))
+    current = 10.0
+    monkeypatch.setattr(life_mm, 'time', SimpleNamespace(monotonic=lambda: current))
+    intervals = []
+
+    async def timeout(awaitable, timeout):
+        awaitable.close()
+        intervals.append(timeout)
+        raise TimeoutError()
+
+    monkeypatch.setattr(life_mm.asyncio, 'wait_for', timeout)
+    first = observation()
+    reference = first.market_mid
+    assert not controller._evaluate_guard(first, reference, True)['ready']
+    current = 14.75
+    assert not controller._evaluate_guard(observation(timestamp=1004, now=1004), reference, True)['ready']
+    await controller._wait_for_control_tick()
+    assert intervals == [.25]
+    current = 15
+    # A timeout only schedules the check. A fresh market observation still
+    # has to qualify through the regular sampled controller path.
+    assert not controller._evaluate_guard(observation(timestamp=1004, now=1004), reference, True)['ready']
+    await controller._wait_for_control_tick()
+    assert intervals[-1] == controller.update_interval
+    assert controller._evaluate_guard(observation(timestamp=1005, now=1005), reference, True)['ready']
+    assert not controller._executor_progress.is_set()
+    # A final authority check can discover invalid data between controller
+    # ticks. Wake the loop to cancel and resample without qualifying here.
+    assert not controller._evaluate_guard(observation(timestamp=980), reference, False)['ready']
+    assert controller._executor_progress.is_set()
+    controller._executor_progress.clear()
+    assert not controller._evaluate_guard(observation(timestamp=980), reference, False)['ready']
+    assert not controller._executor_progress.is_set()
+
+
+@pytest.mark.asyncio
 async def test_preparing_shared_anchors_copies_the_basket_without_admitting_quotes():
     config = configuration(runtime_config_managed=True, mm_session_id='session', mm_generation=1, scenario='follow_market',
                            references=[{'pair': 'BTC-USDT', 'weight': '1'}])

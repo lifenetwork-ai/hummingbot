@@ -2,14 +2,16 @@
 import asyncio
 import copy
 from decimal import Decimal
+from test.hummingbot.strategy_v2.controllers.test_quote_guard import order as make_order
 from test.integration.postgres.test_ownership import owned as _owned, reconciliation_core
 from test.integration.postgres.test_spot_outflow import buy, setup
-from types import MethodType
+from types import MethodType, SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
+from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 from hummingbot.core.order_submission_guard import SubmissionBlocked
@@ -17,6 +19,45 @@ from hummingbot.core.rate_oracle.rate_oracle import RateOracle
 from hummingbot.model.trade_fill import TradeFill
 
 owned = _owned
+
+
+def test_sideways_rollover_proves_twenty_orders_with_six_shared_read_slots(owned):
+    core = reconciliation_core(owned)
+    core.strategy.executor_orchestrator = object()
+    core.cancel_outstanding_orders = AsyncMock(return_value=True)
+    orders = [make_order(str(i), TradeType.BUY if i < 10 else TradeType.SELL,
+                         state=OrderState.CANCELED, exchange_id=f'venue-{i}') for i in range(20)]
+    owned.market.in_flight_orders = {order.client_order_id: order for order in orders}
+    owned.market._all_trade_updates_for_order = AsyncMock(return_value=[])
+    owned.market._order_tracker.process_order_update = AsyncMock()
+    active = peak = 0
+
+    async def status(order):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        try:
+            await asyncio.sleep(.005)
+            return SimpleNamespace(exchange_order_id=order.exchange_order_id)
+        finally:
+            active -= 1
+
+    owned.market._request_order_status = AsyncMock(side_effect=status)
+
+    async def shutdown(**kwargs):
+        proof = await core.before_position_checkpoint({
+            order.client_order_id: ('okx', order) for order in orders})
+        assert set(proof) == set(owned.market.in_flight_orders)
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = shutdown
+    assert owned.loop.run_until_complete(owned.owner.shutdown_core(core))
+    assert peak == 6
+    assert [call.args[0] for call in owned.market._request_order_status.await_args_list].count(orders[0]) == 2
+    assert owned.market._all_trade_updates_for_order.await_count == 40
+    assert owned.market._order_tracker.process_order_update.await_count == 40
+    assert not owned.store.read()['recovery_state'].get('halt')
 
 
 def canceled_buy(owned, monkeypatch, *, delayed=False):

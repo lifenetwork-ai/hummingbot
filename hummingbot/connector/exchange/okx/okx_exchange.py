@@ -352,7 +352,8 @@ class OkxExchange(ExchangePyBase):
             params={
                 "instId": await self.exchange_symbol_associated_to_pair(order.trading_pair),
                 "clOrdId": order.client_order_id},
-            is_auth_required=True)
+            is_auth_required=True,
+            limit_id=CONSTANTS.OKX_ORDER_DETAILS_LIMIT_ID)
 
     async def _request_recovery_order_history(self, order: InFlightOrder) -> Dict[str, Any]:
         created_ms = int(order.creation_timestamp * 1000)

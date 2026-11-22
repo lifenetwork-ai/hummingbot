@@ -13,6 +13,7 @@ from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.connector.test_support.exchange_connector_test import AbstractExchangeConnectorTests
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import get_new_client_order_id
+from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.data_type.in_flight_order import InFlightOrder
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount, TradeFeeBase
 from hummingbot.core.event.events import BuyOrderCreatedEvent, OrderCancelledEvent, OrderType, TradeType
@@ -509,6 +510,33 @@ class OkxExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests):
             okx_passphrase=self.api_passphrase,
             trading_pairs=[self.trading_pair]
         )
+
+    def test_spot_shutdown_reads_progress_when_order_placement_quota_is_full(self):
+        throttler = self.exchange._throttler
+        place_limit, _ = throttler.get_related_limits(CONSTANTS.OKX_PLACE_ORDER_PATH)
+        order = InFlightOrder('read-test', self.trading_pair, OrderType.LIMIT_MAKER, TradeType.SELL,
+                              Decimal('1'), 1000, price=Decimal('100'))
+        reads = []
+
+        async def request(*, method, path_url, params, is_auth_required, limit_id=None):
+            assert is_auth_required and method.name == 'GET'
+            async with throttler.execute_task(limit_id or path_url):
+                reads.append(path_url)
+                return {'code': '0', 'data': []}
+
+        async def exercise():
+            for _ in range(place_limit.limit):
+                async with throttler.execute_task(CONSTANTS.OKX_PLACE_ORDER_PATH):
+                    pass
+            await asyncio.gather(*(self.exchange._request_order_update(order) for _ in range(40)),
+                                 BotOwnership._open_orders(self.exchange))
+
+        with patch.object(self.exchange, '_api_request', side_effect=request):
+            self.async_run_with_timeout(exercise())
+
+        self.assertEqual(place_limit.limit, 20)
+        self.assertEqual(reads.count('/api/v5/trade/order'), 40)
+        self.assertEqual(reads.count('/api/v5/trade/orders-pending'), 1)
 
     def validate_auth_credentials_present(self, request_call: RequestCall):
         request_headers = request_call.kwargs["headers"]

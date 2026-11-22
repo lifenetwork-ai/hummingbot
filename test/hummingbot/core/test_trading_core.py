@@ -275,6 +275,9 @@ class TradingCoreTest(IsolatedAsyncioWrapperTestCase):
         self.assertEqual(self.trading_core._strategy_file_name, "config.yml")
         self.assertTrue(self.trading_core._strategy_running)
         mock_oracle_instance.start.assert_called_once()
+        self.assertEqual(self.trading_core.get_status()["strategy_type"], StrategyType.V2.value)
+        self.assertEqual(self.trading_core.get_status()["strategy_type"], StrategyType.V2.value)
+        mock_detect.assert_called_once_with("test_script")
 
         # Test starting when already running
         result = await self.trading_core.start_strategy("another_script")

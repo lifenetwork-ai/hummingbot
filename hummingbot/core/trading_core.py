@@ -96,6 +96,7 @@ class TradingCore:
         # Strategy components (optional)
         self.strategy: Optional[StrategyBase] = None
         self.strategy_name: Optional[str] = None
+        self._resolved_strategy_type: Optional[Tuple[str, StrategyType]] = None
         self.strategy_config_map: Optional[BaseStrategyConfigMap] = None
         self.strategy_task: Optional[asyncio.Task] = None
         self._strategy_file_name: Optional[str] = None
@@ -467,6 +468,7 @@ class TradingCore:
                 return False
 
             self.strategy_name = strategy_name
+            self._resolved_strategy_type = None
             self._strategy_file_name = strategy_file_name or strategy_name
 
             # Store config for later use
@@ -478,6 +480,7 @@ class TradingCore:
 
             # Initialize strategy based on type
             strategy_type = self.detect_strategy_type(strategy_name)
+            self._resolved_strategy_type = (strategy_name, strategy_type)
 
             if strategy_type == StrategyType.V2:
                 await self._initialize_v2_strategy()
@@ -647,12 +650,17 @@ class TradingCore:
 
     def get_status(self) -> Dict[str, Any]:
         """Get current status of the trading engine."""
+        strategy_type = None
+        if self.strategy_name:
+            resolved = self._resolved_strategy_type
+            strategy_type = (resolved[1] if resolved is not None and resolved[0] == self.strategy_name
+                             else self.detect_strategy_type(self.strategy_name)).value
         return {
             'clock_running': self._is_running,
             'strategy_running': self._strategy_running,
             'strategy_name': self.strategy_name,
             'strategy_file_name': self._strategy_file_name,
-            'strategy_type': self.detect_strategy_type(self.strategy_name).value if self.strategy_name else None,
+            'strategy_type': strategy_type,
             'start_time': self.start_time,
             'uptime': (time.time() * 1e3 - self.start_time) if self.start_time else 0,
             'connectors': self.connector_manager.get_status(),
@@ -863,6 +871,7 @@ class TradingCore:
             # Clear strategy references
             self.strategy = None
             self.strategy_name = None
+            self._resolved_strategy_type = None
             self.strategy_config_map = None
             self._strategy_file_name = None
             self._config_source = None

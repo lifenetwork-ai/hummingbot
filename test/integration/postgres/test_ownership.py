@@ -11,7 +11,13 @@ from sqlalchemy import text
 
 from hummingbot.client.config.client_config_map import MarketDataCollectionConfigMap
 from hummingbot.connector.markets_recorder import MarketsRecorder
-from hummingbot.core.bot_ownership import ACCOUNT_PATHS, ORDER_PATH, BotOwnership, OwnershipLost
+from hummingbot.core.bot_ownership import (
+    ACCOUNT_PATHS,
+    ORDER_PATH,
+    SHUTDOWN_ORDER_PROOF_CONCURRENCY,
+    BotOwnership,
+    OwnershipLost,
+)
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.order_submission_guard import SubmissionBlocked, install_guard, session_order_scope
@@ -644,7 +650,7 @@ def test_terminal_checkpoint_drains_many_maker_attempts_with_bounded_parallel_re
         nonlocal active, peak
         active += 1
         peak = max(peak, active)
-        if active == 3:
+        if active == SHUTDOWN_ORDER_PROOF_CONCURRENCY:
             barrier.set()
         try:
             await barrier.wait()
@@ -668,7 +674,7 @@ def test_terminal_checkpoint_drains_many_maker_attempts_with_bounded_parallel_re
 
     core.shutdown = AsyncMock(side_effect=shutdown)
     assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
-    assert peak == 3 and active == 0
+    assert peak == SHUTDOWN_ORDER_PROOF_CONCURRENCY and active == 0
     # Both fresh proof stages read every order; never cache terminal evidence.
     assert owned.market._request_order_status.await_count == 24
     assert owned.market._all_trade_updates_for_order.await_count == 24
@@ -783,7 +789,7 @@ def test_shutdown_proof_drains_both_connectors_without_head_of_line_wait(owned, 
     core.shutdown = AsyncMock(side_effect=shutdown)
     result = owned.loop.run_until_complete(owned.owner.shutdown_core(core, timeout=1))
     assert result is (not remote_failure)
-    assert perpetual_seen.is_set() and peak <= 3 and active == 0
+    assert perpetual_seen.is_set() and peak <= SHUTDOWN_ORDER_PROOF_CONCURRENCY and active == 0
     if remote_failure:
         assert cancelled and owned.store.read()['recovery_state']['halt']
     else:

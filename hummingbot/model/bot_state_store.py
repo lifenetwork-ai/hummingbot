@@ -2,8 +2,9 @@
 import base64
 import json
 import zlib
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 from functools import partial
+from threading import Lock
 from typing import Optional
 from uuid import uuid4
 
@@ -97,6 +98,7 @@ class BotStateStore:
         self.bot_id = bot_id
         self.checkpoint_schema_pending = checkpoint_schema_pending
         self._published_coverage = None
+        self.publication_fence = Lock()
 
     def read(self, *, publication: bool = False) -> Optional[dict]:
         # Public reads can skip the checkpoint table. Strip inlined histories
@@ -283,7 +285,7 @@ class BotStateStore:
         signatures = ({market: {second: repr(row) for second, row in rows.items()} for market, rows in buckets.items()}
                       if buckets is not None else None)
         changes = _coverage_changes(cached[1], buckets, signatures) if cached is not None and signatures is not None else None
-        with self.engine.connect() as connection, connection.begin() as transaction:
+        with ExitStack() as fence_scope, self.engine.connect() as connection, connection.begin() as transaction:
             # Guard history needs its previous observation, not private telemetry
             # histories. Keep malformed legacy status behavior and the full
             # session, row lock and authority predicates; the new snapshot below
@@ -372,6 +374,12 @@ class BotStateStore:
             value = cast(bindparam("prepared_status_json", prepared_status), JSONB).op("||")(
                 cast(bindparam("publication_status_metadata", serialize(metadata)), JSONB))
             target = fence.with_for_update(skip_locked=True).cte('publication_target')
+            # A local recorder can obtain the financial fence first. Hold
+            # this slot through COMMIT, with optional SQL already completed.
+            if not self.publication_fence.acquire(blocking=False):
+                transaction.rollback()
+                return False
+            fence_scope.callback(self.publication_fence.release)
             result = connection.execute(update(BotState).where(
                 BotState.bot_id == target.c.bot_id,
             ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=value,

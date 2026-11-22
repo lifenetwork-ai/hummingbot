@@ -1,4 +1,5 @@
 """Optional publication work cannot strand an acknowledged exchange order."""
+import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -6,7 +7,7 @@ from test.integration.postgres.test_ownership import intent, owned as _owned
 from test.integration.postgres.test_service_availability import publication as _publication
 
 import pytest
-from sqlalchemy import create_engine, func, select, text, update
+from sqlalchemy import create_engine, event, func, select, text, update
 from sqlalchemy.exc import OperationalError
 
 from hummingbot.core.data_type.common import OrderType
@@ -61,6 +62,57 @@ def test_positive_venue_receipt_survives_create_ack_fence_timeout(owned):
 def publish(owned, status=None):
     return owned.store.publish(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
                                version=1, status=status if status is not None else {'running': True})
+
+
+def test_native_recorder_does_not_retry_while_its_own_publication_commits(owned):
+    order = intent(owned)
+    published, release, staged = threading.Event(), threading.Event(), threading.Event()
+    fences = []
+
+    def hold_publication(connection, cursor, statement, parameters, context, executemany):
+        if context.execution_options.get('ownership_row_writer') == 'publication':
+            published.set()
+            assert release.wait(3)
+
+    def count_fences(connection, cursor, statement, parameters, context, executemany):
+        if 'FROM bot_state' in statement and 'FOR SHARE NOWAIT' in statement:
+            fences.append(statement)
+
+    def write(session):
+        staged.set()
+        return session.execute(update(Order).where(Order.id == order.client_order_id).values(price=order.price)).rowcount
+
+    async def exercise():
+        owner = owned.owner
+        status = asyncio.create_task(asyncio.to_thread(
+            owner.store.publish, owner_uuid=owner.owner_uuid, owner_generation=owner.generation,
+            version=1, status={'running': True}, save_balances=False))
+        try:
+            assert await asyncio.to_thread(published.wait, 2)
+            recorder = asyncio.create_task(owned.recorder._run_native_write(write))
+            assert await asyncio.to_thread(staged.wait, 2)
+            try:
+                # The preceding UPDATE holds its row until COMMIT. The recorder
+                # can stage concurrently but must not issue a doomed NOWAIT.
+                await asyncio.sleep(.03)
+                assert not fences
+                assert not recorder.done()
+            finally:
+                release.set()
+                assert await status
+                assert await recorder == (1, None)
+        finally:
+            release.set()
+            await status
+
+    event.listen(owned.engine, 'after_cursor_execute', hold_publication)
+    event.listen(owned.engine, 'before_cursor_execute', count_fences)
+    try:
+        owned.loop.run_until_complete(exercise())
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', count_fences)
+        event.remove(owned.engine, 'after_cursor_execute', hold_publication)
+    assert len(fences) == 1 and owned.manager.persistence_healthy
 
 
 @pytest.mark.parametrize('stage', ['daily', 'history', 'receipt'])

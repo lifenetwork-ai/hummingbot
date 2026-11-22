@@ -413,7 +413,12 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
 
     def _evaluate_guard(self, observation, reference, sample):
         if self._bootstrap is None:
-            return self._quote_guard.evaluate(observation, reference, time.monotonic(), sample=sample)
+            guard = self._quote_guard
+            was_ready = not guard.blocked
+            status = guard.evaluate(observation, reference, time.monotonic(), sample=sample)
+            if not sample and was_ready and guard.blocked and self._executor_progress is not None:
+                self._executor_progress.set()
+            return status
         return self._bootstrap.evaluate(observation, reference, time.monotonic(), sample=sample,
                                         reference_model=bool(self.config.references),
                                         configured_anchor=self._life_anchor == self.config.initial_anchor)
@@ -789,8 +794,14 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
     async def _wait_for_control_tick(self):
         if self._executor_progress is None:
             return await super()._wait_for_control_tick()
+        delay = self.update_interval
+        guard = self._quote_guard
+        if self._bootstrap is None and guard.blocked and guard.good_since is not None:
+            remaining = guard.good_since + float(guard.config.recovery_delay_seconds) - time.monotonic()
+            if remaining > 0:
+                delay = min(delay, remaining)
         try:
-            await asyncio.wait_for(self._executor_progress.wait(), timeout=self.update_interval)
+            await asyncio.wait_for(self._executor_progress.wait(), timeout=delay)
         except asyncio.TimeoutError:
             pass  # Periodic freshness and cancellation checks still run without publications.
 
