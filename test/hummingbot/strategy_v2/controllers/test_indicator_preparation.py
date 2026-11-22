@@ -2,7 +2,6 @@
 import asyncio
 import builtins
 import threading
-import time
 from contextvars import ContextVar
 from test.hummingbot.strategy_v2.controllers.test_life_mm import configuration, make_controller
 from test.hummingbot.strategy_v2.controllers.test_life_mm_spread import dynamic, feed
@@ -36,22 +35,18 @@ def controller(*, managed=False, **volatility):
 
 
 @pytest.mark.asyncio
-async def test_native_startup_moves_cold_natr_off_loop_and_discards_warmup_value(monkeypatch):
+async def test_native_startup_computes_natr_without_loading_pandas_ta(monkeypatch):
     actor = controller()
-    loop_thread = threading.get_ident()
     original = builtins.__import__
-    cold_threads, progress_during_import = [], []
-    progress = asyncio.Event()
-    handle = asyncio.get_running_loop().call_later(.05, progress.set)
+    imports = []
 
-    def cold_import(name, *args, **kwargs):
-        if name == 'pandas_ta' and not cold_threads:
-            cold_threads.append(threading.get_ident())
-            time.sleep(.35)  # Controlled first-use dependency wait, not a Cloud timing claim.
-            progress_during_import.append(progress.is_set())
+    def record_import(name, *args, **kwargs):
+        if name == 'pandas_ta' or name.startswith('pandas_ta.'):
+            imports.append(name)
+            raise ImportError('pandas_ta unavailable')
         return original(name, *args, **kwargs)
 
-    monkeypatch.setattr(builtins, '__import__', cold_import)
+    monkeypatch.setattr(builtins, '__import__', record_import)
     try:
         await actor.on_start()
         # Preparation is not a candle, a cached volatility observation or permission to quote.
@@ -59,10 +54,8 @@ async def test_native_startup_moves_cold_natr_off_loop_and_discards_warmup_value
         await actor.update_processed_data()
         assert actor.processed_data['ready'], actor.processed_data
         assert actor._spread_policy.raw_natr is not None
-        assert cold_threads and all(identity != loop_thread for identity in cold_threads)
-        assert progress_during_import == [True]
+        assert not imports
     finally:
-        handle.cancel()
         await actor.on_stop()
 
 

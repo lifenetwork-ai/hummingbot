@@ -1,6 +1,7 @@
 """Optional LIFE spread composition using existing maker fees and NATR only."""
 import asyncio
 import math
+import sys
 from contextvars import Context
 from decimal import Decimal
 from typing import List, Literal, Optional
@@ -122,10 +123,21 @@ class SpreadPolicyConfig(BaseModel):
 
 
 def natr_value(frame, length):
-    # Same indicator as upstream PMM dynamic, with no MACD or anchor shift.
-    import pandas_ta as ta
-    result = ta.natr(frame['high'], frame['low'], frame['close'], length=length, talib=False)
-    value = Decimal(str(result.iloc[-1])) / 100 if result is not None else Decimal('NaN')
+    """Compute the same SMA-seeded EMA NATR as pandas-ta with TA-Lib disabled."""
+    from pandas import concat
+
+    if len(frame) < length + 1:
+        raise ValueError('candles_unavailable')
+    high, low, close = frame['high'], frame['low'], frame['close']
+    daily_range = high - low
+    if daily_range.eq(0).any():
+        daily_range += sys.float_info.epsilon
+    previous_close = close.shift()
+    true_range = concat([daily_range, high - previous_close, previous_close - low], axis=1).abs().max(axis=1)
+    seeded = true_range.iloc[length - 1:].copy()
+    seeded.iloc[0] = true_range.iloc[:length].mean()
+    atr = seeded.ewm(span=length, adjust=False).mean().iloc[-1]
+    value = Decimal(str((100 / close.iloc[-1]) * atr)) / 100
     if not value.is_finite() or value < 0:
         raise ValueError('candles_unavailable')
     return value

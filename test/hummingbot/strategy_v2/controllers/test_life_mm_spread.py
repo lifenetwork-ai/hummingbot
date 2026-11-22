@@ -1,5 +1,6 @@
 """Optional spreads reuse fee conversion, NATR and the existing controller."""
 import json
+import random
 from collections import deque
 from decimal import Decimal
 from test.hummingbot.strategy_v2.controllers.test_life_mm import configuration, make_controller
@@ -13,7 +14,7 @@ from hummingbot.core import engine_diagnostics, order_submission_guard
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
-from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig
+from hummingbot.strategy_v2.utils.mm_spread import SpreadPolicy, SpreadPolicyConfig, natr_value
 
 
 def feed(rows=20, *, now=1200, width=.002):
@@ -25,6 +26,25 @@ def feed(rows=20, *, now=1200, width=.002):
 def dynamic(**values):
     return SpreadPolicyConfig(volatility={**dict(enabled=True, length=5, target_natr='.01',
                                                  min_multiplier='.5', max_multiplier='3'), **values})
+
+
+@pytest.mark.parametrize('length', [2, 5, 14, 100])
+def test_natr_matches_pandas_ta_for_valid_candle_windows(length):
+    import pandas_ta as ta
+
+    rng = random.Random(1749)
+    candles = []
+    for _ in range(length + 100):
+        close = rng.uniform(60000, 70000)
+        candles.append(dict(high=close + rng.uniform(0, 850), low=close - rng.uniform(0, 850), close=close))
+    frame = pd.DataFrame(candles)
+    with_flat_candle = frame.copy()
+    with_flat_candle.loc[length, ['high', 'low']] = frame.loc[length, 'close']
+    flat = pd.DataFrame({'high': [1.] * (length + 1), 'low': [1.] * (length + 1), 'close': [1.] * (length + 1)})
+
+    for window in (frame, frame.iloc[:length + 1], with_flat_candle, flat):
+        expected = ta.natr(window['high'], window['low'], window['close'], length=length, talib=False)
+        assert natr_value(window, length) == Decimal(str(expected.iloc[-1])) / 100
 
 
 def test_dynamic_requires_explicit_fallback_and_valid_limits():

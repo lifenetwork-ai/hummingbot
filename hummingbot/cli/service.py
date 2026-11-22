@@ -11,6 +11,7 @@ import os
 import signal
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -511,11 +512,31 @@ class ServiceHost:
         from hummingbot.core.bot_ownership import BotOwnership
         from hummingbot.model.bot_state_store import BotStateStore
         from hummingbot.model.sql_connection_manager import SQLConnectionManager
-        self.engine = SQLConnectionManager.initialize_postgres(self.settings, allow_migration_standby=True)
-        self.migrations_pending = SQLConnectionManager._postgres_migrations_pending
-        self.store = BotStateStore(self.engine, self.settings.bot_id)
-        self.store.ensure()
-        self.observations.reporting = ((self.store.read() or {}).get("status") or {}).get("reporting") or {}
+
+        def prepare_database(settings):
+            engine = SQLConnectionManager.initialize_postgres(settings, allow_migration_standby=True)
+            try:
+                store = BotStateStore(engine, settings.bot_id)
+                store.ensure()
+                return engine, store, SQLConnectionManager._postgres_migrations_pending, store.read()
+            except BaseException:
+                engine.dispose()
+                raise
+
+        # Schema validation and migrations own a connection, but there is no
+        # trading owner yet. Keep HTTP responsive and let shutdown dispose the
+        # engine only after the database worker has released its connection.
+        database = asyncio.get_running_loop().run_in_executor(None, prepare_database, self.settings)
+        cancelled = None
+        while not database.done():
+            try:
+                await asyncio.shield(database)
+            except asyncio.CancelledError as error:
+                cancelled = error
+        self.engine, self.store, self.migrations_pending, initial_state = database.result()
+        if cancelled is not None:
+            raise cancelled
+        self.observations.reporting = ((initial_state or {}).get("status") or {}).get("reporting") or {}
         self.owner = BotOwnership(self.engine, self.settings.bot_id, stopping=self.stop.is_set,
                                   scoped_recovery=self.settings.scoped_recovery_enabled)
         self.catalogue = {kind: list_configs(kind) for kind in STRATEGY_TYPES}
@@ -1313,6 +1334,28 @@ def create_service_app(host, admin_settings=None):
     return app
 
 
+def _prepare_engine_workers():
+    """Start the initial I/O workers while the engine HTTP listener comes up."""
+    loop = asyncio.get_running_loop()
+    pool = ThreadPoolExecutor(thread_name_prefix='asyncio')
+    loop.set_default_executor(pool)
+
+    def prepare():
+        # Keep each starter busy until all workers are created. Launch them
+        # from the first worker so Thread.start cannot block the engine loop.
+        release = threading.Event()
+        reservations = []
+        try:
+            for _ in range(3):
+                reservations.append(pool.submit(release.wait))
+        finally:
+            release.set()
+        for reservation in reservations:
+            reservation.result()
+
+    return loop.run_in_executor(pool, prepare)
+
+
 async def run_service(*, settings=None, bind_host='0.0.0.0', admin_settings=None):
     from hummingbot.client.config.runtime_config import RuntimeConfigurationError, RuntimeSettings, postgres_requested
     stop = asyncio.Event()
@@ -1333,7 +1376,9 @@ async def run_service(*, settings=None, bind_host='0.0.0.0', admin_settings=None
         app = create_service_app(host, admin_settings)
         runner = web.AppRunner(app, access_log=None, shutdown_timeout=0.1)
         await runner.setup()
+        workers_ready = _prepare_engine_workers()
         await web.TCPSite(runner, bind_host, settings.port).start()
+        await workers_ready
         await host.run()
         code = 0
     except Exception as error:
