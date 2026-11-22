@@ -6,7 +6,7 @@ from test.integration.postgres.test_recovery_store import ADMIN, recovering as _
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import event, func, select, update
 from sqlalchemy.orm import Session
 
 from hummingbot.model.admin_access import AdminAuditEvent
@@ -160,15 +160,35 @@ def test_changed_proof_invalidates_preview(recovering, monkeypatch, mutation):
 
 
 def test_bounded_native_lookup_joins_exact_order_trade_and_applied_journal(recovering, monkeypatch):
+    from test.integration.postgres.test_admin_load_plans import nodes
+
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
     monkeypatch.setenv('OKX_SITE', 'www')
     store, _ = recovering
     seed_checkpoint(store, orders=12, fills=3)
-    rows = store.checkpoint_fill_rows([('okx', '0', '0'), ('okx', '1', '1'), ('okx', '2', '2')], 0)
-    assert {row['fill']['exchange_trade_id'] for row in rows} == {'1', '2'}
+    statements = []
+
+    def capture(_connection, _cursor, statement, parameters, _context, _executemany):
+        statements.append((statement, parameters))
+
+    event.listen(store.engine, 'before_cursor_execute', capture)
+    try:
+        keys = [('okx', '0', '0'), ('okx', '1', '1'), ('okx', '2', '2'), ('okx', '1', '1')]
+        rows = store.checkpoint_fill_rows(keys, 0)
+    finally:
+        event.remove(store.engine, 'before_cursor_execute', capture)
+    assert sorted(row['fill']['exchange_trade_id'] for row in rows) == ['1', '2']
     assert all(row['journal']['exchange_trade_id'] == row['fill']['exchange_trade_id'] for row in rows)
     assert store.checkpoint_fill_rows([('okx', 'wrong-order', '1')], 0) == []
     assert store.checkpoint_fill_rows([('okx', '1', '1')], max(row['journal_id'] for row in rows)) == []
+    [statement] = statements
+    with store.engine.begin() as db:
+        plan = db.exec_driver_sql('EXPLAIN (FORMAT JSON) ' + statement[0], statement[1]).scalar_one()[0]['Plan']
+        pending_id = db.scalar(update(RuntimeJournal).where(RuntimeJournal.event_key == 'fill:1')
+                               .values(applied=False).returning(RuntimeJournal.id))
+    assert 'Values Scan' in {node['Node Type'] for node in nodes(plan)}, plan
+    assert store.checkpoint_fill_rows([('okx', '1', '1')], 0) == []
+    assert [row['journal_id'] for row in store.checkpoint_fill_rows([('okx', '1', '1')], 0, pending_ids=[pending_id])] == [pending_id]
 
 
 def test_pending_intent_beyond_legacy_page_is_still_visible(recovering, monkeypatch):

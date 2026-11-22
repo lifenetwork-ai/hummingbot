@@ -8,7 +8,7 @@ from copy import deepcopy
 from dataclasses import asdict
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, exists, func, or_, select, text, tuple_, update
+from sqlalchemy import column, delete, exists, func, or_, select, text, tuple_, update, values
 from sqlalchemy.exc import IntegrityError
 
 from hummingbot.core.admin_identity import Principal
@@ -95,13 +95,21 @@ class RecoveryStore:
         if (not keys or len(keys) > 100 or type(watermark) is not int or watermark < 0
                 or len(pending_ids) > MAX_PENDING_FILLS or any(type(i) is not int or i <= watermark for i in pending_ids)):
             raise ValueError('Invalid bounded fill proof')
+        # Give PostgreSQL the page as a relation so it can join the requested
+        # identities before reading the journal. Duplicate keys still match once.
+        requested = values(column('market', TradeFill.market.type),
+                           column('venue_order_id', Order.exchange_order_id.type),
+                           column('trade_id', TradeFill.exchange_trade_id.type), name='requested_fills').data(
+            list(dict.fromkeys(tuple(key) for key in keys)))
         columns = ([column.label('fill_' + column.name) for column in TradeFill.__table__.columns]
                    + [column.label('order_' + column.name) for column in Order.__table__.columns]
                    + [RuntimeJournal.payload.label('journal'), RuntimeJournal.id.label('journal_id')])
-        statement = select(*columns).select_from(TradeFill).join(Order, Order.id == TradeFill.order_id).join(
-            RuntimeJournal, fill_identity()).where(or_(RuntimeJournal.applied.is_(True), RuntimeJournal.id.in_(pending_ids)),
-                                                   RuntimeJournal.id > watermark,
-                                                   tuple_(TradeFill.market, Order.exchange_order_id, TradeFill.exchange_trade_id).in_(keys))
+        statement = (select(*columns).select_from(TradeFill).join(Order, Order.id == TradeFill.order_id)
+                     .join(requested, tuple_(TradeFill.market, Order.exchange_order_id, TradeFill.exchange_trade_id)
+                           == tuple_(requested.c.market, requested.c.venue_order_id, requested.c.trade_id))
+                     .join(RuntimeJournal, fill_identity())
+                     .where(RuntimeJournal.id > watermark,
+                            or_(RuntimeJournal.applied.is_(True), RuntimeJournal.id.in_(pending_ids))))
         with self.engine.connect() as connection:
             rows = connection.execute(statement).mappings().all()
         return [dict(fill={c.name: row['fill_' + c.name] for c in TradeFill.__table__.columns},
