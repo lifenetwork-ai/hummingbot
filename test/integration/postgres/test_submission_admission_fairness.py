@@ -28,6 +28,7 @@ from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.order_submission_guard import session_order_scope
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.order import Order
+from hummingbot.model.ownership_lock_observation import observe_ownership_locks
 from hummingbot.model.runtime_journal import RuntimeJournal, SubmissionAttempt
 
 owned = owned_fixture
@@ -707,7 +708,10 @@ def test_fresh_burst_callback_and_completion_work(native, legacy, monkeypatch):
     report('fresh_burst_predecessor' if legacy else 'fresh_burst_candidate', timing)
 
 
-def test_first_ownership_conflict_retries_after_a_short_shared_cooldown(native):
+def test_first_ownership_conflict_retries_after_a_short_shared_cooldown(native, caplog):
+    from hummingbot.logger.service_logging import ServiceFormatter
+
+    observe_ownership_locks(native.engine)
     schedule = []
     release_busy = native.owner._release_busy_intent
     deferred = asyncio.Event()
@@ -721,7 +725,8 @@ def test_first_ownership_conflict_retries_after_a_short_shared_cooldown(native):
 
     async def run():
         with native.engine.begin() as blocker:
-            blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE').all()
+            blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE',
+                                    execution_options={'ownership_row_writer': 'test_writer'}).all()
             with session_order_scope(native.session.id, native.session.generation):
                 order = asyncio.create_task(native.market._create_order(
                     TradeType.BUY, 'brief-owner-conflict', 'LIFE-USDT', Decimal('5'),
@@ -737,6 +742,11 @@ def test_first_ownership_conflict_retries_after_a_short_shared_cooldown(native):
 
     delay, = schedule
     assert 0 < delay <= .05, f'First retry was deferred for {delay:.3f}s'
+    warning, = [record for record in caplog.records if getattr(record, 'event', None) == 'intent_admission_waiting']
+    evidence = json.loads(ServiceFormatter('json', {}).format(warning))
+    assert evidence['ownership_writer_overlap'] == 'test_writer'
+    assert evidence['ownership_writer_observed_us'] > 0
+    assert evidence['ownership_check_finished_at_ns'] >= evidence['ownership_check_started_at_ns']
     native.transport.call.assert_awaited_once()
     with native.manager.get_new_session() as db:
         assert db.query(SubmissionAttempt).one().state == 'acknowledged'

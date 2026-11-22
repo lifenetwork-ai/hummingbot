@@ -5,6 +5,7 @@ DBAPI rollback. Once the fence is acquired, write and COMMIT failures remain fat
 """
 from contextlib import contextmanager
 from dataclasses import dataclass
+from time import monotonic_ns
 
 from sqlalchemy.exc import OperationalError
 
@@ -18,18 +19,23 @@ class _PrewriteRollback:
     driver: object
     error: object
     confirmed: bool = False
+    ownership_evidence: dict | None = None
 
 
 @contextmanager
-def capture_prewrite_lock_failure(session):
+def capture_prewrite_lock_failure(session, *, observe_writer=False):
     connection = session.connection()
     driver = connection.connection.driver_connection
+    observation = getattr(connection.engine, 'ownership_lock_observation', None) if observe_writer else None
+    started = monotonic_ns() if observation is not None else None
     try:
         yield
     except OperationalError as error:
         if (getattr(error.orig, 'pgcode', None) == '55P03'
                 and not error.connection_invalidated and not connection.invalidated):
-            session.info[_KEY] = _PrewriteRollback(session.get_transaction(), connection, driver, error)
+            evidence = observation.failure_evidence(started) if observation is not None else None
+            session.info[_KEY] = _PrewriteRollback(
+                session.get_transaction(), connection, driver, error, ownership_evidence=evidence)
         raise
 
 
@@ -49,7 +55,7 @@ def confirm_prewrite_rollback(session, previous_transaction):
 
 def confirmed_prewrite_failure(session, error):
     proof = session.info.pop(_KEY, None)
-    return proof is not None and error is proof.error and proof.confirmed
+    return proof if proof is not None and error is proof.error and proof.confirmed else None
 
 
 @contextmanager
@@ -58,8 +64,12 @@ def prewrite_transaction(manager, session, busy_error, busy_message):
         with session.begin():
             yield
     except BaseException as error:
-        if confirmed_prewrite_failure(session, error) and manager.persistence_healthy:
-            raise busy_error(busy_message) from None
+        proof = confirmed_prewrite_failure(session, error)
+        if proof is not None and manager.persistence_healthy:
+            busy = busy_error(busy_message)
+            if proof.ownership_evidence is not None:
+                busy.ownership_evidence = proof.ownership_evidence
+            raise busy from None
         # A rollback failure can prevent after_soft_rollback from firing.
         # Keep every other PostgreSQL failure fatal even in that case.
         if manager.engine.dialect.name == 'postgresql':
@@ -100,7 +110,7 @@ def order_intent_transaction(manager, order_id, *, worker_owner=None):
                 manager.assert_persistence_healthy()
                 if guard.engine is not manager.engine:
                     raise RuntimeError('Intent recorder does not belong to the trading owner.')
-                with capture_prewrite_lock_failure(session):
+                with capture_prewrite_lock_failure(session, observe_writer=True):
                     if worker_owner is None:
                         guard.fence_session(session, nowait=True)
                     else:

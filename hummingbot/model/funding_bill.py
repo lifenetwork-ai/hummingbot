@@ -101,7 +101,7 @@ class FundingBillStore:
             value = cast(bindparam('funding_checkpoint_json', prepared_checkpoint), JSONB)
             result = c.execute(update(BotState).where(BotState.bot_id == target.c.bot_id).values(
                 recovery_state=func.jsonb_set(BotState.recovery_state, text("'{funding_sync}'"), value))
-                .returning(BotState.bot_id), authority).first()
+                .returning(BotState.bot_id).execution_options(ownership_row_writer='funding'), authority).first()
             if result is None:
                 raise ControlConflict("Funding checkpoint authority changed or is busy", code='funding_checkpoint_deferred')
         return checkpoint

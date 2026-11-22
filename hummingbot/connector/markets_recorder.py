@@ -960,7 +960,7 @@ class MarketsRecorder:
         except OwnershipLost as error:
             raise owner._lose_ownership(str(error), error.reason_code) from None
         if busy is not None:
-            raise IntentAdmissionBusy(str(busy), cancellation=cancelled) from None
+            raise IntentAdmissionBusy(str(busy), cancellation=cancelled, ownership_evidence=busy.ownership_evidence) from None
         if attempt is not None:
             mark_prepared_order(order, attempt)
         return cancelled
@@ -1014,7 +1014,7 @@ class MarketsRecorder:
         except OwnershipLost as error:
             raise owner._lose_ownership(str(error), error.reason_code) from None
         if busy is not None:
-            raise IntentAdmissionBusy(str(busy), cancellation=cancelled) from None
+            raise IntentAdmissionBusy(str(busy), cancellation=cancelled, ownership_evidence=busy.ownership_evidence) from None
         for order, _, attempt in records:
             mark_prepared_order(order, attempt)
         return cancelled

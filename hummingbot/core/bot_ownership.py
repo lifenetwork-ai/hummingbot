@@ -352,7 +352,8 @@ class BotOwnership:
             try:
                 row = self.connection.execute(select(BotState.recovery_state, BotState.control_version).where(
                     BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
-                    BotState.owner_generation == self.generation).with_for_update(nowait=nowait)).one()
+                    BotState.owner_generation == self.generation).with_for_update(nowait=nowait)
+                    .execution_options(ownership_row_writer='owner_recovery')).one()
             except OperationalError as error:
                 if (not nowait or error.connection_invalidated or self.connection.invalidated
                         or getattr(error.orig, 'pgcode', None) != '55P03'):
@@ -490,14 +491,15 @@ class BotOwnership:
             try:
                 if not await self._admit_intent_turn(connector, order):
                     continue
-            except IntentAdmissionBusy:
+            except IntentAdmissionBusy as error:
                 # Only the confirmed prewrite rollback takes this path.
                 # Unknown writes/COMMIT/transport outcomes still propagate.
                 emit, summary = self._intent_admission_warnings.observe('ownership_row')
                 if emit:
                     logging.getLogger(__name__).warning(
                         'Intent admission waiting for ownership row; no order sent summary=%s', summary,
-                        extra={'event': 'intent_admission_waiting', 'reason_code': 'intent_admission_busy'})
+                        extra={'event': 'intent_admission_waiting', 'reason_code': 'intent_admission_busy',
+                               **(error.ownership_evidence or {})})
                 continue
             except PositionCheckpointOrderWait as error:
                 # A new order still has no durable intent. Wait outside both locks.
@@ -605,7 +607,7 @@ class BotOwnership:
             self._release_busy_intent(accepted[0].order)
             for intent in accepted[1:]:
                 self._release_unsent_admission(intent.order.client_order_id)
-            failure = IntentAdmissionBusy(str(error))
+            failure = IntentAdmissionBusy(str(error), ownership_evidence=error.ownership_evidence)
             cancelled = error.cancellation
         except BaseException as error:
             failure = error

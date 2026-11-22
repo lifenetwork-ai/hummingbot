@@ -63,9 +63,10 @@ class PositionCheckpointOrderWait(MarketReadinessBlocked):
 class IntentAdmissionBusy(MarketReadinessBlocked):
     """Initial ownership fence contended, with a confirmed unsent rollback."""
 
-    def __init__(self, message, *, cancellation=None):
+    def __init__(self, message, *, cancellation=None, ownership_evidence=None):
         super().__init__(message)
         self.cancellation = cancellation
+        self.ownership_evidence = ownership_evidence
 
 
 class SpotOutflowBlocked(MarketReadinessBlocked):

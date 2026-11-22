@@ -243,7 +243,8 @@ class BotStateStore:
             result = connection.execute(update(BotState).where(
                 BotState.bot_id == target.c.bot_id,
             ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=status_value(),
-                     revision=revision).returning(BotState.bot_id)).first()
+                     revision=revision).returning(BotState.bot_id)
+                .execution_options(ownership_row_writer='publication')).first()
             if result is None:
                 transaction.rollback()
                 return False
@@ -317,7 +318,8 @@ class BotStateStore:
                 BotState.owner_generation == owner_generation, BotState.control_version == version,
             ).with_for_update().cte("locked_session").prefix_with("MATERIALIZED", dialect="postgresql")
             # Evaluate the clock only after the CTE produces the locked row.
-            statement = select(locked, func.extract("epoch", func.clock_timestamp()).label("database_now"))
+            statement = select(locked, func.extract("epoch", func.clock_timestamp()).label("database_now")).execution_options(
+                ownership_row_writer='session_update')
             row = connection.execute(statement).mappings().first()
             if row is None or not owner_uuid or not row["mm_session"]:
                 raise ControlConflict("MM session owner/control version changed")

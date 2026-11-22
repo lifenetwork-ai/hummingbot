@@ -316,6 +316,16 @@ scheduling, database work and rollback or commit. Join the spans by the
 hashed order and parent span ID, then use the probe timestamps and the Spot
 SELL replacement markers to compare latency with quote activity.
 
+With engine diagnostics enabled, the existing `intent_admission_waiting`
+warning includes the check interval and `ownership_writer_overlap`. This field
+names any observed engine writer whose transaction overlapped the check
+(`publication`, `funding`, `session_update` or `owner_recovery`).
+`ownership_writer_observed_us` measures the longest observed interval from
+the writer's lock-statement response to the end of the check or transaction,
+whichever came first. Overlap is a candidate for attribution. `unobserved`
+means this engine had no matching interval. A writer in another process or a
+lock acquired before its SQL response can be outside the observation.
+
 A linked `quote.sell_open` can also carry the first controller report showing
 the fill, the account-evidence wait and readiness timestamps, the handoff
 request, checkpoint start and commit, the report releasing the level, and the

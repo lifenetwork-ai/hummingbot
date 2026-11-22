@@ -31,6 +31,8 @@ class DatabaseIOTimeout(OperationalError):
 
 
 class DeadlineConnection(connection):
+    ownership_lock_observation = None
+
     def __init__(self, *args, **kwargs):
         self.io_timeout = CONNECT_IO_SECONDS
         self.io_deadline = None
@@ -41,7 +43,28 @@ class DeadlineConnection(connection):
     def commit(self):
         # Cursor hooks exclude the COMMIT reply wait. Preserve its exact native
         # outcome (including ambiguous transport failure); observe no SQL/args.
-        return super().commit()
+        try:
+            return super().commit()
+        finally:
+            self._finish_ownership_observation()
+
+    def rollback(self):
+        try:
+            return super().rollback()
+        finally:
+            self._finish_ownership_observation()
+
+    def close(self):
+        try:
+            return super().close()
+        finally:
+            self._finish_ownership_observation()
+
+    def _finish_ownership_observation(self):
+        observation = self.ownership_lock_observation
+        if observation is not None:
+            self.ownership_lock_observation = None
+            observation.finished(self)
 
 
 def bounded_wait(conn):

@@ -5,6 +5,7 @@ from sqlalchemy.engine import Engine
 from hummingbot.client.config.runtime_config import RuntimeSettings
 from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.model.db_migration.postgres.io_deadline import DeadlineConnection, install_io_deadline
+from hummingbot.model.ownership_lock_observation import observe_ownership_locks
 
 
 def create_postgres_engine(settings: RuntimeSettings) -> Engine:
@@ -41,4 +42,6 @@ def create_postgres_engine(settings: RuntimeSettings) -> Engine:
         return native_ping(dbapi_connection)
 
     engine.dialect.do_ping = observed_ping
+    if settings.engine_diagnostics_enabled:
+        observe_ownership_locks(engine)
     return engine

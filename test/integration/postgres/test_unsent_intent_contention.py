@@ -1,6 +1,8 @@
 """An unsent intent may wait for ownership contention, never uncertain effects."""
 import time
+from concurrent.futures import ThreadPoolExecutor
 from test.integration.postgres.test_ownership import assistant, intent, owned  # noqa: F401
+from threading import Event
 
 import pytest
 from sqlalchemy import event, text
@@ -8,13 +10,62 @@ from sqlalchemy.exc import OperationalError
 
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.event.events import MarketEvent, MarketOrderFailureEvent
-from hummingbot.core.order_submission_guard import MarketReadinessBlocked
+from hummingbot.core.order_submission_guard import IntentAdmissionBusy, MarketReadinessBlocked
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.order import Order
 from hummingbot.model.order_status import OrderStatus
 from hummingbot.model.runtime_journal import SubmissionAttempt
 from hummingbot.model.trade_fill import TradeFill
+
+
+@pytest.mark.parametrize('roll_back', [False, True])
+def test_contention_evidence_identifies_publication_until_transaction_ends(owned, roll_back):  # noqa: F811
+    from hummingbot.model.ownership_lock_observation import observe_ownership_locks
+
+    observe_ownership_locks(owned.engine)
+    locked, release = Event(), Event()
+
+    def pause_publication(connection, cursor, statement, parameters, context, executemany):
+        if 'WITH publication_target' in statement:
+            locked.set()
+            assert release.wait(3)
+            if roll_back:
+                raise RuntimeError('publication interrupted')
+
+    event.listen(owned.engine, 'after_cursor_execute', pause_publication)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            publishing = executor.submit(
+                owned.store.publish, owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
+                version=owned.owner.version, status={'running': False}, save_balances=False)
+            try:
+                assert locked.wait(3)
+                with pytest.raises(IntentAdmissionBusy) as busy:
+                    intent(owned)
+                evidence = busy.value.ownership_evidence
+                assert evidence['ownership_writer_overlap'] == 'publication'
+                assert evidence['ownership_check_started_at_ns'] <= evidence['ownership_check_finished_at_ns']
+                assert evidence['ownership_writer_observed_us'] > 0
+                assert owned.manager.persistence_healthy
+            finally:
+                release.set()
+            if roll_back:
+                with pytest.raises(RuntimeError, match='publication interrupted'):
+                    publishing.result(timeout=3)
+            else:
+                assert publishing.result(timeout=3)
+    finally:
+        event.remove(owned.engine, 'after_cursor_execute', pause_publication)
+
+    owned.owner._intent_admission_retry_at = 0
+    with owned.engine.begin() as blocker:
+        blocker.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
+        with pytest.raises(IntentAdmissionBusy) as busy:
+            intent(owned, 'unobserved-holder')
+        assert busy.value.ownership_evidence['ownership_writer_overlap'] == 'unobserved'
+        assert 'ownership_writer_observed_us' not in busy.value.ownership_evidence
+    assert owned.manager.persistence_healthy
 
 
 def test_unsent_intent_row_contention_keeps_persistence_healthy_and_next_admission_works(owned):  # noqa: F811
