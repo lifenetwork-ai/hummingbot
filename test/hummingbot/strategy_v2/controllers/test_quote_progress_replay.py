@@ -88,6 +88,16 @@ async def replay(monkeypatch, side, *, state=None, peers=None):
     state.creates = []
     state.created = asyncio.Event()
     execute_actions = state.orchestrator.execute_actions
+    controller_waiting = asyncio.Event()
+    wait_for_tick = controller._wait_for_control_tick
+
+    async def observe_controller_wait():
+        # Synchronize with the first completed control cycle without polling
+        # a transient diagnostic stage on a loaded coverage runner.
+        controller_waiting.set()
+        await wait_for_tick()
+
+    monkeypatch.setattr(controller, '_wait_for_control_tick', observe_controller_wait)
 
     def actions(rows):
         creates = [row for row in rows if isinstance(row, CreateExecutorAction)]
@@ -106,7 +116,8 @@ async def replay(monkeypatch, side, *, state=None, peers=None):
              asyncio.create_task(strategy._watch_spot_account_progress(state.connector, state.account_event))]
     state.recorder = recorder
     try:
-        await eventually(lambda: controller._control_stage == 'sleep')
+        await asyncio.wait_for(controller_waiting.wait(), timeout=5)
+        assert controller.status == RunnableStatus.RUNNING and not state.creates
         yield state
     finally:
         strategy._is_stop_triggered = True
