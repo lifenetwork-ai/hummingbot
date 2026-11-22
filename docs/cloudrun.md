@@ -325,6 +325,11 @@ the writer's lock-statement response to the end of the check or transaction,
 whichever came first. Overlap is a candidate for attribution. `unobserved`
 means this engine had no matching interval. A writer in another process or a
 lock acquired before its SQL response can be outside the observation.
+`ownership_writer_in_flight` lists observed writer statements that were still
+awaiting a response when the ownership check failed. These statements are
+candidates. The engine records confirmed statement responses separately.
+The `service.publication` span measures snapshot publication on the worker,
+including PostgreSQL work and commit.
 
 A linked `quote.sell_open` can also carry the first controller report showing
 the fill, the account-evidence wait and readiness timestamps, the handoff

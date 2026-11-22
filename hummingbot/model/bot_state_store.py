@@ -1,15 +1,60 @@
 """Small operational-state adapter for the existing bot_state table."""
 import json
 from contextlib import nullcontext
+from functools import partial
 from typing import Optional
 
-from sqlalchemy import bindparam, case, cast, func, select, text, update
-from sqlalchemy.dialects.postgresql import JSONB, insert
+from sqlalchemy import Text, bindparam, case, cast, func, literal_column, select, text, update
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 
 from hummingbot.core.control_errors import ControlConflict
+from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.model.bot_state import BotState
+
+_COVERAGE_BUCKETS = '_coverage_buckets'
+_EMPTY_JSON_OBJECT = literal_column("'{}'::jsonb", type_=JSONB)
+_STATUS_TUPLE = (literal_column('bot_state.xmin::text').label('status_xmin'),
+                 literal_column('bot_state.ctid::text').label('status_ctid'))
+
+
+def _coverage_changes(previous, current, signatures):
+    """Send only changed seconds when the complete published basis is still present."""
+    changes = {}
+    for market, rows in current.items():
+        old = previous.get(market, {})
+        deleted = list(old.keys() - rows.keys())
+        written = {second: row for second, row in rows.items()
+                   if signatures[market][second] != old.get(second)}
+        changes[market] = deleted, written
+    if sum(len(deleted) + len(written) for deleted, written in changes.values()) < sum(map(len, current.values())):
+        return changes
+
+
+def _coverage_buckets(status):
+    liquidity = status.get('mm_liquidity')
+    buckets = liquidity.get(_COVERAGE_BUCKETS) if isinstance(liquidity, dict) else None
+    if (isinstance(buckets, dict) and buckets.keys() <= {'spot', 'perpetual'}
+            and all(isinstance(rows, dict) and all(isinstance(second, str) for second in rows)
+                    for rows in buckets.values())):
+        return buckets
+
+
+def _stage_coverage(value, changes, bot_id, basis, serialize):
+    prior = select(BotState.bot_id, BotState.status['mm_liquidity'][_COVERAGE_BUCKETS].label('buckets')).where(
+        BotState.bot_id == bot_id, *basis).cte('publication_buckets').prefix_with('MATERIALIZED')
+    markets = []
+    for market, (deleted, written) in changes.items():
+        rows = func.coalesce(prior.c.buckets[market], _EMPTY_JSON_OBJECT)
+        if deleted:
+            rows = rows.op('-')(bindparam(f'deleted_{market}', deleted, type_=ARRAY(Text)))
+        if written:
+            rows = rows.op('||')(cast(bindparam(f'written_{market}', serialize(written)), JSONB))
+        markets.extend((market, rows))
+    status = func.jsonb_set(value, ['mm_liquidity', _COVERAGE_BUCKETS], func.jsonb_build_object(*markets))
+    # Build the exact checkpoint before LockRows can acquire trading authority.
+    return select(prior.c.bot_id, status.label('status')).cte('publication_snapshot').prefix_with('MATERIALIZED')
 
 
 def _optional_statement_timeout(error):
@@ -39,6 +84,7 @@ class BotStateStore:
     def __init__(self, engine: Engine, bot_id: str):
         self.engine = engine
         self.bot_id = bot_id
+        self._published_coverage = None
 
     def read(self, *, publication: bool = False) -> Optional[dict]:
         # Reporting needs fresh control/heartbeat and the published snapshot,
@@ -144,6 +190,7 @@ class BotStateStore:
                 raise ControlConflict("Control version changed; read status and submit the intended command again.")
             return result
 
+    @trace_runtime('service.publication')
     def publish(self, *, owner_uuid: str, owner_generation: int, version: int, status: dict,
                 revision: Optional[str] = None, save_balances: bool = True) -> bool:
         """Atomically publish only fresh authority; yield to financial writers.
@@ -165,14 +212,18 @@ class BotStateStore:
         # JSON adaptation may be expensive for a complete restart checkpoint.
         # Do it before taking the authority row lock used by financial writers
         # and Stop. Guard/error metadata is validated under the final row lock.
-        serialize = self.engine.dialect._json_serializer or json.dumps
-        prepared_status = serialize(status)
-
-        def status_value():
-            metadata = {key: status[key] for key in
-                        ("mm_guard_observation", "mm_history_error", "daily_snapshot_error") if key in status}
-            return cast(bindparam("prepared_status_json", prepared_status), JSONB).op("||")(
-                cast(bindparam("publication_status_metadata", serialize(metadata)), JSONB))
+        serialize = self.engine.dialect._json_serializer or partial(json.dumps, separators=(',', ':'))
+        cached = self._published_coverage
+        buckets = _coverage_buckets(status) if self.engine.dialect._json_serializer is None else None
+        # Detach the comparison basis from the caller's lists. JSON scalar
+        # types matter, including when Python equates True and 1.
+        signatures = ({market: {second: repr(row) for second, row in rows.items()} for market, rows in buckets.items()}
+                      if buckets is not None else None)
+        changes = _coverage_changes(cached[1], buckets, signatures) if cached is not None and signatures is not None else None
+        # Prepare a complete payload for first publications or unknown bases.
+        base_status = status if changes is None else {**status, 'mm_liquidity': {
+            key: value for key, value in status['mm_liquidity'].items() if key != _COVERAGE_BUCKETS}}
+        prepared_status = serialize(base_status)
 
         with self.engine.connect() as connection, connection.begin() as transaction:
             # Guard history needs its previous observation, not private telemetry
@@ -189,7 +240,7 @@ class BotStateStore:
                 BotState.acknowledged_version <= version)
             halt_basis = BotState.recovery_state['halt']
             statement = select(guard_status, BotState.mm_session, BotState.desired_state,
-                               halt_basis.label('halt_basis')).where(*authority)
+                               halt_basis.label('halt_basis'), *_STATUS_TUPLE).where(*authority)
             previous = connection.execute(statement).mappings().first()
             if previous is None or (previous['halt_basis'] is True and status.get('running') is True):
                 return False
@@ -209,6 +260,17 @@ class BotStateStore:
                 same_json(halt_basis, previous['halt_basis'], 'publication_halt_basis'),
                 same_json(BotState.mm_session, previous['mm_session'], 'publication_session_basis'),
                 same_json(guard_status, previous['status'], 'publication_guard_basis'))
+            basis = ()
+            if changes is not None:
+                previous_tuple = tuple(previous[column.name] for column in _STATUS_TUPLE)
+                if cached[0] != previous_tuple:
+                    prepared_status = serialize(status)
+                    changes = None
+                else:
+                    # Recheck the basis at the lock as well as at the initial read.
+                    # An unrelated row update can only skip this optional publication.
+                    basis = tuple(column == value for column, value in zip(_STATUS_TUPLE, previous_tuple))
+                    fence = fence.where(*basis)
             # Receipt and balance SQL may wait on their own tables. Never hold
             # the row needed by the recorder's FOR SHARE while doing that work.
             AdminStore.record_observation(connection, self.bot_id, version, status, previous)
@@ -239,16 +301,28 @@ class BotStateStore:
             # optimistic guard/session basis after all speculative work.
             # Update in the same statement so the row lock does not span a
             # separate client round trip before writing the heartbeat.
-            target = fence.with_for_update(skip_locked=True).cte('publication_target')
+            metadata = {key: status[key] for key in
+                        ("mm_guard_observation", "mm_history_error", "daily_snapshot_error") if key in status}
+            value = cast(bindparam("prepared_status_json", prepared_status), JSONB).op("||")(
+                cast(bindparam("publication_status_metadata", serialize(metadata)), JSONB))
+            if changes is not None:
+                staged = _stage_coverage(value, changes, self.bot_id, basis, serialize)
+                fence = fence.join(staged, staged.c.bot_id == BotState.bot_id).add_columns(staged.c.status)
+            target = fence.with_for_update(of=BotState if changes is not None else None,
+                                           skip_locked=True).cte('publication_target')
+            if changes is not None:
+                value = target.c.status
             result = connection.execute(update(BotState).where(
                 BotState.bot_id == target.c.bot_id,
-            ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=status_value(),
-                     revision=revision).returning(BotState.bot_id)
+            ).values(acknowledged_version=version, heartbeat=text("clock_timestamp()"), status=value,
+                     revision=revision).returning(BotState.bot_id, *_STATUS_TUPLE)
                 .execution_options(ownership_row_writer='publication')).first()
             if result is None:
                 transaction.rollback()
                 return False
-            return True
+        # A failed/ambiguous commit cannot become the basis of a later patch.
+        self._published_coverage = (tuple(result[1:]), signatures) if signatures else None
+        return True
 
     def request_mm_session(self, *, action, expected_version, catalogue=None, request=None,
                            current_session_id=None, rng=None, connection=None, principal=None, source="control"):

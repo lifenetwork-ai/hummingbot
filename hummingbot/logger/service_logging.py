@@ -57,7 +57,7 @@ class ServiceFormatter(logging.Formatter):
                      "ownership_backend_pid", "child_pid", "probe_started_at_ns", "probe_finished_at_ns",
                      "recovery_probe_started_at_ns", "recovery_probe_finished_at_ns",
                      "ownership_check_started_at_ns", "ownership_check_finished_at_ns",
-                     "ownership_writer_overlap", "ownership_writer_observed_us"):
+                     "ownership_writer_overlap", "ownership_writer_observed_us", "ownership_writer_in_flight"):
             value = getattr(record, name, None)
             if isinstance(value, (str, int, bool)):
                 payload[name] = value

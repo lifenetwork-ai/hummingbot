@@ -2,13 +2,14 @@
 import asyncio
 import json
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from decimal import Decimal
 from test.integration.postgres.test_ownership import owned as _owned
 
 import pytest
-from sqlalchemy import create_engine, event, select, update
+from sqlalchemy import create_engine, event, select, text, update
 from sqlalchemy.orm import Session
 
 from hummingbot.model.bot_state import BotState
@@ -107,6 +108,102 @@ def test_publication_preserves_status_without_liquidity(pg_engine):
     store = prepare(pg_engine, status)
     assert store.read(publication=True)['status'] == status
     assert store.read()['status'] == status
+
+
+def test_publication_transfers_changed_buckets_and_preserves_restart_payload(owned):
+    status = large_status()
+    status['mm_liquidity'].pop('_overview_recovery')
+    args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
+                version=1, save_balances=False)
+    payloads = []
+
+    def measure(connection, cursor, statement, parameters, context, executemany):
+        if context.execution_options.get('ownership_row_writer') == 'publication':
+            payloads.append(len(cursor.mogrify(statement, parameters)))
+
+    event.listen(owned.engine, 'before_cursor_execute', measure)
+    try:
+        assert owned.store.publish(**args, status=status)
+        expected = deepcopy(status)
+        buckets = expected['mm_liquidity']['_coverage_buckets']
+        buckets['spot'].pop('0')
+        buckets['spot']['1'][2] = True  # This is a different JSON value from 1.0.
+        buckets['spot']['1800'] = [1800, 1801, 1., 0., 1., 0., 0., 0., 0., 0., 0.]
+        buckets.pop('perpetual')
+        assert owned.store.publish(**args, status=expected)
+        assert owned.store.read()['status'] == expected
+        assert owned.store.read()['status']['mm_liquidity']['_coverage_buckets']['spot']['1'][2] is True
+        assert payloads[1] < payloads[0] / 10
+
+        # A new process has no confirmed basis and writes a complete checkpoint.
+        assert BotStateStore(owned.engine, owned.store.bot_id).publish(**args, status=expected)
+        assert owned.store.read()['status'] == expected
+        assert len(payloads) == 3
+        assert payloads[2] > payloads[1] * 10
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', measure)
+
+
+def test_publication_rechecks_bucket_basis_after_speculative_work(owned, monkeypatch):
+    from hummingbot.model.admin_store import AdminStore
+
+    status = large_status()
+    args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
+                version=1, save_balances=False)
+    assert owned.store.publish(**args, status=status)
+    concurrent = deepcopy(status)
+    concurrent['mm_liquidity']['_coverage_buckets']['spot'].pop('0')
+    updated = deepcopy(status)
+    updated['phase'] = 'waiting_for_mm_readiness'
+
+    def replace_basis(*_):
+        with owned.engine.begin() as connection:
+            connection.execute(update(BotState).values(status=concurrent))
+
+    with monkeypatch.context() as fault:
+        fault.setattr(AdminStore, 'record_observation', staticmethod(replace_basis))
+        assert owned.store.publish(**args, status=updated) is False
+    assert owned.store.read()['status'] == concurrent
+    assert owned.store.publish(**args, status=updated)
+    assert owned.store.read()['status'] == updated
+
+
+def test_publication_stages_bucket_merge_before_locking_authority(owned):
+    status = large_status()
+    args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
+                version=1, save_balances=False)
+    assert owned.store.publish(**args, status=status)
+    with owned.engine.begin() as connection:
+        connection.execute(text('''
+            CREATE FUNCTION pause_bucket_merge(jsonb, text[], jsonb) RETURNS jsonb LANGUAGE plpgsql AS $$
+            BEGIN
+                PERFORM pg_advisory_xact_lock(76135);
+                RETURN jsonb_set($1, $2, $3);
+            END;
+            $$
+        '''))
+
+    def hold_merge(connection, cursor, statement, params, context, executemany):
+        if context.execution_options.get('ownership_row_writer') == 'publication':
+            statement = statement.replace('jsonb_set(', 'pause_bucket_merge(')
+        return statement, params
+
+    event.listen(owned.engine, 'before_cursor_execute', hold_merge, retval=True)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as work:
+            with owned.engine.begin() as blocker:
+                blocker.execute(text('SELECT pg_advisory_xact_lock(76135)'))
+                pending = work.submit(owned.store.publish, **args, status=status)
+                deadline = time.monotonic() + 1
+                while not blocker.scalar(text("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' "
+                                              "AND classid=0 AND objid=76135 AND NOT granted)")):
+                    assert time.monotonic() < deadline and not pending.done(), 'The staged merge did not block'
+                    time.sleep(.01)
+                with Session(owned.engine) as session, session.begin():
+                    owned.owner.fence_session(session, nowait=True)
+            assert pending.result(timeout=3)
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', hold_merge)
 
 
 @pytest.mark.parametrize('writers', [1, 2])

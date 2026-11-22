@@ -20,10 +20,10 @@ from hummingbot.model.trade_fill import TradeFill
 
 
 @pytest.mark.parametrize('roll_back', [False, True])
-def test_contention_evidence_identifies_publication_until_transaction_ends(owned, roll_back):  # noqa: F811
+@pytest.mark.parametrize('reply_observed', [False, True])
+def test_contention_evidence_identifies_publication_until_transaction_ends(owned, roll_back, reply_observed):  # noqa: F811
     from hummingbot.model.ownership_lock_observation import observe_ownership_locks
 
-    observe_ownership_locks(owned.engine)
     locked, release = Event(), Event()
 
     def pause_publication(connection, cursor, statement, parameters, context, executemany):
@@ -33,7 +33,11 @@ def test_contention_evidence_identifies_publication_until_transaction_ends(owned
             if roll_back:
                 raise RuntimeError('publication interrupted')
 
+    if reply_observed:
+        observe_ownership_locks(owned.engine)
     event.listen(owned.engine, 'after_cursor_execute', pause_publication)
+    if not reply_observed:
+        observe_ownership_locks(owned.engine)
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
             publishing = executor.submit(
@@ -44,9 +48,14 @@ def test_contention_evidence_identifies_publication_until_transaction_ends(owned
                 with pytest.raises(IntentAdmissionBusy) as busy:
                     intent(owned)
                 evidence = busy.value.ownership_evidence
-                assert evidence['ownership_writer_overlap'] == 'publication'
                 assert evidence['ownership_check_started_at_ns'] <= evidence['ownership_check_finished_at_ns']
-                assert evidence['ownership_writer_observed_us'] > 0
+                if reply_observed:
+                    assert evidence['ownership_writer_overlap'] == 'publication'
+                    assert evidence['ownership_writer_observed_us'] > 0
+                    assert 'ownership_writer_in_flight' not in evidence
+                else:
+                    assert evidence['ownership_writer_overlap'] == 'unobserved'
+                    assert evidence['ownership_writer_in_flight'] == 'publication'
                 assert owned.manager.persistence_healthy
             finally:
                 release.set()
@@ -65,6 +74,7 @@ def test_contention_evidence_identifies_publication_until_transaction_ends(owned
             intent(owned, 'unobserved-holder')
         assert busy.value.ownership_evidence['ownership_writer_overlap'] == 'unobserved'
         assert 'ownership_writer_observed_us' not in busy.value.ownership_evidence
+        assert 'ownership_writer_in_flight' not in busy.value.ownership_evidence
     assert owned.manager.persistence_healthy
 
 
