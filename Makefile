@@ -12,6 +12,7 @@ CLOUDRUN_PROJECT ?=
 CLOUDRUN_REGION ?= asia-southeast1
 CLOUDRUN_EVIDENCE ?= build/e2e-offline/result.json
 OFFLINE_OKX_TRADING_ENV ?= demo
+OFFLINE_E2E_SHARD ?=
 MM_LOAD_PROFILE ?= all
 MM_LOAD_VOLATILITY_DEFENSE ?= false
 MM_LOAD_TRACE ?= false
@@ -181,7 +182,7 @@ build-cloudrun-demo:
 		-t $(CLOUDRUN_DEMO_IMAGE) -f deploy/cloudrun/Dockerfile.demo .
 
 test-e2e-offline:
-	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) --trading-env $(OFFLINE_OKX_TRADING_ENV) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),)
+	$(PYTHON) scripts/test_e2e_offline.py --image $(CLOUDRUN_IMAGE) --trading-env $(OFFLINE_OKX_TRADING_ENV) $(if $(CLOUDRUN_PREVIOUS_IMAGE),--previous-image $(CLOUDRUN_PREVIOUS_IMAGE),) $(if $(OFFLINE_E2E_SHARD),--shard "$(OFFLINE_E2E_SHARD)",)
 
 .PHONY: test-mm-load test-mm-load-enhancements test-mm-load-defense
 .PHONY: test-mm-process-isolation test-mm-oom

@@ -12,9 +12,6 @@ from scripts.mm_managed_environment import (
 )
 from scripts.test_e2e_offline import docker, http, poll
 
-SCENARIOS = ('managed-close-ack-crash', 'managed-close-fill-crash', 'managed-rotation', 'managed-cleanup-repair',
-             'managed-close-visibility')
-
 
 def initialize(harness, *, cpus=1, memory_mib=None):
     harness.env.update(EXCHANGE_CREDENTIALS_SOURCE='postgres_kms', KMS_PROVIDER='local',

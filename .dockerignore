@@ -22,6 +22,7 @@
 **/*.so
 /scripts/test_postgres.py
 /scripts/test_e2e_offline.py
+/scripts/merge_offline_e2e.py
 /scripts/test_service_supervision.py
 /scripts/test_mm_production_control.py
 /scripts/test_mm_process_isolation.py

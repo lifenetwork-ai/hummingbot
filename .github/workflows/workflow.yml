@@ -13,6 +13,9 @@ on:
       - 'dashboard/**'
       - '.github/workflows/frontend.yml'
 
+env:
+  OFFLINE_E2E_SHARD_COUNT: '3'
+
 jobs:
   postgres_integration:
     name: PostgreSQL integration (${{ matrix.shard }})
@@ -39,21 +42,15 @@ jobs:
           POSTGRES_TEST_SHARD: ${{ matrix.shard }}
         run: python scripts/test_postgres.py --postgres-shard "$POSTGRES_TEST_SHARD" --durations=20
 
-  build_hummingbot:
-    name: Hummingbot build + stable tests
-    needs: postgres_integration
-    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+  stable_tests:
+    name: Stable tests and coverage
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash -el {0}
 
     steps:
-      - name: Require all PostgreSQL integration shards
-        env:
-          POSTGRES_INTEGRATION_RESULT: ${{ needs.postgres_integration.result }}
-        run: test "$POSTGRES_INTEGRATION_RESULT" = success
-
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -93,7 +90,7 @@ jobs:
 
       - name: Run stable tests and calculate coverage
         run: |
-          PYTEST_ADDOPTS="-rs --junitxml=$RUNNER_TEMP/backend-tests.xml" make test
+          PYTEST_ADDOPTS="-rs --durations=20 --junitxml=$RUNNER_TEMP/backend-tests.xml" make test
           python - "$RUNNER_TEMP/backend-tests.xml" <<'PY'
           import sys
           from xml.etree import ElementTree
@@ -112,31 +109,8 @@ jobs:
       - name: PostgreSQL port regression (required)
         run: make test-cloudrun-regression
 
-      - name: Build Cloud Run image and prefetch offline infrastructure
-        env:
-          CLOUDRUN_PREVIOUS_IMAGE: ${{ vars.HBOT_PREVIOUS_COMPATIBLE_IMAGE }}
-        shell: bash
-        run: |
-          docker pull postgres:14-alpine
-          docker pull registry:2
-          if [ -n "$CLOUDRUN_PREVIOUS_IMAGE" ]; then docker pull "$CLOUDRUN_PREVIOUS_IMAGE"; fi
-          make build-cloudrun
-
-      - name: Offline deployment image E2E (required)
-        env:
-          CLOUDRUN_PREVIOUS_IMAGE: ${{ vars.HBOT_PREVIOUS_COMPATIBLE_IMAGE }}
-        run: |
-          make test-e2e-offline
-          python scripts/review_cloudrun.py deploy/cloudrun/service.example.yaml --template
-
-      - name: Retain offline E2E evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: postgres-cloudrun-offline-evidence
-          path: |
-            build/e2e-offline/
-            build/cloudrun-image.json
+      - name: Review Cloud Run deployment template
+        run: python scripts/review_cloudrun.py deploy/cloudrun/service.example.yaml --template
 
       - name: Check and report global coverage
         run: make report_coverage
@@ -173,3 +147,129 @@ jobs:
           git clone --depth 1 https://github.com/DiscordHooks/github-actions-discord-webhook.git webhook
           bash webhook/send.sh $JOB_STATUS $WEBHOOK_URL
         shell: bash
+
+  cloudrun_image:
+    name: Build Cloud Run test image
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - name: Restore image for a rerun
+        id: cloudrun_image_cache
+        uses: actions/cache/restore@v5
+        with:
+          key: ci-cloudrun-image-${{ github.run_id }}-${{ github.sha }}
+          path: ${{ runner.temp }}/cloudrun-image
+          lookup-only: true
+      - name: Build and archive the shared image
+        if: steps.cloudrun_image_cache.outputs.cache-hit != 'true'
+        run: |
+          make build-cloudrun
+          mkdir -p "$RUNNER_TEMP/cloudrun-image"
+          docker image inspect --format '{{.Id}}' hummingbot-cloudrun:local > "$RUNNER_TEMP/cloudrun-image/image-id"
+          docker save hummingbot-cloudrun:local | gzip -1 > "$RUNNER_TEMP/cloudrun-image/image.tar.gz"
+          cp build/cloudrun-image.json "$RUNNER_TEMP/cloudrun-image/"
+      - name: Transfer the image bundle to the E2E runners
+        if: steps.cloudrun_image_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          key: ci-cloudrun-image-${{ github.run_id }}-${{ github.sha }}
+          path: ${{ runner.temp }}/cloudrun-image
+
+  offline_e2e:
+    name: Cloud Run offline E2E (${{ matrix.shard }}/3)
+    needs: cloudrun_image
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Restore the image from this workflow run
+        uses: actions/cache/restore@v5
+        with:
+          key: ci-cloudrun-image-${{ github.run_id }}-${{ github.sha }}
+          path: ${{ runner.temp }}/cloudrun-image
+          fail-on-cache-miss: true
+      - name: Load the built image and prefetch offline infrastructure
+        env:
+          CLOUDRUN_PREVIOUS_IMAGE: ${{ vars.HBOT_PREVIOUS_COMPATIBLE_IMAGE }}
+        run: |
+          image_bundle="$RUNNER_TEMP/cloudrun-image"
+          docker load --input "$image_bundle/image.tar.gz"
+          test "$(docker image inspect --format '{{.Id}}' hummingbot-cloudrun:local)" = "$(cat "$image_bundle/image-id")"
+          mkdir -p build
+          cp "$image_bundle/cloudrun-image.json" build/
+          docker pull postgres:14-alpine
+          docker pull registry:2
+          if [ -n "$CLOUDRUN_PREVIOUS_IMAGE" ]; then docker pull "$CLOUDRUN_PREVIOUS_IMAGE"; fi
+      - name: Restore Conda packages
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.temp }}/conda-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-conda-packages-${{ hashFiles('setup/environment.yml', '.github/actions/install_env_and_hb/action.yml') }}
+      - name: Install environment and Hummingbot
+        uses: ./.github/actions/install_env_and_hb
+      - name: Run offline E2E shard
+        env:
+          CLOUDRUN_PREVIOUS_IMAGE: ${{ vars.HBOT_PREVIOUS_COMPATIBLE_IMAGE }}
+          SHARD_INDEX: ${{ matrix.shard }}
+        run: make test-e2e-offline OFFLINE_E2E_SHARD="$SHARD_INDEX/$OFFLINE_E2E_SHARD_COUNT"
+      - name: Retain shard logs and evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: postgres-cloudrun-offline-shard-${{ matrix.shard }}
+          overwrite: true
+          path: |
+            build/e2e-offline/
+            build/cloudrun-image.json
+
+  build_hummingbot:
+    name: Hummingbot build + stable tests
+    needs: [postgres_integration, stable_tests, cloudrun_image, offline_e2e]
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Require every backend job
+        env:
+          POSTGRES_RESULT: ${{ needs.postgres_integration.result }}
+          STABLE_RESULT: ${{ needs.stable_tests.result }}
+          IMAGE_RESULT: ${{ needs.cloudrun_image.result }}
+          E2E_RESULT: ${{ needs.offline_e2e.result }}
+        run: |
+          printf 'PostgreSQL: %s\nStable: %s\nImage: %s\nE2E: %s\n' "$POSTGRES_RESULT" "$STABLE_RESULT" "$IMAGE_RESULT" "$E2E_RESULT"
+          test "$POSTGRES_RESULT/$STABLE_RESULT/$IMAGE_RESULT/$E2E_RESULT" = success/success/success/success
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: postgres-cloudrun-offline-shard-*
+          path: build/e2e-offline/shards
+      - name: Verify complete offline E2E evidence
+        env:
+          CLOUDRUN_PREVIOUS_IMAGE: ${{ vars.HBOT_PREVIOUS_COMPATIBLE_IMAGE }}
+        run: |
+          upgrade=()
+          if [ -n "$CLOUDRUN_PREVIOUS_IMAGE" ]; then upgrade=(--require-upgrade); fi
+          python3 -m scripts.merge_offline_e2e --shard-count "$OFFLINE_E2E_SHARD_COUNT" "${upgrade[@]}" \
+            --output build/e2e-offline/result.json build/e2e-offline/shards/*/e2e-offline/*/result.json
+          cp build/e2e-offline/shards/postgres-cloudrun-offline-shard-1/cloudrun-image.json build/
+      - name: Retain offline E2E evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: postgres-cloudrun-offline-evidence
+          overwrite: true
+          if-no-files-found: error
+          path: |
+            build/e2e-offline/
+            build/cloudrun-image.json

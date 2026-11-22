@@ -16,6 +16,47 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+BASE_SCENARIOS = (
+    "schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart",
+    "until-stopped", "shutdown-proof", "startup-latency", "funding", "availability", "quote-guards", "drawdown",
+    "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh",
+    "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty",
+    "scoped-positive", "pending-terminal-ws",
+)
+MANAGED_SCENARIOS = (
+    'managed-close-ack-crash', 'managed-close-fill-crash', 'managed-rotation', 'managed-cleanup-repair',
+    'managed-close-visibility',
+)
+CLEANUP_FAULT_SCENARIOS = (
+    'managed-close-partial-ws', 'managed-close-partial-cancel',
+    'managed-close-partial-live-crash', 'managed-close-partial-cancel-crash',
+    'managed-cleanup-fill-db-fault', 'managed-cleanup-removal-db-fault',
+)
+REDUCTION_SCENARIOS = ('perpetual-reduction-long', 'perpetual-reduction-short')
+SCOPED_FAULT_SCENARIOS = ('scoped-rollover', 'scoped-disconnect', 'scoped-oom')
+
+
+def all_scenarios(*, has_previous_image):
+    names = BASE_SCENARIOS + MANAGED_SCENARIOS + CLEANUP_FAULT_SCENARIOS + REDUCTION_SCENARIOS + SCOPED_FAULT_SCENARIOS
+    return names + ('upgrade',) if has_previous_image else names
+
+
+def parse_shard(value):
+    try:
+        index, count = map(int, value.split('/'))
+        if 1 <= index <= count:
+            return index, count
+    except ValueError:
+        pass
+    raise argparse.ArgumentTypeError('Expected an E2E shard in INDEX/COUNT format, e.g. 1/3.')
+
+
+def shard_scenarios(names, shard):
+    index, count = shard
+    if not 1 <= index <= count <= len(names):
+        raise ValueError('Every E2E shard must have at least one scenario.')
+    return names[index - 1::count]
+
 
 def position_exposure(positions):
     """Compare held contracts and entry terms independently of changing marks."""
@@ -2001,23 +2042,38 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", default="hummingbot-cloudrun:local")
-    from scripts.mm_cleanup_faults import SCENARIOS as cleanup_fault_scenarios
-    from scripts.mm_managed_lifecycle import SCENARIOS as managed_scenarios
-    from scripts.mm_reduction_checks import SCENARIOS as reduction_scenarios
-    from scripts.mm_scoped_fault_checks import SCENARIOS as scoped_fault_scenarios
-    parser.add_argument("--scenario", choices=("all", "spot", "v2-spot", "v2-perpetual", "schema", "managed-environment", "managed-lifecycle", *managed_scenarios, 'managed-cleanup-faults', *cleanup_fault_scenarios, *reduction_scenarios, *scoped_fault_scenarios, "upgrade", "life-mm", "life-mm-recovery", "initial-position-restart", "until-stopped", "shutdown-proof", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws"), default="all")
+    parser.add_argument(
+        "--scenario", choices=("all", "managed-lifecycle", "managed-cleanup-faults", "life-mm-recovery",
+                               *all_scenarios(has_previous_image=True)), default="all")
     parser.add_argument("--previous-image", help="Cached compatible prior image; required for the release upgrade gate.")
+    parser.add_argument("--shard", type=parse_shard, metavar="INDEX/COUNT",
+                        help="Run part of the all-scenarios suite. A single shard is not complete release evidence.")
     parser.add_argument('--keep-going', action='store_true', help='Collect all independent scenario failures; the final gate still fails.')
     parser.add_argument("--trading-env", choices=("live", "demo"), default="live", help="Local simulator routing mode; never contacts OKX.")
     args = parser.parse_args()
+    if args.scenario == "upgrade" and not args.previous_image:
+        parser.error("--previous-image is required for upgrade")
+    if args.shard is not None and args.scenario != 'all':
+        parser.error("--shard applies only to --scenario all")
+    if args.scenario == 'all':
+        scenarios = all_scenarios(has_previous_image=bool(args.previous_image))
+        if args.shard is not None:
+            try:
+                scenarios = shard_scenarios(scenarios, args.shard)
+            except ValueError as error:
+                parser.error(str(error))
+    elif args.scenario == 'managed-lifecycle':
+        scenarios = MANAGED_SCENARIOS
+    elif args.scenario == 'managed-cleanup-faults':
+        scenarios = CLEANUP_FAULT_SCENARIOS
+    else:
+        scenarios = (args.scenario,)
     metadata = json.loads(docker("image", "inspect", args.image).stdout)[0]
     assert metadata["Architecture"] == "amd64", "Build the Linux amd64 deployment target first."
     assert metadata["Size"] <= 1536 * 1024 * 1024, "Cloud Run runtime image exceeds the 1.5 GiB size budget."
     docker("image", "inspect", "postgres:14-alpine")
     image = pin_manifest(args.image)
     previous_image = pin_manifest(args.previous_image) if args.previous_image else None
-    if args.scenario == "upgrade" and not previous_image:
-        parser.error("--previous-image is required for upgrade")
     assert json.loads(docker("image", "inspect", image).stdout)[0]["Id"] == metadata["Id"]
     report = ROOT / "build" / "e2e-offline" / (time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6])
     report.mkdir(parents=True)
@@ -2044,6 +2100,11 @@ def main():
                   "fixture_sha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(assets.iterdir())}}
         result['harness_source_sha256'] = {name: hashlib.sha256((ROOT / 'scripts' / name).read_bytes()).hexdigest()
                                            for name in ('test_e2e_offline.py', 'mm_managed_environment.py', 'mm_managed_lifecycle.py', 'mm_cleanup_faults.py', 'mm_quote_refresh_checks.py', 'mm_feed_recovery_checks.py', 'mm_post_only_checks.py', 'mm_submission_uncertainty_checks.py', 'mm_scoped_fault_checks.py', 'test_mm_oom.py', 'mm_legacy_recovery_fixture.py', 'mm_reduction_checks.py', 'mm_startup_checks.py', 'mm_pending_terminal_checks.py')}
+        if args.shard is not None:
+            result['scenario_shard'] = list(args.shard)
+            if previous_image is not None:
+                result['predecessor_manifest_digest'] = previous_image.split('@', 1)[1]
+            print(f"Offline E2E shard {args.shard[0]}/{args.shard[1]} ({len(scenarios)} scenarios)", flush=True)
         try:
             print("Offline E2E: runtime ABI, JIT, TLS, SDK discovery and size budget", flush=True)
             smoke = docker("run", "--rm", "--platform", "linux/amd64", "--network", "none", "--read-only",
@@ -2051,17 +2112,9 @@ def main():
                            f"type=bind,source={assets},target=/test-assets,readonly",
                            image, "python", "/test-assets/runtime_smoke.py", timeout=90)
             result["runtime_smoke"] = json.loads(smoke.stdout)
-            scenarios = ("schema", "managed-environment", "spot", "v2-spot", "v2-perpetual", "life-mm", "initial-position-restart", "until-stopped", "shutdown-proof", "startup-latency", "funding", "availability", "quote-guards", "drawdown", "spot-outflow", "listing-bootstrap", "inventory-skew", "spread-policy", "volatility-defense", "rolling-refresh", "feed-recovery", "maker-entry", "submission-uncertainty", "automatic-recovery", "scoped-uncertainty", "scoped-positive", "pending-terminal-ws") if args.scenario == "all" else (args.scenario,)
-            if args.scenario == 'all':
-                scenarios += managed_scenarios + cleanup_fault_scenarios + reduction_scenarios + scoped_fault_scenarios
-            elif args.scenario == 'managed-lifecycle':
-                scenarios = managed_scenarios
-            elif args.scenario == 'managed-cleanup-faults':
-                scenarios = cleanup_fault_scenarios
-            if args.scenario == "all" and previous_image:
-                scenarios += ("upgrade",)
             result["scenarios"] = {}
             for scenario in scenarios:
+                started = time.monotonic()
                 scenario_report = report / scenario
                 scenario_report.mkdir()
                 harness = Harness(image, assets, scenario_report, args.trading_env)
@@ -2074,7 +2127,7 @@ def main():
                     elif scenario == "managed-environment":
                         from scripts.mm_managed_environment import managed_environment_scenario
                         managed_environment_scenario(harness)
-                    elif scenario in cleanup_fault_scenarios:
+                    elif scenario in CLEANUP_FAULT_SCENARIOS:
                         from scripts.mm_cleanup_faults import database_scenario, partial_scenario
                         from scripts.mm_managed_lifecycle import safe_logs
                         if scenario.startswith('managed-close-partial-'):
@@ -2085,7 +2138,7 @@ def main():
                         for container in harness.containers:
                             if container not in (harness.pg, harness.simulator):
                                 safe_logs(harness, container)
-                    elif scenario in managed_scenarios:
+                    elif scenario in MANAGED_SCENARIOS:
                         from scripts.mm_managed_lifecycle import (
                             crash_scenario,
                             repair_scenario,
@@ -2121,7 +2174,7 @@ def main():
                     elif scenario == "startup-latency":
                         from scripts.mm_startup_checks import scenario as startup_latency
                         startup_latency(harness)
-                    elif scenario in scoped_fault_scenarios:
+                    elif scenario in SCOPED_FAULT_SCENARIOS:
                         from scripts.mm_scoped_fault_checks import scenario as scoped_fault
                         scoped_fault(harness, scenario)
                     elif scenario == "scoped-positive":
@@ -2136,7 +2189,7 @@ def main():
                     elif scenario == 'pending-terminal-ws':
                         from scripts.mm_pending_terminal_checks import scenario as pending_terminal_scenario
                         pending_terminal_scenario(harness)
-                    elif scenario in reduction_scenarios:
+                    elif scenario in REDUCTION_SCENARIOS:
                         from scripts.mm_reduction_checks import scenario as reduction_scenario
                         reduction_scenario(harness, scenario.rsplit('-', 1)[1], previous_image=previous_image)
                     elif scenario == "submission-uncertainty":
@@ -2175,8 +2228,12 @@ def main():
                     traceback.print_exc()
                 finally:
                     harness.cleanup()
+                    elapsed = round(time.monotonic() - started, 3)
+                    if scenario in result['scenarios']:
+                        result['scenarios'][scenario]['elapsed_seconds'] = elapsed
+                    print(f"Offline E2E {scenario} finished in {elapsed:.3f}s", flush=True)
             result.update(passed=all(row['passed'] for row in result['scenarios'].values()),
-                          release_scope_complete=args.scenario == "all" and previous_image is not None)
+                          release_scope_complete=args.scenario == "all" and previous_image is not None and args.shard is None)
             print(json.dumps(result, indent=2))
             return 0 if result['passed'] else 1
         except Exception as error:

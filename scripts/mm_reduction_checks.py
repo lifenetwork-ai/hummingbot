@@ -4,8 +4,6 @@ from collections import Counter
 from decimal import ROUND_DOWN, Decimal
 from fractions import Fraction
 
-SCENARIOS = ('perpetual-reduction-long', 'perpetual-reduction-short')
-
 
 def scenario(harness, leg, *, previous_image=None):
     import yaml

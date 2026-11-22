@@ -3,8 +3,6 @@ import json
 
 from scripts.test_e2e_offline import docker, http, poll
 
-SCENARIOS = ('scoped-rollover', 'scoped-disconnect', 'scoped-oom')
-
 
 def configure(harness):
     import yaml

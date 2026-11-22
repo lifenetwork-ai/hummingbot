@@ -424,6 +424,18 @@ Without a compatible predecessor, `release_scope_complete=false`. A passing
 scoped/smoke run cannot approve deployment. Regression runs isolate legacy event-loop-dependent
 configuration/performance tests from CLI tests that use `asyncio.run()`.
 
+Backend CI runs unit tests and PostgreSQL integration alongside the Cloud Run
+image build. Three offline E2E jobs load the same built image from an Actions
+cache scoped to the workflow run and commit. Each job runs its own scenario
+list and records the duration of each case. The
+required `Hummingbot build + stable tests` check verifies all jobs and combines
+the E2E reports only if their image digests, fixture hashes, and scenario results
+agree. The `postgres-cloudrun-offline-evidence` artifact contains the combined
+`e2e-offline/result.json` and per-shard logs. To reproduce a shard locally, run
+`make test-e2e-offline OFFLINE_E2E_SHARD=1/3` after building the image.
+If the image cache has expired before retrying a failed shard, rerun all jobs
+to rebuild the shared image.
+
 Before isolation, the harness briefly publishes the image to a disposable
 loopback-only registry, resolves/pulls its manifest digest, then removes that
 registry. Containers run by that immutable reference. A Docker image/config ID

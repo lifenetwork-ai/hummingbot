@@ -15,10 +15,6 @@ from scripts.mm_managed_lifecycle import (
 )
 from scripts.test_e2e_offline import docker, http, poll
 
-SCENARIOS = ('managed-close-partial-ws', 'managed-close-partial-cancel',
-             'managed-close-partial-live-crash', 'managed-close-partial-cancel-crash',
-             'managed-cleanup-fill-db-fault', 'managed-cleanup-removal-db-fault')
-
 
 def install_database_fault(harness, target):
     """A real PostgreSQL exception, scoped to one kind of cleanup transaction."""
