@@ -1296,6 +1296,7 @@ class BotOwnership:
             state["strategy_checkpoints"] = checkpoints
         return self._mutate_recovery(save, expected_version=bind_version)
 
+    @trace_runtime('startup.reconcile')
     async def reconcile(self, core):
         """Reuse connector read APIs and tracker events before adding strategy to clock."""
         row = self.check_owner()

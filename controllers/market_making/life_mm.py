@@ -1217,6 +1217,38 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 self._control_progress_at = time.monotonic()
                 self._control_wait_until = None
 
+    @trace_runtime('startup.reference_books')
+    async def _acquire_reference_books(self, references):
+        connector = self.config.reference_connector
+        try:
+            result = await self.market_data_provider.acquire_order_books(connector, references, self)
+            if not all(result.get(pair, False) for pair in references):
+                raise OSError("Reference order books are unavailable")
+        except BaseException:
+            await self.market_data_provider.release_order_books(connector, references, self)
+            raise
+
+    async def prefetch_reference_books(self) -> bool:
+        """Warm public subscriptions on the existing Spot connector during reconciliation."""
+        config = self.config
+        if not (config.runtime_config_managed and config.mm_session_id and config.references
+                and config.connector_name == config.reference_connector == 'okx'
+                and 'okx' in self.market_data_provider.connectors):
+            return False
+        try:
+            async with timeout(self.STARTUP_OPERATION_TIMEOUT):
+                await self._acquire_reference_books([ref.pair for ref in config.references])
+        except Exception:
+            # The normal startup path handles retries and errors if the public
+            # stream was not yet ready during the speculative acquisition.
+            return False
+        return True
+
+    async def release_reference_books(self):
+        references = [ref.pair for ref in self.config.references]
+        if references:
+            await self.market_data_provider.release_order_books(self.config.reference_connector, references, self)
+
     async def on_start(self):
         if self.config.spread_policy.volatility.enabled and not self._natr_prepared:
             self._startup_stage = 'volatility_indicator'
@@ -1260,17 +1292,8 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 self._startup_stage = "reference_metadata"
                 await self._startup_read(source._update_trading_rules)
 
-            async def acquire():
-                try:
-                    result = await self.market_data_provider.acquire_order_books(self.config.reference_connector, references, self)
-                    if not all(result.get(pair, False) for pair in references):
-                        raise OSError("Reference order books are unavailable")
-                except BaseException:
-                    await self.market_data_provider.release_order_books(self.config.reference_connector, references, self)
-                    raise
-
             self._startup_stage = "reference_books"
-            await self._startup_read(acquire)
+            await self._startup_read(lambda: self._acquire_reference_books(references))
         self.market_data_provider.acquire_book_recovery(
             self.config.connector_name, [self.config.trading_pair], self, self.config.max_data_age_seconds)
         if references:
@@ -1295,10 +1318,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         self.market_data_provider.release_book_recovery(self)
         if self.config.spread_policy.volatility.enabled:
             self.market_data_provider.release_candle_feed(self._spread_candle_config(), self)
-        references = [ref.pair for ref in self.config.references]
-        if references:
-            await self.market_data_provider.release_order_books(
-                self.config.reference_connector, references, self)
+        await self.release_reference_books()
         super().on_stop()
 
     def _baseline_price_and_amount(self, level_id):

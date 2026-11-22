@@ -642,6 +642,24 @@ class ServiceHost:
             self.owner.require_recovery("Strategy initialization/reconciliation failed; inspect sanitized logs.")
         return success
 
+    async def _reconcile_mm_startup(self, core):
+        # The clock has started the connectors, and their native tracking
+        # states are restored. Public books can load while the owner proves
+        # venue and durable state. Controller startup still samples freshness.
+        controllers = self._mm_controllers()
+        tasks = [asyncio.create_task(controller.prefetch_reference_books()) for controller in controllers]
+        try:
+            await self.owner.reconcile(core)
+            await asyncio.gather(*tasks)
+        except BaseException:
+            for task in tasks:
+                task.cancel()
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.gather(*(controller.release_reference_books()
+                                   for controller, acquired in zip(controllers, results) if acquired is True),
+                                 return_exceptions=True)
+            raise
+
     async def stop_core(self):
         self.running = False
         self.owner.allow_new_orders = False
@@ -868,7 +886,8 @@ class ServiceHost:
                                      extra={"event": "trading_bootstrap_blocked", "reason_code": "recovery_required"})
                 elif row["desired_state"] == "running":
                     self.owner.prepare(version, row["config_file_path"])
-                    self.hb.trading_core.before_strategy_start = self.owner.reconcile
+                    self.hb.trading_core.before_strategy_start = (self._reconcile_mm_startup if mm_identity is not None
+                                                                  else self.owner.reconcile)
                     self.phase = "starting"
                     self.start_task = asyncio.create_task(self.start_strategy(row))
                 else:

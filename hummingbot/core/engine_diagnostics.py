@@ -26,6 +26,7 @@ OPERATIONS = frozenset({
     'position.checkpoint', 'owner.read',
     'db.sql', 'db.commit', 'db.ping', 'service.observe', 'service.publication', 'service.checkpoint_write',
     'executor.terminal', 'executor.archive', 'order.proof',
+    'startup.reconcile', 'startup.reference_books',
     'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
     'shutdown.cancel', 'shutdown.proof_before', 'shutdown.proof_after',
 })
@@ -38,6 +39,7 @@ SLOW_MS = {
     'order.terminal': 250, 'executor.terminal': 250, 'executor.archive': 100, 'position.checkpoint': 250,
     'owner.read': 100, 'db.sql': 100, 'db.commit': 100, 'db.ping': 100, 'service.observe': 1000, 'service.publication': 500,
     'service.checkpoint_write': 100,
+    'startup.reconcile': 1000, 'startup.reference_books': 500,
     'shutdown.total': 1000, 'shutdown.core': 1000, 'shutdown.strategy': 1000,
     'shutdown.hold': 1000, 'shutdown.cancel': 1000,
     'shutdown.proof_before': 1000, 'shutdown.proof_after': 1000,

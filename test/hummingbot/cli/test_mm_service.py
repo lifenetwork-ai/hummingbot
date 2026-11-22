@@ -15,6 +15,7 @@ from hummingbot.core.data_type.common import PositionAction
 from hummingbot.core.data_type.order_book import OrderBook
 from hummingbot.core.data_type.order_book_row import OrderBookRow
 from hummingbot.core.mm_session import MMSession, MMSessionRequest
+from hummingbot.data_feed.market_data_provider import MarketDataProvider
 from hummingbot.strategy_v2.utils.quote_guard import QuoteGuard
 
 
@@ -64,6 +65,108 @@ async def test_effective_service_config_reuses_runner_and_binds_session_scope():
     for controller in config["controller_config_overrides"]:
         assert controller["mm_session_id"] == host.mm_session.id
         assert controller["mm_generation"] == 0
+
+
+@pytest.mark.asyncio
+async def test_mm_startup_prefetches_public_spot_references_during_reconciliation():
+    host, controllers, _ = await setup_host()
+    core = host.hb.trading_core
+    controller = controllers['life_spot']
+    assert controller.config.reference_connector == controller.config.connector_name == 'okx'
+    provider = MarketDataProvider(core.connector_manager.connectors)
+    controller.market_data_provider = provider
+    reference_started = asyncio.Event()
+    financial_proof_finished = asyncio.Event()
+
+    async def initialize(name, pair):
+        assert name == 'okx'
+        reference_started.set()
+        await financial_proof_finished.wait()
+        return True
+
+    async def reconcile(engine):
+        assert engine is core
+        assert not controller.session_admitted
+        await asyncio.wait_for(reference_started.wait(), 1)
+        financial_proof_finished.set()
+
+    provider.initialize_order_book = AsyncMock(side_effect=initialize)
+    provider.remove_order_book = AsyncMock(return_value=True)
+    provider.acquire_book_recovery = MagicMock()
+    provider.release_book_recovery = MagicMock()
+    host.owner.reconcile = AsyncMock(side_effect=reconcile)
+
+    await host._reconcile_mm_startup(core)
+    try:
+        assert financial_proof_finished.is_set()
+        assert not controller.session_admitted
+        expected = [(controller.config.reference_connector, ref.pair) for ref in controller.config.references]
+        assert [call.args for call in provider.initialize_order_book.await_args_list] == expected
+        await controller.on_start()
+        assert [call.args for call in provider.initialize_order_book.await_args_list] == expected
+        assert controller._quote_guard.blocked and not controller.session_admitted
+    finally:
+        await controller.on_stop()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_mm_reconciliation_drains_public_reference_prefetch():
+    host, controllers, provider = await setup_host()
+    provider.connectors = host.hb.trading_core.connector_manager.connectors
+    entered, drained = asyncio.Event(), asyncio.Event()
+
+    async def acquire(*args):
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            drained.set()
+
+    async def reconcile(core):
+        await entered.wait()
+        await asyncio.Event().wait()
+
+    provider.acquire_order_books = AsyncMock(side_effect=acquire)
+    provider.release_order_books = AsyncMock()
+    host.owner.reconcile = AsyncMock(side_effect=reconcile)
+    task = asyncio.create_task(host._reconcile_mm_startup(host.hb.trading_core))
+    await asyncio.wait_for(entered.wait(), 1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert drained.is_set()
+    controller = controllers['life_spot']
+    provider.release_order_books.assert_awaited_once_with(
+        'okx', [ref.pair for ref in controller.config.references], controller)
+
+
+@pytest.mark.asyncio
+async def test_failed_mm_reconciliation_releases_completed_public_reference_prefetch(monkeypatch):
+    host, controllers, provider = await setup_host()
+    core = host.hb.trading_core
+    provider.connectors = core.connector_manager.connectors
+    controller = controllers['life_spot']
+    references = [ref.pair for ref in controller.config.references]
+    provider.acquire_order_books = AsyncMock(return_value=dict.fromkeys(references, True))
+    provider.release_order_books = AsyncMock()
+    acquired = asyncio.Event()
+    prefetch = controller.prefetch_reference_books
+
+    async def warm():
+        result = await prefetch()
+        acquired.set()
+        return result
+
+    async def reject(core):
+        await asyncio.wait_for(acquired.wait(), 1)
+        raise OSError('test reconciliation failed')
+
+    monkeypatch.setattr(controller, 'prefetch_reference_books', warm)
+    host.owner.reconcile = AsyncMock(side_effect=reject)
+    with pytest.raises(OSError, match='test reconciliation failed'):
+        await host._reconcile_mm_startup(core)
+    assert not controller.session_admitted
+    provider.release_order_books.assert_awaited_once_with('okx', references, controller)
 
 
 @pytest.mark.asyncio

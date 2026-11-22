@@ -633,6 +633,28 @@ class OrderBookTrackerDynamicPairTests(IsolatedAsyncioWrapperTestCase):
             trading_pairs=self.trading_pairs,
         )
 
+    async def test_initial_books_rate_spacing_only_applies_between_snapshots(self):
+        tracker = self._create_tracker()
+        calls = []
+
+        async def snapshot(pair):
+            calls.append(pair)
+            return OrderBook()
+
+        async def space_requests(delay):
+            assert not tracker.ready
+            calls.append(delay)
+
+        self.data_source.get_new_order_book = AsyncMock(side_effect=snapshot)
+        tracker._sleep = AsyncMock(side_effect=space_requests)
+        tracker._track_single_book = AsyncMock()
+        await tracker._init_order_books()
+
+        assert tracker.ready
+        assert calls == ["BTC-USDT", 1, "ETH-USDT"]
+        assert set(tracker.order_books) == set(tracker._tracking_tasks) == set(self.trading_pairs)
+        await asyncio.gather(*tracker._tracking_tasks.values())
+
     async def test_add_trading_pair_successful(self):
         """Test successfully adding a new trading pair."""
         tracker = self._create_tracker()

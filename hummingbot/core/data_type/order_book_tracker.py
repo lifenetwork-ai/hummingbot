@@ -402,7 +402,8 @@ class OrderBookTracker:
             self._tracking_tasks[trading_pair] = safe_ensure_future(self._track_single_book(trading_pair))
             self.logger().info(f"Initialized order book for {trading_pair}. "
                                f"{index + 1}/{len(self._trading_pairs)} completed.")
-            await self._sleep(delay=1)
+            if index + 1 < len(self._trading_pairs):
+                await self._sleep(delay=1)
         self._order_books_initialized.set()
 
     async def add_trading_pair(self, trading_pair: str) -> bool:
