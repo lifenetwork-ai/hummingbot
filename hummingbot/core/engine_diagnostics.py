@@ -628,12 +628,15 @@ class EngineDiagnostics:
             return
         with self.lock:
             first, last = self._submission_published, self._submission_completed
+            if first == last:
+                return
             completed = [dict(row) for row in self._submission_recent if row['completion_sequence'] > first]
-        if first == last:
-            return
+            # Batch writes have no single order ID, so they only appear in the counters.
+            operations = {name: {'completed': stats['completed'], 'errors': stats['errors']}
+                          for name, stats in self.operations.items() if name in SUBMISSION_OPERATIONS}
         self._last_submission_emitted_ns = now
         payload = dict(event='order_submission_stages', at_ns=now, wall_time_ns=time.time_ns(), process_id=os.getpid(),
-                       completed=completed, from_sequence=first + 1, to_sequence=last,
+                       operations=operations, completed=completed, from_sequence=first + 1, to_sequence=last,
                        dropped_since_previous=max(0, last - first - len(completed)))
         if self._deliver(payload):
             with self.lock:

@@ -876,15 +876,19 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         for target in self.report.glob('*.log'):
             for line in target.read_text().splitlines():
                 try:
-                    message = json.loads(line).get('message', '')
+                    entry = json.loads(line)
+                    if entry.get('event') != 'order_submission_stages':
+                        continue
+                    message = entry.get('message', '')
                     if message.startswith('Engine diagnostic '):
                         stages = json.loads(message.removeprefix('Engine diagnostic ')).get('operations', {})
                         for stage in completed:
-                            completed[stage] = max(completed[stage], stages.get(stage, {}).get('completed', 0))
+                            counts = stages.get(stage, {})
+                            completed[stage] = max(completed[stage], counts.get('completed', 0) - counts.get('errors', 0))
                 except (ValueError, AttributeError):
                     continue
         assert completed['order.created'] and (completed['order.intent'] or completed['order.intent_batch']), (
-            'Missing completed native intent/ACK timing evidence.')
+            f'Missing completed native intent/ACK timing evidence: {completed}')
         self.metrics['creation_stage_diagnostics'] = dict(enabled=True, completed=completed)
 
     def until_stopped_scenario(self, *, slow_terminal_proof=False):

@@ -67,8 +67,20 @@ async def test_yaml_duration_default_pins_new_commands_without_rewriting_retry_o
             response = await new.post(ADMIN_PREFIX + '/commands', json=switch, headers={'Idempotency-Key': 'explicit-timer'})
             receipt = await response.json()
             assert response.status == 202
-            selected = store.read()['mm_session']['request']
+            queued = store.read()
+            assert queued['control_version'] == 2 and queued['mm_session'] == session.model_dump(mode='json')
+            assert receipt['effective_version'] == 3
+            target = queued['recovery_state']['mm_profile_switch']['target']
+            assert target['id'] == receipt['session_id'] and target['expires_at'] is None
+            selected = target['request']
             assert selected['duration_mode'] == 'timed' and selected['duration_seconds'] == 60
+            assert store.finish_profile_switch(owner_uuid=owner.owner_uuid, owner_generation=owner.generation,
+                                               target_id=receipt['session_id'])
+            active = store.update_mm_session(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=3,
+                                             session_id=receipt['session_id'], generation=0,
+                                             change=lambda current, now: current.ready(now=now, anchors=anchors(current)))
+            assert active.expires_at - active.started_at == 60
+            assert MMSession.model_validate(store.read()['mm_session']) == active
             response = await new.post(ADMIN_PREFIX + '/commands', json=dict(action='stop', expected_version=3,
                                                                             session_id=receipt['session_id']),
                                       headers={'Idempotency-Key': 'stop-continuous-default'})

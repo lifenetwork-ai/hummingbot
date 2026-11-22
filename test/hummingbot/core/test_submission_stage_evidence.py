@@ -48,16 +48,22 @@ def test_completed_submission_phases_survive_sql_churn_and_publish_on_watchdog()
     tracer = EngineDiagnostics(clock=lambda: now[0], emit=records.append, capacity=8)
     tracer._started, tracer.loop_thread_id = True, threading.get_ident()
     with tracer.span('order.submit', order='never-export-order'):
-        with tracer.span('order.intent', order='never-export-order'):
+        with tracer.span('order.intent_batch'):
             now[0] += 10_000_000
+    with tracer.span('order.created', order='never-export-order'):
+        pass
     for _ in range(100):
         with tracer.span('db.sql'):
             pass
     assert not records  # No logging or sink callback on the trading path.
     tracer._beat_ns = now[0]
     tracer.watch_once()
-    receipt = next(row for row in records if row['event'] == 'order_submission_stages')
-    assert [s['operation'] for s in receipt['completed']] == ['order.intent', 'order.submit']
+    receipt, = records
+    assert receipt['event'] == 'order_submission_stages'
+    assert [s['operation'] for s in receipt['completed']] == ['order.submit', 'order.created']
+    assert {operation: stats['completed'] for operation, stats in receipt['operations'].items()} == {
+        'order.submit': 1, 'order.intent_batch': 1, 'order.created': 1,
+    }
     assert receipt['dropped_since_previous'] == 0
     assert 'never-export' not in json.dumps(receipt)
     assert len(json.dumps(receipt).encode()) <= 24000
