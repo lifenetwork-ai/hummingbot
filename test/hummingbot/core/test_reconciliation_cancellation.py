@@ -4,15 +4,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
 from hummingbot.core.bot_ownership import BotOwnership
 
 
 @pytest.fixture
 def readiness_startup():
     connector = SimpleNamespace(ready=False, in_flight_orders={}, cancel_all=AsyncMock())
-    owner = BotOwnership.__new__(BotOwnership)
-    owner.automatic_recovery = AutomaticOrderRecovery(owner)
+    owner = BotOwnership(MagicMock(), 'test')
     owner.config_file_path = 'test.yml'
     owner.allow_new_orders, owner.reconciling = True, True
     state = {}
@@ -126,8 +124,7 @@ async def test_reconciliation_cancel_distinguishes_readonly_startup_from_uncerta
     order = SimpleNamespace(is_done=False)
     connector = SimpleNamespace(ready=phase != 'readiness', in_flight_orders={'order': order} if halt else {},
                                 cancel_all=blocked)
-    owner = BotOwnership.__new__(BotOwnership)
-    owner.automatic_recovery = AutomaticOrderRecovery(owner)
+    owner = BotOwnership(MagicMock(), 'test')
     owner.config_file_path = 'test.yml'
     owner.allow_new_orders = True
     owner.reconciling = True
@@ -153,8 +150,7 @@ async def test_reconciliation_cancel_distinguishes_readonly_startup_from_uncerta
 @pytest.mark.asyncio
 @pytest.mark.parametrize('config_type,expected', [('mm-session', True), ('script', False)])
 async def test_managed_runtime_baseline_does_not_require_an_enabled_drawdown_policy(config_type, expected):
-    owner = BotOwnership.__new__(BotOwnership)
-    owner.automatic_recovery = AutomaticOrderRecovery(owner)
+    owner = BotOwnership(MagicMock(), 'test')
     owner.config_file_path = 'life_mm_profiles.yaml'
     owner.check_owner = MagicMock(return_value={'config_type': config_type, 'recovery_state': {}})
     owner._mutate_recovery = MagicMock()
@@ -173,8 +169,8 @@ async def test_managed_runtime_baseline_does_not_require_an_enabled_drawdown_pol
 @pytest.mark.parametrize('unresolved', [False, True])
 async def test_explicit_start_retires_only_a_fully_settled_previous_recovery_scope(unresolved):
     from hummingbot.core.order_submission_guard import SubmissionBlocked
-    owner = BotOwnership.__new__(BotOwnership)
-    old = owner.automatic_recovery = AutomaticOrderRecovery(owner)
+    owner = BotOwnership(MagicMock(), 'test')
+    old = owner.automatic_recovery
     old.status.update(phase='settled_stopped', reason_code='current_control_blocks_resume')
     old.resume_scope = ('previous-session', 1)
     owner.config_file_path = 'life_mm_profiles.yaml'
