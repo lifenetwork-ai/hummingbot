@@ -177,7 +177,7 @@ def test_publication_yields_to_an_existing_financial_fence_without_queueing(owne
     assert publish(owned)
 
 
-@pytest.mark.parametrize('drift', ['control', 'owner', 'guard', 'session', 'halt'])
+@pytest.mark.parametrize('drift', ['control', 'owner', 'guard', 'session', 'catalogue', 'halt'])
 def test_speculative_balance_write_rolls_back_when_final_basis_changes(owned, monkeypatch, drift):
     from hummingbot.model.admin_reporting import save_daily_balances
     from hummingbot.model.bot_state import BotState
@@ -197,6 +197,10 @@ def test_speculative_balance_write_rolls_back_when_final_basis_changes(owned, mo
         return count
 
     monkeypatch.setattr('hummingbot.model.admin_reporting.save_daily_balances', write_then_pause)
+    if drift == 'catalogue':
+        with owned.engine.begin() as connection:
+            connection.execute(update(BotState).values(mm_session={'id': 'session', 'generation': 1,
+                                                                   'catalogue': {'policy': 'original'}}))
     before = owned.store.read()
     with ThreadPoolExecutor(max_workers=1) as work:
         task = work.submit(publish, owned, status)
@@ -209,7 +213,9 @@ def test_speculative_balance_write_rolls_back_when_final_basis_changes(owned, mo
             else:
                 values = {'owner': dict(owner_uuid='replacement', owner_generation=owned.owner.generation + 1),
                           'guard': dict(status={'mm_guard_observation': {'sequence': 42}}),
-                          'session': dict(mm_session={'id': 'replaced-session', 'generation': 1})}[drift]
+                          'session': dict(mm_session={'id': 'replaced-session', 'generation': 1}),
+                          'catalogue': dict(mm_session={**(before['mm_session'] or {}),
+                                                        'catalogue': {'policy': 'changed'}})}[drift]
                 with owned.engine.begin() as connection:
                     connection.execute(update(BotState).where(BotState.bot_id == owned.store.bot_id).values(**values))
         finally:
@@ -223,6 +229,8 @@ def test_speculative_balance_write_rolls_back_when_final_basis_changes(owned, mo
     assert after['status'] == ({'mm_guard_observation': {'sequence': 42}} if drift == 'guard' else before['status'])
     if drift == 'halt':
         assert after['recovery_state']['halt'] is True
+    elif drift == 'catalogue':
+        assert after['mm_session']['catalogue'] == {'policy': 'changed'}
 
 
 @pytest.mark.parametrize('change', ['busy', 'stop'])
@@ -272,7 +280,29 @@ def test_speculative_receipt_and_balances_never_escape_a_rejected_publication(pu
         assert connection.scalar(select(func.count()).select_from(DailyBalanceSnapshot)) == 0
 
 
-def test_large_session_is_decoded_once_before_locking_recorder_authority(owned):
+def test_publication_does_not_overwrite_a_concurrently_finalized_receipt(publication):
+    from hummingbot.model.admin_command import AdminCommand
+    from hummingbot.model.admin_store import AdminStore
+
+    store, owner, status = publication
+
+    def finalize(connection, cursor, statement, parameters, context, executemany):
+        if 'SELECT admin_commands.id, admin_commands.action' in statement:
+            with store.engine.begin() as writer:
+                writer.execute(update(AdminCommand).where(AdminCommand.id == 'stop-command')
+                               .values(status='failed', error='service_stop_incomplete'))
+
+    event.listen(store.engine, 'after_cursor_execute', finalize)
+    try:
+        assert store.publish(owner_uuid=owner.owner_uuid, owner_generation=owner.generation,
+                             version=1, status=status, save_balances=False)
+    finally:
+        event.remove(store.engine, 'after_cursor_execute', finalize)
+    receipt = AdminStore(store).command_by_id('stop-command')
+    assert (receipt['status'], receipt['error']) == ('failed', 'service_stop_incomplete')
+
+
+def test_publication_keeps_large_catalogue_off_the_wire_before_locking_authority(owned):
     import json
 
     from hummingbot.model.bot_state import BotState
@@ -282,17 +312,23 @@ def test_large_session_is_decoded_once_before_locking_recorder_authority(owned):
     large = dict(id='mm-session', generation=0, profile_id='follow_market', catalogue={'retained': 'x' * 700_000})
     with owned.engine.begin() as connection:
         connection.execute(update(BotState).where(BotState.bot_id == owned.store.bot_id).values(mm_session=large))
-    large_decodes = []
+    decoded_bytes, final_bytes, receipt_statements = [], [], []
 
     def decode(raw):
-        if len(raw) > 700_000:
-            large_decodes.append(len(raw))
-            if len(large_decodes) == 1:
-                entered.set()
-                assert release.wait(5)
+        decoded_bytes.append(len(raw.encode()))
         return json.loads(raw)
 
+    def capture(connection, cursor, statement, parameters, context, executemany):
+        if ' AS checkpoint_ref' in statement:
+            entered.set()
+            assert release.wait(5)
+        if context.execution_options.get('ownership_row_writer') == 'publication':
+            final_bytes.append(len(cursor.mogrify(statement, parameters)))
+        if 'admin_commands' in statement:
+            receipt_statements.append(statement)
+
     engine = create_engine(owned.engine.url, json_deserializer=decode)
+    event.listen(engine, 'after_cursor_execute', capture)
     try:
         with ThreadPoolExecutor(max_workers=1) as work:
             task = work.submit(BotStateStore(engine, owned.store.bot_id).publish,
@@ -305,7 +341,10 @@ def test_large_session_is_decoded_once_before_locking_recorder_authority(owned):
             finally:
                 release.set()
             assert task.result(timeout=5)
-        assert len(large_decodes) == 1
+        work = dict(decoded_json_bytes=max(decoded_bytes), final_sql_bytes=final_bytes,
+                    receipt_round_trips=len(receipt_statements))
+        assert work['decoded_json_bytes'] < 8_000 and len(final_bytes) == 1 and final_bytes[0] < 8_000, work
+        assert work['receipt_round_trips'] == 1, work
         assert owned.store.read()['mm_session'] == large
     finally:
         release.set()

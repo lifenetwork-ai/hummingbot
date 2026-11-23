@@ -339,9 +339,14 @@ class AdminStore:
         """Persist outcome with the owner's status; acknowledgement alone is not success."""
         pending = (AdminCommand.bot_id == bot_id, AdminCommand.status.in_(("accepted", "applying")),
                    AdminCommand.action.in_(("start", "switch", "stop")))
-        connection.execute(update(AdminCommand).where(*pending, AdminCommand.effective_version < version).values(
-            status="superseded", error="newer_control_version", updated_at=func.clock_timestamp()))
-        command = connection.execute(select(AdminCommand).where(*pending, AdminCommand.effective_version == version)).mappings().first()
+        superseded = (update(AdminCommand).where(*pending, AdminCommand.effective_version < version).values(
+            status="superseded", error="newer_control_version", updated_at=func.clock_timestamp())
+            .returning(AdminCommand.id).cte('superseded_commands'))
+        # The older and current versions are disjoint. PostgreSQL can retire
+        # older receipts and find the current receipt in one round trip.
+        current = (select(AdminCommand.id, AdminCommand.action, AdminCommand.session_id)
+                   .where(*pending, AdminCommand.effective_version == version).add_cte(superseded))
+        command = connection.execute(current).mappings().first()
         if command is None:
             return
         engine = status.get("engine") or {}
@@ -358,5 +363,5 @@ class AdminStore:
             result = "failed"
         else:
             result = "applying"
-        connection.execute(update(AdminCommand).where(AdminCommand.id == command["id"]).values(
+        connection.execute(update(AdminCommand).where(*pending, AdminCommand.id == command["id"]).values(
             status=result, error=status.get("error") if result == "failed" else None, updated_at=func.clock_timestamp()))

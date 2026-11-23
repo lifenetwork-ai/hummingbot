@@ -8,7 +8,7 @@ from threading import Lock
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import bindparam, case, cast, func, literal, select, text, update
+from sqlalchemy import LargeBinary, bindparam, case, cast, func, literal, select, text, update
 from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
@@ -247,21 +247,25 @@ class BotStateStore:
             base_status['mm_liquidity'] = {key: value for key, value in frame.items() if key not in _CHECKPOINT_FIELDS}
         prepared_status = serialize(base_status)
         with ExitStack() as fence_scope, self.engine.connect() as connection, connection.begin() as transaction:
-            # Guard history needs its previous observation, not private telemetry
-            # histories. Keep malformed legacy status behavior and the full
-            # session, row lock and authority predicates; the new snapshot below
-            # is still written in full for restart/checkpoint recovery.
+            # Guard history needs its previous observation and session metadata.
+            # Keep the archived catalogue on PostgreSQL and fence the complete
+            # session with its digest, including changes to unprojected keys.
             guard_status = case((func.jsonb_typeof(BotState.status) == 'object',
                                  func.jsonb_build_object('mm_guard_observation',
                                                          BotState.status['mm_guard_observation'])),
                                 else_=BotState.status).label('status')
+            session = BotState.mm_session
+            session_status = case((func.jsonb_typeof(session) == 'object', session.op('-')(text("'catalogue'"))),
+                                  else_=session).label('mm_session')
+            session_basis = func.sha256(func.jsonb_send(func.nullif(session, cast(text("'null'"), JSONB))),
+                                        type_=LargeBinary)
             authority = (
                 BotState.bot_id == self.bot_id, BotState.owner_uuid == owner_uuid,
                 BotState.owner_generation == owner_generation, BotState.control_version == version,
                 BotState.acknowledged_version <= version)
             halt_basis = BotState.recovery_state['halt']
             reference = BotState.status[_CHECKPOINT_REF].astext
-            statement = select(guard_status, BotState.mm_session, BotState.desired_state,
+            statement = select(guard_status, session_status, session_basis.label('session_basis'), BotState.desired_state,
                                halt_basis.label('halt_basis'), reference.label('checkpoint_ref')).where(*authority)
             if unchanged:
                 checkpoint_exists = select(BotLiquidityCheckpoint.bot_id).where(
@@ -284,7 +288,7 @@ class BotStateStore:
                 *authority,
                 BotState.desired_state == previous['desired_state'],
                 same_json(halt_basis, previous['halt_basis'], 'publication_halt_basis'),
-                same_json(BotState.mm_session, previous['mm_session'], 'publication_session_basis'),
+                session_basis.is_not_distinct_from(previous['session_basis']),
                 same_json(guard_status, previous['status'], 'publication_guard_basis'))
             previous_token = previous['checkpoint_ref']
             fence = fence.where(reference.is_not_distinct_from(previous_token))
