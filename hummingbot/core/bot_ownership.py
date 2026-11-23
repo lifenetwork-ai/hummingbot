@@ -46,7 +46,7 @@ ACCOUNT_PATHS = {"/api/v5/account/set-leverage", "/api/v5/account/set-position-m
 # Add one early retry for brief row locks, then return to the existing cadence.
 # All waiting orders share the same cooldown.
 INTENT_ADMISSION_RETRY_DELAYS = (.025, .075, .15, .25, .5)
-MAX_INTENT_BATCH = 4
+MAX_INTENT_BATCH = 10
 MAX_ORDER_RECEIPT_BATCH = 4
 POSITION_CHECKPOINT_ORDER_WAIT_SECONDS = 1.0
 POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS = .1

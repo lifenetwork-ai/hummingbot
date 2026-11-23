@@ -78,7 +78,7 @@ def test_slow_intent_read_keeps_engine_live_until_durable_admission(native, afte
     original_reply = native.transport.call.side_effect
 
     def hold_checkpoint(connection, cursor, statement, parameters, context, executemany):
-        if 'FROM market_states' in statement and not delayed.is_set():
+        if ('FROM market_states' in statement or 'JOIN market_states' in statement) and not delayed.is_set():
             delayed.set()
             release.wait(1.5)
 
@@ -194,7 +194,7 @@ def test_slow_intent_rolls_back_if_original_owner_lock_disappears(native):
     native.market._order_tracker.start_tracking_order(order)
 
     def hold_checkpoint(connection, cursor, statement, parameters, context, executemany):
-        if 'FROM market_states' in statement and not reading.is_set():
+        if ('FROM market_states' in statement or 'JOIN market_states' in statement) and not reading.is_set():
             reading.set()
             release.wait(1.5)
 
@@ -351,7 +351,8 @@ def test_native_burst_commits_bounded_intent_batches_before_sending(native, size
             identity = f'batch-{index}'
             with session_order_scope(native.session.id, native.session.generation, executor={'id': identity}):
                 tasks.append(asyncio.create_task(native.market._create_order(
-                    TradeType.BUY, identity, 'LIFE-USDT', Decimal('4'), OrderType.LIMIT_MAKER, Decimal('10'))))
+                    TradeType.BUY if index % 2 == 0 else TradeType.SELL,
+                    identity, 'LIFE-USDT', Decimal('4'), OrderType.LIMIT_MAKER, Decimal('10'))))
         await asyncio.gather(*tasks)
 
     event.listen(native.manager._session_cls, 'before_flush', inspect_flush)
@@ -363,7 +364,7 @@ def test_native_burst_commits_bounded_intent_batches_before_sending(native, size
         event.remove(native.manager._session_cls, 'before_flush', inspect_flush)
         event.remove(native.engine, 'after_cursor_execute', observe_authority)
     report(f'native_burst_owner_reads_{size}', dict(reads=len(authority_reads), accept_ms=accept_ms))
-    assert batches == [{f'batch-{i}' for i in range(start, start + 4)} for start in range(0, size, 4)]
+    assert batches == [{f'batch-{i}' for i in range(start, min(start + 10, size))} for start in range(0, size, 10)]
     assert native.transport.call.await_count == size
     assert len(authority_reads) == len(batches) + native.transport.call.await_count
 
@@ -430,7 +431,7 @@ def test_intent_batch_drains_after_cancellation_or_ownership_loss(native, interr
     entered, proceed = threading.Event(), threading.Event()
 
     def hold_snapshot(connection, cursor, statement, *args):
-        if 'FROM market_states' in statement and not entered.is_set():
+        if ('FROM market_states' in statement or 'JOIN market_states' in statement) and not entered.is_set():
             entered.set()
             assert proceed.wait(2)
 
@@ -491,13 +492,14 @@ def test_intent_batch_reserves_spot_budget_in_order(native):
 
 @pytest.mark.parametrize('committed', [False, True], ids=['rolled-back', 'commit-reply-lost'])
 def test_intent_batch_commit_failure_keeps_every_order_behind_send_gate(native, monkeypatch, committed):
+    batch_size = 10
     failure_drivers = []
     driver_class = type(native.owner.connection.connection.driver_connection)
     commit = driver_class.commit
 
     def inspect_flush(session, *_):
         orders = [r for r in session.new if isinstance(r, RuntimeJournal) and r.kind == 'intent']
-        if len(orders) == 4:
+        if len(orders) == batch_size:
             failure_drivers.append(session.connection().connection.driver_connection)
 
     def disconnect(driver):
@@ -513,7 +515,7 @@ def test_intent_batch_commit_failure_keeps_every_order_behind_send_gate(native, 
         with session_order_scope(native.session.id, native.session.generation):
             await asyncio.gather(*(native.market._create_order(
                 TradeType.BUY, f'bad-commit-{i}', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))
-                for i in range(4)))
+                for i in range(batch_size)))
 
     monkeypatch.setattr(driver_class, 'commit', disconnect)
     event.listen(native.manager._session_cls, 'before_flush', inspect_flush)
@@ -526,8 +528,8 @@ def test_intent_batch_commit_failure_keeps_every_order_behind_send_gate(native, 
     assert not native.owner.allow_new_orders and not native.manager.persistence_healthy
     assert not native.owner.submission_tasks
     with native.manager.get_new_session() as db:
-        assert db.query(Order).count() == 4 * committed
-        assert db.query(SubmissionAttempt).count() == 4 * committed
+        assert db.query(Order).count() == batch_size * committed
+        assert db.query(SubmissionAttempt).count() == batch_size * committed
         assert all(row.state == 'prepared' and row.payload_hash is None for row in db.query(SubmissionAttempt))
 
 
@@ -546,7 +548,7 @@ def test_stop_between_native_admissions_prevents_the_rest_of_the_burst(native):
             tasks = [
                 asyncio.create_task(native.market._create_order(
                     TradeType.BUY, 'stopped-' + str(i), 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
-                for i in range(8)]
+                for i in range(12)]
         await asyncio.gather(*tasks)
         await asyncio.sleep(0)
         assert not native.owner.submission_tasks
@@ -555,9 +557,10 @@ def test_stop_between_native_admissions_prevents_the_rest_of_the_burst(native):
         native.loop.run_until_complete(burst())
     # Stop now runs before the first order's final send fence too. Its prepared
     # intent must be rejected durably instead of crossing the transport gate.
-    assert len(admitted) == 4 and native.transport.call.await_count == 0
+    assert admitted == [f'stopped-{i}' for i in range(10)]
+    native.transport.call.assert_not_awaited()
     with native.manager.get_new_session() as db:
-        assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 4
+        assert db.query(Order).count() == db.query(SubmissionAttempt).count() == 10
         assert not db.query(Order).filter(Order.creation_pending.is_(True)).count()
         assert {row.state for row in db.query(SubmissionAttempt)} == {'terminal'}
     assert not native.store.read()['recovery_state'].get('halt')

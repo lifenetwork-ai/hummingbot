@@ -261,9 +261,11 @@ def test_worker_ack_projects_old_snapshot_and_loads_json_only_for_a_missing_pend
     with queries(owned.engine) as statements:
         owned.loop.run_until_complete(owned.recorder.persist_order_update(
             owned.market, [(MarketEvent.BuyOrderCreated, created)], tracking))
-    snapshot_reads = [sql for sql in statements if sql.startswith('SELECT') and 'FROM market_states' in sql]
+    snapshot_reads = [sql for sql in statements if sql.startswith('SELECT')
+                      and ('FROM market_states' in sql or 'JOIN market_states' in sql)]
     assert len(snapshot_reads) == 1 + missing_peer
     assert 'market_states.saved_state' not in snapshot_reads[0]
+    assert 'FROM orders' in snapshot_reads[0] and 'orders.creation_pending' in snapshot_reads[0]
     with owned.manager.get_new_session() as db:
         expected = {**tracking, peer.client_order_id: peer.to_json()} if missing_peer else tracking
         assert db.query(MarketState).one().saved_state == expected
@@ -293,6 +295,8 @@ def test_worker_ack_reads_creation_evidence_together_under_both_fences(owned, pr
             'FROM orders \nWHERE orders.id =' in sql or 'submission_attempts' in sql or 'order_statuses' in sql)]
         assert len(identity_reads) == 1, identity_reads
         assert all(table in identity_reads[0] for table in ('orders', 'submission_attempts', 'order_statuses'))
+        assert 'submission_attempts.context' not in identity_reads[0]
+        assert 'submission_attempts.receipt' not in identity_reads[0]
     fences = [sql for sql in statements if 'FOR SHARE NOWAIT' in sql or 'pg_locks' in sql]
     assert len(fences) == 2
     assert 'FOR SHARE NOWAIT' in fences[0] and 'pg_locks' in fences[0]

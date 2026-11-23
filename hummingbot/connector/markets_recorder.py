@@ -12,10 +12,10 @@ from shutil import move
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy import bindparam, or_, select, text, tuple_, union_all
+from sqlalchemy import and_, bindparam, func, or_, select, text, tuple_, union_all
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Query, Session, defer
+from sqlalchemy.orm import Query, Session, defer, load_only
 
 from hummingbot import data_path
 from hummingbot.client.config.client_config_map import MarketDataCollectionConfigMap
@@ -901,27 +901,22 @@ class MarketsRecorder:
         # A native intent or create ACK already supplies an updated snapshot.
         # Decode the old JSON only when unresolved identities need merging.
         # Ordinary checkpoints retain full reads and unchanged-JSON dirty checking.
-        fresh_tracking = (self._sql_manager.engine.dialect.name == "postgresql"
-                          and new_order_id is not None and new_order_id in saved_state)
-        market_states = self._get_market_states(session, config_file_path, market_name, include_saved_state=not fresh_tracking)
-        timestamp: int = self.db_timestamp
+        postgres = self._sql_manager.engine.dialect.name == "postgresql"
         pending_ids = None
-        if saved_state and self._sql_manager.engine.dialect.name == "postgresql":
+        if saved_state and postgres:
             # Tracking begins before queued creates pass the durable send gate.
             # A sibling intent must not checkpoint those never-admitted creates:
             # a later switch would restore them as nonexistent exchange orders.
-            selection = Order.id.in_(saved_state)
-            if market_states is not None:
-                # Read admitted/current and unresolved/missing identities in the
-                # same scoped statement; do not cache this proof across writes.
-                selection = or_(selection, Order.creation_pending.is_(True))
-            admitted = session.query(Order.id, Order.creation_pending).filter(
-                Order.config_file_path == config_file_path, Order.market == market_name, selection).all()
+            market_states, admitted_ids, pending_ids = self._read_tracking_basis(
+                session, config_file_path, market_name, saved_state, include_saved_state=new_order_id not in saved_state)
             # Tracker identities staged in this transaction can commit with
             # their intents, even before they are visible to the SELECT.
-            admitted_ids = {order_id for order_id, _ in admitted} | {order.id for order in staged_orders}
+            admitted_ids = set(admitted_ids or ()) | {order.id for order in staged_orders}
             saved_state = {order_id: state for order_id, state in saved_state.items() if order_id in admitted_ids}
-            pending_ids = [order_id for order_id, pending in admitted if pending]
+            pending_ids = pending_ids or ()
+        else:
+            market_states = self._get_market_states(session, config_file_path, market_name)
+        timestamp: int = self.db_timestamp
         if market_states is not None:
             # A connector may discard a pending create after a lost HTTP ack. Keep
             # its last durable tracking identity until reconciliation resolves it.
@@ -946,6 +941,21 @@ class MarketsRecorder:
                                         timestamp=timestamp,
                                         saved_state=saved_state)
             session.add(market_states)
+
+    @staticmethod
+    def _read_tracking_basis(session, config_file_path, market_name, tracking_states, *, include_saved_state):
+        # The aggregate yields one row even for a new market with no orders.
+        # Read the checkpoint and its scoped order proof from one DB snapshot.
+        pending = Order.creation_pending.is_(True)
+        orders = select(func.array_agg(Order.id).label('admitted_ids'),
+                        func.array_agg(Order.id).filter(pending).label('pending_ids')).where(
+            Order.config_file_path == config_file_path, Order.market == market_name,
+            or_(Order.id.in_(tracking_states), pending)).subquery()
+        statement = select(MarketState, orders.c.admitted_ids, orders.c.pending_ids).select_from(orders).outerjoin(
+            MarketState, and_(MarketState.config_file_path == config_file_path, MarketState.market == market_name))
+        if not include_saved_state:
+            statement = statement.options(defer(MarketState.saved_state))
+        return session.execute(statement).one()
 
     @trace_runtime('order.intent', order_parameter='order')
     def record_order_intent(self, market: ConnectorBase, order) -> None:
@@ -1267,7 +1277,8 @@ class MarketsRecorder:
         from hummingbot.model.runtime_journal import SubmissionAttempt
 
         history_recorded = select(OrderStatus.id).filter_by(order_id=identity, timestamp=timestamp, status=status).exists()
-        return session.execute(select(Order, SubmissionAttempt, history_recorded).outerjoin(
+        return session.execute(select(Order, SubmissionAttempt, history_recorded).options(
+            load_only(SubmissionAttempt.state)).outerjoin(
             SubmissionAttempt, SubmissionAttempt.order_id == Order.id
         ).where(Order.id == identity)).one_or_none()
 
