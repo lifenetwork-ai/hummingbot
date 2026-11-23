@@ -14,13 +14,10 @@ async def test_durable_halt_cleans_existing_core_before_publishing_halted(monkey
     controller._control_progress_at = time.monotonic()
     item.running = reported_running
     row = item.owner.check_owner.return_value
-    reads = 0
     live_orders = {'maker-bid', 'maker-ask'}
-
-    def state():
-        nonlocal reads
-        reads += 1
-        return {**row, 'recovery_state': {'halt': True} if not late or reads >= 2 else {}}
+    row['recovery_state'] = {} if late else {'halt': True}
+    item.owner.observe_halt.side_effect = None
+    item.owner.observe_halt.return_value = True
 
     async def cleanup():
         live_orders.clear()
@@ -32,7 +29,6 @@ async def test_durable_halt_cleans_existing_core_before_publishing_halted(monkey
         assert not live_orders, 'HALT was published while resting quotes remained'
         assert item.phase == 'halted' and not item.running
 
-    item.owner.check_owner.side_effect = state
     item.stop_core.side_effect = cleanup
     item.publish_status.side_effect = publish
     await item.observe_once()

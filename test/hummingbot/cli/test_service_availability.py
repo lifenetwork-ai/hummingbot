@@ -147,6 +147,7 @@ async def test_failed_controller_task_halts_instead_of_waiting_forever(monkeypat
     item.owner = MagicMock()
     item.owner.try_acquire.return_value = True
     item.owner.check_owner.return_value = row
+    item.owner.observe_halt = AsyncMock(return_value=False)
     item.owner.allow_new_orders = True
     item.stop_core = AsyncMock(return_value=True)
     item.poll_reconciliation = AsyncMock()

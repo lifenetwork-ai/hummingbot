@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 import time
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -8,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import event, text
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 
 from hummingbot.client.config.client_config_map import MarketDataCollectionConfigMap
 from hummingbot.connector.markets_recorder import MarketsRecorder
@@ -24,6 +26,7 @@ from hummingbot.core.order_submission_guard import SubmissionBlocked, install_gu
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.rest_assistant import RESTAssistant
 from hummingbot.model.bot_state_store import BotStateStore
+from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
 from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.order import Order
@@ -525,19 +528,30 @@ def test_observer_durable_halt_drains_orders_and_preserves_recovery(owned, monke
     order.current_state = OrderState.OPEN
     with owned.manager.get_new_session() as session, session.begin():
         session.get(Order, order.client_order_id).creation_pending = False
-    original = owned.owner.check_owner
-    reads = 0
 
-    def checked(*args, **kwargs):
-        nonlocal reads
-        reads += 1
-        if reads == (2 if late else 1):
-            with owned.engine.begin() as connection:
-                connection.execute(text("UPDATE bot_state SET recovery_state = recovery_state || CAST(:halt AS jsonb)"),
-                                   {'halt': json.dumps({'halt': True, 'reason': 'external-halt'})})
-        return original(*args, **kwargs)
+    def persist_halt():
+        with owned.engine.begin() as connection:
+            connection.execute(text("UPDATE bot_state SET recovery_state = recovery_state || CAST(:halt AS jsonb)"),
+                               {'halt': json.dumps({'halt': True, 'reason': 'external-halt'})})
 
-    monkeypatch.setattr(owned.owner, 'check_owner', checked)
+    entered, release = threading.Event(), threading.Event()
+    late_halt_written = False
+    read_threads, progressed = [], []
+
+    async def runtime_problem():
+        nonlocal late_halt_written
+        if late:
+            persist_halt()
+            late_halt_written = True
+
+    def delay_late_read(connection, cursor, statement, *args):
+        if late_halt_written and not read_threads and 'recovery_state' in statement and 'pg_locks' in statement:
+            read_threads.append(threading.get_ident())
+            entered.set()
+            progressed.append(release.wait(5))
+
+    if not late:
+        persist_halt()
     monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda host: None)
     owned.owner._refresh_orders = AsyncMock()
 
@@ -565,21 +579,42 @@ def test_observer_durable_halt_drains_orders_and_preserves_recovery(owned, monke
     host.owner = owned.owner
     host.hb = SimpleNamespace(trading_core=core)
     host.running, host.phase, host.applied_version = True, 'running', 1
-    host.confirmed_runtime_problem = AsyncMock(return_value=None)
+    host.confirmed_runtime_problem = runtime_problem
     host.poll_reconciliation = AsyncMock()
     host.poll_funding = host.poll_outflow = MagicMock()
     host.snapshot = lambda: dict(running=host.running, engine=dict(
         strategy_running=core._strategy_running, clock_running=core._is_running), reporting={'accounts': []})
+
+    async def observe():
+        task = asyncio.create_task(host.observe_once())
+        try:
+            if late:
+                assert await asyncio.to_thread(entered.wait, 5)
+                release.set()
+            await task
+        finally:
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+
+    event.listen(owned.engine, 'before_cursor_execute', delay_late_read)
+    try:
+        if cleanup_succeeds:
+            owned.loop.run_until_complete(observe())
+        else:
+            with pytest.raises(RuntimeError, match='cleanup'):
+                owned.loop.run_until_complete(observe())
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', delay_late_read)
+    if late:
+        assert len(read_threads) == 1 and read_threads[0] != threading.get_ident()
+        assert progressed == [True], 'Engine could not make progress during the late HALT read'
     if cleanup_succeeds:
-        owned.loop.run_until_complete(host.observe_once())
         assert order.current_state == OrderState.CANCELED
         owned.market.cancel_all.assert_awaited_once()
         owned.owner._refresh_orders.assert_awaited_once()
         assert owned.store.read()['status']['running'] is False
         assert owned.store.read()['status']['engine']['strategy_running'] is False
     else:
-        with pytest.raises(RuntimeError, match='cleanup'):
-            owned.loop.run_until_complete(host.observe_once())
         assert order.current_state == OrderState.OPEN
         assert owned.store.read()['status'] is None
     recovery = owned.store.read()['recovery_state']
@@ -588,6 +623,24 @@ def test_observer_durable_halt_drains_orders_and_preserves_recovery(owned, monke
     assert not owned.owner.allow_new_orders
     successor = BotOwnership(owned.engine, 'hummingbot')
     assert not successor.try_acquire()
+
+
+def test_observer_halt_probe_rejects_a_lost_advisory_lock(owned):
+    with owned.owner.connection.begin():
+        unlocked = owned.owner.connection.scalar(text('SELECT pg_advisory_unlock(:namespace, :key)'),
+                                                 {'namespace': OWNER_NAMESPACE, 'key': OWNER_KEY})
+        assert unlocked
+    with pytest.raises(OwnershipLost) as error:
+        owned.loop.run_until_complete(owned.owner.observe_halt())
+    assert error.value.reason_code == 'ownership_identity_mismatch'
+    assert owned.owner.lost and not owned.owner.allow_new_orders
+
+
+def test_observer_halt_probe_uses_dedicated_owner_check_when_pool_unavailable(owned):
+    owned.owner.require_recovery('test halted owner')
+    with patch.object(owned.engine, 'connect', side_effect=PoolTimeout):
+        assert owned.loop.run_until_complete(owned.owner.observe_halt())
+    assert not owned.owner.lost
 
 
 def test_observer_prior_halt_finishes_restored_order_reconciliation(owned, monkeypatch):

@@ -1126,7 +1126,7 @@ class ServiceHost:
                 self.phase, self.error = "halted", "TradingHealthFailed"
                 if not await self.stop_core():
                     raise RuntimeError("Degraded runtime cleanup did not complete.")
-        if (self.owner.check_owner()["recovery_state"] or {}).get("halt"):
+        if await self.owner.observe_halt():
             self.owner.allow_new_orders = False
             recovering_prior_halt = (self.start_task is not None and not self.start_task.done()
                                      and self.owner.reconciling is True

@@ -16,7 +16,8 @@ async def test_existing_owner_checks_fresh_state_once_on_entry_and_once_before_p
     item.publish_status = AsyncMock()
     monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda value: None)
     await item.observe_once()
-    assert item.owner.check_owner.call_count == 2
+    item.owner.check_owner.assert_called_once_with()
+    item.owner.observe_halt.assert_awaited_once_with()
     item.publish_status.assert_awaited_once_with(0)
 
 
@@ -33,7 +34,8 @@ async def test_first_acquisition_still_checks_state_after_generation_is_acquired
     monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda value: None)
     await item.observe_once()
     item.owner.try_acquire.assert_called_once()
-    assert item.owner.check_owner.call_count == 2
+    item.owner.check_owner.assert_called_once_with()
+    item.owner.observe_halt.assert_awaited_once_with()
     item.publish_status.assert_awaited_once_with(0)
 
 

@@ -18,6 +18,7 @@ async def test_halt_blocks_random_rollover_when_unlimited_session_has_no_overall
     service.owner, service.store = MagicMock(), MagicMock()
     service.owner.try_acquire.return_value = True
     service.owner.check_owner.return_value = row
+    service.owner.observe_halt = AsyncMock(return_value=True)
     service.applied_version = 1
     service.applied_mm_identity = (session.id, session.generation)
     service.poll_reconciliation = AsyncMock()
@@ -46,6 +47,7 @@ async def test_random_rollover_waits_for_startup_reconciliation_but_overall_expi
     service.owner, service.store = MagicMock(), MagicMock()
     service.owner.try_acquire.return_value = True
     service.owner.check_owner.return_value = row
+    service.owner.observe_halt = AsyncMock(return_value=False)
     service.applied_version, service.applied_mm_identity = 1, (session.id, session.generation)
     service.start_task = asyncio.create_task(asyncio.Event().wait() if pending else asyncio.sleep(0))
     if not pending:

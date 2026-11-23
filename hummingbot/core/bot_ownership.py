@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 from psycopg2 import Error as PostgreSQLError
 from sqlalchemy import Text, column, func, select, text, update, values
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.exc import DBAPIError, OperationalError
+from sqlalchemy.exc import DBAPIError, OperationalError, SQLAlchemyError
 
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.engine_diagnostics import (
@@ -328,6 +328,29 @@ class BotOwnership:
         if isinstance(sqlstate, str) and re.fullmatch(r'[0-9A-Z]{5}', sqlstate):
             diagnostic['sqlstate'] = sqlstate
         return self._lose_ownership("The bot ownership session failed; submissions are closed.", code, **diagnostic)
+
+    @trace_runtime('owner.read')
+    async def observe_halt(self):
+        """Refresh the observer's HALT flag without borrowing the owner's connection."""
+        physical = self.require_owner_connection()
+        statement = select(BotState.recovery_state['halt']).where(
+            BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
+            BotState.owner_generation == self.generation, self._advisory_lock_exists())
+
+        def read():
+            with self.engine.connect() as connection, _ownership_read(connection):
+                row = connection.execute(statement).first()
+                connection.commit()
+                return row
+
+        try:
+            row = await asyncio.to_thread(read)
+        except SQLAlchemyError:
+            # A pool error alone does not prove that the dedicated owner was lost.
+            return bool((self.check_owner()['recovery_state'] or {}).get('halt'))
+        if self.require_owner_connection() is not physical or row is None:
+            raise self._lose_ownership("The bot ownership lock/generation no longer matches.", 'ownership_identity_mismatch')
+        return bool(row[0])
 
     def check_owner(self, *, new_risk=False, allow_setup=False, include_pending=False, order_authority=False):
         if new_risk:

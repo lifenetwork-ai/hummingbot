@@ -60,6 +60,7 @@ async def test_stopped_action_consumer_enters_existing_recovery_teardown(monkeyp
     item.owner = MagicMock()
     item.owner.try_acquire.return_value = True
     item.owner.check_owner.return_value = row
+    item.owner.observe_halt = AsyncMock(return_value=False)
     item.owner.allow_new_orders = True
     item.stop_core = AsyncMock(return_value=True)
     item.poll_reconciliation = AsyncMock()

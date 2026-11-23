@@ -31,6 +31,7 @@ async def setup_host():
     host.mm_session = session
     host.applied_version = 1
     host.owner = MagicMock(generation=1, owner_uuid="owner")
+    host.owner.observe_halt = AsyncMock(return_value=False)
     host.store = MagicMock()
     provider = MagicMock()
     provider.time.return_value = 1000

@@ -220,8 +220,8 @@ def test_observer_reuses_no_authority_and_avoids_duplicate_acquired_owner_query(
     queries = []
 
     def record(connection, cursor, statement, params, context, many):
-        if statement.strip().startswith('SELECT b.bot_id') and 'pg_locks' in statement:
-            queries.append(statement)
+        if statement.lstrip().startswith('SELECT') and 'pg_locks' in statement:
+            queries.append((connection is owner.connection, params))
 
     event.listen(store.engine, 'before_cursor_execute', record)
     monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda host: None)
@@ -236,14 +236,15 @@ def test_observer_reuses_no_authority_and_avoids_duplicate_acquired_owner_query(
         host.poll_funding = host.poll_outflow = MagicMock()
         host.publish_status = AsyncMock()
         await host.observe_once()
-        assert len(queries) == 2  # Entry read and final recovery read; neither is a cached authority.
+        assert [dedicated for dedicated, _ in queries] == [True, False]
+        assert queries[1][1]['pid'] == owner.backend_pid
         store.control(expected_version=1, desired_state='stopped')
         owner.version, owner.config_file_path = 1, None
         owner.allow_new_orders = True
         with pytest.raises(SessionSubmissionBlocked):
             owner.check_owner(new_risk=True)
         assert not owner.lost
-        assert len(queries) == 3
+        assert [dedicated for dedicated, _ in queries] == [True, False, True]
 
     try:
         asyncio.run(exercise())
