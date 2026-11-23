@@ -599,15 +599,18 @@ class BotOwnership:
         try:
             if len({intent.order.client_order_id for intent in requests}) != len(requests):
                 raise SubmissionBlocked('A queued client order identity was duplicated.')
+            # No other task can change native state between these checks. Read
+            # the durable pending set once and include each staged reservation
+            # as we validate the batch. Final send still reads fresh authority.
+            authority = self.check_owner(new_risk=True, order_authority=True)
             for index, intent in enumerate(requests):
-                if index:
-                    await asyncio.sleep(0)  # Keep probe/Stop callbacks serviced inside a burst.
                 if intent.cancelled:
                     continue
                 if active_guard() is not self or MarketsRecorder.service_recorder_for(intent.connector) is not recorder:
                     raise SubmissionBlocked('Owner or recorder changed during intent batch validation.')
                 try:
-                    intent.context.run(self._prepare_order_intent, intent.connector, intent.order, staged=staged)
+                    intent.context.run(self._prepare_order_intent, intent.connector, intent.order,
+                                       staged=staged, batch_authority=authority)
                 except OwnershipLost:
                     raise
                 except SubmissionBlocked as error:
@@ -616,6 +619,9 @@ class BotOwnership:
                     staged.add(intent.order.client_order_id)
                     accepted.append(intent)
             if accepted:
+                await asyncio.sleep(0)  # Service Stop and cancellation before starting the worker transaction.
+                if active_guard() is not self or MarketsRecorder._shared_instance is not recorder:
+                    raise SubmissionBlocked('Owner or recorder changed before intent batch persistence.')
                 self._check_shutdown()
                 if not self.allow_new_orders:
                     raise SubmissionBlocked('Trading authority closed during intent batch validation.')
@@ -665,11 +671,12 @@ class BotOwnership:
         self._intent_admission_retry_at = time.monotonic() + INTENT_ADMISSION_RETRY_DELAYS[index]
         self._intent_admission_retry_index = min(index + 1, len(INTENT_ADMISSION_RETRY_DELAYS) - 1)
 
-    def _prepare_order_intent(self, connector, order, *, staged=()):
+    def _prepare_order_intent(self, connector, order, *, staged=(), batch_authority=None):
         from hummingbot.core.cleanup_authority import current_cleanup_scope, validate_close
         from hummingbot.core.order_submission_guard import current_session_scope
         cleanup = current_cleanup_scope()
-        row = self.check_owner(new_risk=cleanup is None, include_pending=True, order_authority=cleanup is None)
+        row = (self.check_owner(new_risk=cleanup is None, include_pending=True, order_authority=cleanup is None)
+               if batch_authority is None else batch_authority)
         if time.monotonic() < self._intent_admission_retry_at:
             raise IntentAdmissionBusy('Intent admission is backing off after ownership-row contention.')
         if (connector.in_flight_orders.get(order.client_order_id) is not order

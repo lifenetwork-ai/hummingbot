@@ -5,6 +5,7 @@ import threading
 import time
 from decimal import Decimal
 from test.integration.postgres.test_ownership import assistant, owned as owned_fixture
+from test.integration.postgres.test_performance import report
 from test.integration.postgres.test_spot_outflow import setup
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -315,9 +316,16 @@ def test_native_intent_and_ack_flush_each_snapshot_with_its_order(native):
         assert db.get(Order, queued.client_order_id) is None
 
 
-def test_native_burst_commits_bounded_intent_batches_before_sending(native):
-    batches = []
+@pytest.mark.parametrize('size', [8, 20])
+def test_native_burst_commits_bounded_intent_batches_before_sending(native, size):
+    batches, authority_reads, accept_ms = [], [], []
+    started = None
     reply = native.transport.call.side_effect
+
+    def observe_authority(connection, cursor, statement, *args):
+        if connection is native.owner.connection and 'creation_pending IS true' in statement:
+            authority_reads.append(statement)
+            time.sleep(.008)  # Measure with the extra owner round trips visible.
 
     def inspect_flush(session, *_):
         orders = {row.order_id for row in session.new if isinstance(row, RuntimeJournal) and row.kind == 'intent'}
@@ -326,6 +334,7 @@ def test_native_burst_commits_bounded_intent_batches_before_sending(native):
             assert sum(isinstance(row, MarketState) for row in set(session.new) | set(session.dirty)) == 1
 
     async def venue(request):
+        accept_ms.append((time.perf_counter() - started) * 1000)
         order_id = json.loads(request.data)['clOrdId']
         with native.manager.get_new_session() as db:
             attempt = db.get(SubmissionAttempt, order_id)
@@ -335,22 +344,28 @@ def test_native_burst_commits_bounded_intent_batches_before_sending(native):
         return await reply(request)
 
     async def burst():
+        nonlocal started
         tasks = []
-        for index in range(8):
+        started = time.perf_counter()
+        for index in range(size):
             identity = f'batch-{index}'
             with session_order_scope(native.session.id, native.session.generation, executor={'id': identity}):
                 tasks.append(asyncio.create_task(native.market._create_order(
-                    TradeType.BUY, identity, 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))))
+                    TradeType.BUY, identity, 'LIFE-USDT', Decimal('4'), OrderType.LIMIT_MAKER, Decimal('10'))))
         await asyncio.gather(*tasks)
 
     event.listen(native.manager._session_cls, 'before_flush', inspect_flush)
+    event.listen(native.engine, 'after_cursor_execute', observe_authority)
     try:
         with patch.object(native.transport.call, 'side_effect', venue):
             native.loop.run_until_complete(burst())
     finally:
         event.remove(native.manager._session_cls, 'before_flush', inspect_flush)
-    assert batches == [{f'batch-{i}' for i in range(4)}, {f'batch-{i}' for i in range(4, 8)}]
-    assert native.transport.call.await_count == 8
+        event.remove(native.engine, 'after_cursor_execute', observe_authority)
+    report(f'native_burst_owner_reads_{size}', dict(reads=len(authority_reads), accept_ms=accept_ms))
+    assert batches == [{f'batch-{i}' for i in range(start, start + 4)} for start in range(0, size, 4)]
+    assert native.transport.call.await_count == size
+    assert len(authority_reads) == len(batches) + native.transport.call.await_count
 
 
 def test_batch_updates_each_connector_snapshot_with_its_own_intents(native):
