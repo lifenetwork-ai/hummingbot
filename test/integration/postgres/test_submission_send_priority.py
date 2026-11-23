@@ -27,13 +27,76 @@ class FIFOAdmission(asyncio.Lock):
     def final_send(self):
         return self
 
+    def intent_write(self):
+        return self
+
+
+def test_ready_send_passes_admission_waiting_on_recorder(native, monkeypatch):
+    first_ready, enter_final = asyncio.Event(), asyncio.Event()
+    next_waiting = asyncio.Event()
+    actions = []
+    authorize = native.owner.authorize_rest
+    acquire = native.recorder.order_writes.acquire
+    persist = native.recorder.persist_order_intent
+    reply = native.transport.call.side_effect
+
+    async def hold_first_before_final(request):
+        if json.loads(request.data)['clOrdId'] == 'ready':
+            first_ready.set()
+            await enter_final.wait()
+        return await authorize(request)
+
+    async def observe_recorder_wait(**kwargs):
+        if kwargs.get('intent_write') and asyncio.current_task().get_name() == 'next-intent':
+            next_waiting.set()
+        return await acquire(**kwargs)
+
+    async def record(connector, order):
+        result = await persist(connector, order)
+        actions.append(('intent', order.client_order_id))
+        return result
+
+    async def venue(request):
+        identity = json.loads(request.data)['clOrdId']
+        assert identity in native.owner.sent_intents
+        actions.append(('wire', identity))
+        return await reply(request)
+
+    async def exercise():
+        def submit(identity, **kwargs):
+            return asyncio.create_task(native.market._create_order(
+                TradeType.BUY, identity, 'LIFE-USDT', Decimal('5'),
+                OrderType.LIMIT_MAKER, Decimal('10')), **kwargs)
+
+        with session_order_scope(native.session.id, native.session.generation):
+            first = submit('ready')
+            await asyncio.wait_for(first_ready.wait(), 2)
+            async with native.recorder.order_writes:
+                following = submit('next', name='next-intent')
+                await asyncio.wait_for(next_waiting.wait(), 2)
+                enter_final.set()
+                await asyncio.sleep(0)
+            await asyncio.gather(first, following)
+
+    monkeypatch.setattr(native.owner, 'authorize_rest', hold_first_before_final)
+    monkeypatch.setattr(native.recorder.order_writes, 'acquire', observe_recorder_wait)
+    monkeypatch.setattr(native.recorder, 'persist_order_intent', record)
+    native.transport.call.side_effect = venue
+    native.loop.run_until_complete(asyncio.wait_for(exercise(), 5))
+    assert actions == [('intent', 'ready'), ('wire', 'ready'), ('intent', 'next'), ('wire', 'next')]
+    with native.manager.get_new_session() as db:
+        assert {row.order_id: row.state for row in db.query(SubmissionAttempt)} == {
+            'ready': 'acknowledged', 'next': 'acknowledged',
+        }
+    assert not native.store.read()['recovery_state'].get('halt')
+
 
 @pytest.mark.parametrize('trial,fifo', [(i, fifo) for i in range(3) for fifo in (True, False)])
 def test_fresh_twelve_order_enqueue_to_acceptance(native, trial, fifo, monkeypatch):
-    # Compare scheduling alone. The legacy FIFO lock cannot admit intent batches.
+    # Compare scheduling alone, with intent batching disabled for both modes.
     monkeypatch.setattr(bot_ownership, 'MAX_INTENT_BATCH', 1)
     if fifo:
-        native.owner.submission_admission = FIFOAdmission()
+        native.recorder.order_writes = FIFOAdmission()
     original_record, original_reply = native.recorder.persist_order_intent, native.transport.call.side_effect
     accepted, admissions, probes = [], [], []
     origin = [0.0]

@@ -8,6 +8,7 @@ import pytest
 
 from hummingbot.core import bot_ownership, order_submission_guard as gates
 from hummingbot.core.bot_ownership import BotOwnership
+from hummingbot.core.submission_admission import SubmissionAdmission
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 
 
@@ -143,6 +144,28 @@ async def test_final_gate_waits_for_its_turn_before_rechecking_guard_identity(ow
     owner._authorize_rest.assert_not_awaited()
     await asyncio.sleep(0)
     assert not owner.submission_tasks and not owner.submission_admission.locked()
+
+
+@pytest.mark.asyncio
+async def test_final_gate_rechecks_recorder_identity_after_its_turn(owner, monkeypatch):
+    from hummingbot.connector.markets_recorder import MarketsRecorder
+
+    def recorder():
+        return SimpleNamespace(sql_manager=SimpleNamespace(engine=owner.engine), order_writes=SubmissionAdmission())
+
+    original = recorder()
+    monkeypatch.setattr(MarketsRecorder, '_shared_instance', original)
+    owner._authorize_rest = AsyncMock()
+    async with original.order_writes:
+        task = asyncio.create_task(owner.authorize_rest(
+            SimpleNamespace(url='https://offline.invalid/api/v5/trade/order')))
+        await asyncio.sleep(0)
+        assert task in owner.submission_tasks
+        monkeypatch.setattr(MarketsRecorder, '_shared_instance', recorder())
+    with pytest.raises(gates.SubmissionBlocked, match='recorder changed'):
+        await task
+    owner._authorize_rest.assert_not_awaited()
+    assert not owner.submission_tasks and not original.order_writes.locked()
 
 
 @pytest.mark.asyncio

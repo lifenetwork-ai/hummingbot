@@ -365,7 +365,7 @@ def test_cancel_queued_final_gate_cannot_mark_sent_or_call_transport(owned):
     rest, transport = assistant()
 
     async def run():
-        await owned.owner.submission_admission.acquire()
+        await owned.recorder.order_writes.acquire()
         task = asyncio.create_task(send(rest, 'order-1'))
         try:
             await asyncio.sleep(0)
@@ -376,7 +376,7 @@ def test_cancel_queued_final_gate_cannot_mark_sent_or_call_transport(owned):
             with pytest.raises(asyncio.CancelledError):
                 await task
         finally:
-            owned.owner.submission_admission.release()
+            owned.recorder.order_writes.release()
             await asyncio.gather(task, return_exceptions=True)
         await asyncio.sleep(0)
         assert not owned.owner.submission_tasks and not owned.owner.transport_tasks
@@ -499,8 +499,14 @@ def test_native_final_queue_resolves_proven_unsent_cancellation_and_retirement(n
                 TradeType.BUY, 'cancel-at-send', 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
         async with asyncio.timeout(2):
             await entered.wait()  # Intent exists; throttle still precedes the final fence.
-        await native.owner.submission_admission.acquire()
+        await native.recorder.order_writes.acquire()
+        terminal = None
         try:
+            if retirement == 'tracker_cancel':
+                terminal = native.market._order_tracker.process_order_update(OrderUpdate(
+                    trading_pair='LIFE-USDT', update_timestamp=native.market.current_timestamp,
+                    new_state=OrderState.CANCELED, client_order_id='cancel-at-send'))
+                await asyncio.sleep(0)  # Queue the earlier order update on the same writer as the final check.
             if waiting_at == 'final_queue':
                 release.set()
             await asyncio.sleep(0)
@@ -509,19 +515,19 @@ def test_native_final_queue_resolves_proven_unsent_cancellation_and_retirement(n
             transport.call.assert_not_awaited()
             if retirement == 'task_cancel':
                 task.cancel()
-                with pytest.raises(asyncio.CancelledError):
-                    await task
-            else:
-                if retirement == 'tracker_cancel':
-                    native.market._order_tracker.process_order_update(OrderUpdate(
-                        trading_pair='LIFE-USDT', update_timestamp=native.market.current_timestamp,
-                        new_state=OrderState.CANCELED, client_order_id='cancel-at-send'))
-                else:
-                    native.market.stop_tracking_order('cancel-at-send')
+            elif retirement == 'tracker_remove':
+                native.market.stop_tracking_order('cancel-at-send')
         finally:
             release.set()
-            native.owner.submission_admission.release()
-            await asyncio.gather(task, return_exceptions=True)
+            native.recorder.order_writes.release()
+            if terminal is not None:
+                await terminal
+            result, = await asyncio.gather(task, return_exceptions=True)
+        if retirement == 'task_cancel':
+            assert isinstance(result, asyncio.CancelledError)
+        else:
+            assert result is None
+        transport.call.assert_not_awaited()
         await asyncio.sleep(0)
         assert not native.owner.submission_tasks and not native.owner.transport_tasks
 

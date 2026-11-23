@@ -55,7 +55,6 @@ _SUBMISSION_TIMING_OPERATIONS = {
     'ownership_row_check_ms': 'order.intent',
     'final_authority_ms': 'order.place',
     'final_slot_wait_ms': 'order.place',
-    'final_recorder_wait_ms': 'order.place',
     'final_owner_read_ms': 'order.place',
     'final_journal_ms': 'order.place',
     'wire_headers_ms': 'order.place',

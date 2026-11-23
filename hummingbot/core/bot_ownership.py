@@ -465,12 +465,17 @@ class BotOwnership:
 
             task.add_done_callback(forget)
 
-    def order_write_scope(self, *, received_evidence=False):
+    def _order_recorder(self):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         recorder = MarketsRecorder._shared_instance
         if recorder is not None and recorder.sql_manager.engine is self.engine:
-            return recorder.order_writes.final_send() if received_evidence else recorder.order_writes
-        return nullcontext()
+            return recorder
+
+    def order_write_scope(self, *, received_evidence=False):
+        recorder = self._order_recorder()
+        if recorder is None:
+            return nullcontext()
+        return recorder.order_writes.final_send() if received_evidence else recorder.order_writes
 
     def notify_position_checkpoint_ready(self):
         # Waiters keep the event they observed before checking readiness.
@@ -564,7 +569,7 @@ class BotOwnership:
             if recorder is None:
                 self.before_order(connector, order)
                 return True
-            async with timed_submission_lock(recorder.order_writes, 'recorder_lock_wait_ms'):
+            async with timed_submission_lock(recorder.order_writes.intent_write(), 'recorder_lock_wait_ms'):
                 if active_guard() is not self:
                     raise SubmissionBlocked("Trading owner changed before durable order admission.")
                 if time.monotonic() < self._intent_admission_retry_at:
@@ -1056,9 +1061,8 @@ class BotOwnership:
             return await self._authorize_rest(request)
         from hummingbot.core.order_submission_guard import active_guard
 
-        # Bound final-send priority while preserving the shared loop-turn slot.
-        # Never hold this slot during network I/O, and never yield between
-        # the final fresh authority/durable send checks and returning permission.
+        # Let a prepared order queue directly at the writer. An admission
+        # waiting on that writer cannot hold up the final check with its own slot.
         task = asyncio.current_task()
         temporary = task is not None and task not in self.submission_tasks
         if temporary:
@@ -1068,14 +1072,17 @@ class BotOwnership:
             while True:
                 checkpoint_ready = self.position_checkpoint_ready
                 try:
-                    async with timed_submission_lock(self.submission_admission.final_send(), 'final_slot_wait_ms'):
+                    recorder = self._order_recorder()
+                    slot = recorder.order_writes if recorder is not None else self.submission_admission.final_send()
+                    async with timed_submission_lock(slot, 'final_slot_wait_ms'):
                         await asyncio.sleep(0)
-                        async with timed_submission_lock(self.order_write_scope(), 'final_recorder_wait_ms'):
-                            if active_guard() is not self:
-                                raise SubmissionBlocked('Trading owner changed before final send authorization.')
-                            if checkpoint_deadline is not None:
-                                return await self._authorize_rest(request, after_checkpoint_wait=True)
-                            return await self._authorize_rest(request)
+                        if active_guard() is not self:
+                            raise SubmissionBlocked('Trading owner changed before final send authorization.')
+                        if self._order_recorder() is not recorder:
+                            raise SubmissionBlocked('Order recorder changed before final send authorization.')
+                        if checkpoint_deadline is not None:
+                            return await self._authorize_rest(request, after_checkpoint_wait=True)
+                        return await self._authorize_rest(request)
                 except PositionCheckpointOrderWait as error:
                     # There is a prepared intent, but no durable send yet.
                     checkpoint_deadline = await self._wait_for_position_checkpoint(checkpoint_deadline, error, checkpoint_ready)

@@ -1,4 +1,4 @@
-"""One owner-loop slot with bounded preference for ready final-send checks."""
+"""One owner-loop slot with bounded preference for ready work."""
 import asyncio
 from collections import deque
 from contextlib import asynccontextmanager
@@ -20,27 +20,28 @@ class QueuedIntent:
 
 
 class SubmissionAdmission:
-    """FIFO per class, with room to send one committed intent batch first.
+    """FIFO within each class, with bounded priority at the recorder.
 
-    The slot covers synchronous owner/intent checks, never network I/O. Waiters
-    inherit their caller's context and stay owned by the service event loop.
+    Receipts precede ordinary writes. New intents can wait behind ready sends
+    and other ordinary writes without reordering those writes.
     """
 
     def __init__(self):
         self._locked = False
-        self._admissions, self._sends = deque(), deque()
+        self._admissions, self._sends, self._intent_writes = deque(), deque(), deque()
         self._intents = {}
         self._send_streak = 0
+        self._write_streak = 0
 
     def locked(self):
         return self._locked
 
-    async def acquire(self, *, final=False, intent=None):
-        if not self._locked and not self._admissions and not self._sends:
+    async def acquire(self, *, final=False, intent=None, intent_write=False):
+        queue = self._sends if final else self._intent_writes if intent_write else self._admissions
+        if not self._locked and not (self._admissions or self._sends or self._intent_writes):
             self._locked = True
-            self._send_streak = min(MAX_READY_SENDS, self._send_streak + 1) if final else 0
+            self._count_grant(queue)
             return True
-        queue = self._sends if final else self._admissions
         future = asyncio.get_running_loop().create_future()
         if intent is not None:
             self._intents[future] = intent
@@ -94,20 +95,28 @@ class SubmissionAdmission:
         return peers
 
     def _wake_next(self):
-        for queue in (self._admissions, self._sends):
+        for queue in (self._admissions, self._sends, self._intent_writes):
             while queue and queue[0].done():
                 queue.popleft()
-        if self._sends and (not self._admissions or self._send_streak < MAX_READY_SENDS):
-            future = self._sends.popleft()
-            self._send_streak = min(MAX_READY_SENDS, self._send_streak + 1)
-        elif self._admissions:
-            future = self._admissions.popleft()
-            self._send_streak = 0
+        if self._sends and (not (self._admissions or self._intent_writes) or self._send_streak < MAX_READY_SENDS):
+            queue = self._sends
+        elif self._admissions and (not self._intent_writes or self._write_streak < MAX_READY_SENDS):
+            queue = self._admissions
+        elif self._intent_writes:
+            queue = self._intent_writes
         else:
-            self._send_streak = 0
+            self._send_streak = self._write_streak = 0
             return
+        self._count_grant(queue)
         self._locked = True
-        future.set_result(True)
+        queue.popleft().set_result(True)
+
+    def _count_grant(self, queue):
+        self._send_streak = min(MAX_READY_SENDS, self._send_streak + 1) if queue is self._sends else 0
+        if queue is self._admissions:
+            self._write_streak = min(MAX_READY_SENDS, self._write_streak + 1)
+        elif queue is self._intent_writes:
+            self._write_streak = 0
 
     def release(self):
         if not self._locked:
@@ -124,6 +133,14 @@ class SubmissionAdmission:
     @asynccontextmanager
     async def final_send(self):
         await self.acquire(final=True)
+        try:
+            yield
+        finally:
+            self.release()
+
+    @asynccontextmanager
+    async def intent_write(self):
+        await self.acquire(intent_write=True)
         try:
             yield
         finally:

@@ -76,6 +76,25 @@ async def test_committed_four_order_batch_can_send_before_the_next_waiting_admis
 
 
 @pytest.mark.asyncio
+async def test_ready_sends_and_order_updates_keep_fifo_as_they_pass_a_waiting_intent():
+    gate = BotOwnership(None, 'test').submission_admission
+    granted = []
+
+    async def wait_for_slot(label, scope):
+        async with scope:
+            granted.append(label)
+
+    async with gate.intent_write():
+        tasks = [asyncio.create_task(wait_for_slot('intent', gate.intent_write()))]
+        tasks += [asyncio.create_task(wait_for_slot(label, gate))
+                  for label in ('fill', 'send-0', 'cancel', 'send-1', 'send-2')]
+        tasks.append(asyncio.create_task(wait_for_slot('receipt', gate.final_send())))
+        await asyncio.sleep(0)
+    await asyncio.gather(*tasks)
+    assert granted == ['receipt', 'fill', 'send-0', 'cancel', 'send-1', 'intent', 'send-2']
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('final', [False, True])
 @pytest.mark.parametrize('granted_before_cancel', [False, True])
 async def test_cancel_waiting_or_granted_task_cannot_leak_the_shared_slot(final, granted_before_cancel):
