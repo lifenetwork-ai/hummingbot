@@ -41,6 +41,7 @@ from hummingbot.core.event.events import (
     SellOrderCreatedEvent,
 )
 from hummingbot.core.operational_warnings import OrderAcknowledgementBusy
+from hummingbot.core.submission_admission import SubmissionAdmission
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.controllers import Controllers
 from hummingbot.model.executors import Executors
@@ -96,7 +97,7 @@ class MarketsRecorder:
         self._config_file_path: str = config_file_path
         self._strategy_name: str = strategy_name
         self.cleanup_operation_id = None
-        self.order_writes = asyncio.Lock()
+        self.order_writes = SubmissionAdmission()
         self._published_order_event = None
         self._market_data_collection_config: MarketDataCollectionConfigMap = market_data_collection
         self._market_data_collection_task: Optional[asyncio.Task] = None
@@ -867,9 +868,9 @@ class MarketsRecorder:
                                          staged_orders=staged_orders)
 
     def _save_market_state_snapshot(self, session, config_file_path, market_name, saved_state, new_order_id=None, *, staged_orders=()):
-        # A newly persisted identity requires a new snapshot. Avoid decoding
-        # the old JSON unless unresolved identities need merging below. Ordinary
-        # checkpoints retain full reads and unchanged-JSON dirty checking.
+        # A native intent or create ACK already supplies an updated snapshot.
+        # Decode the old JSON only when unresolved identities need merging.
+        # Ordinary checkpoints retain full reads and unchanged-JSON dirty checking.
         fresh_tracking = (self._sql_manager.engine.dialect.name == "postgresql"
                           and new_order_id is not None and new_order_id in saved_state)
         market_states = self._get_market_states(session, config_file_path, market_name, include_saved_state=not fresh_tracking)
@@ -1227,7 +1228,7 @@ class MarketsRecorder:
                     session.add(OrderStatus(order=order_record, timestamp=timestamp, status=event_type.name))
             if coalesce_snapshot:
                 self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states,
-                                        staged_orders=(order_record,))
+                                        new_order_id=evt.order_id, staged_orders=(order_record,))
                 return
         self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
 

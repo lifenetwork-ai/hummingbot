@@ -150,6 +150,28 @@ def test_new_report_cache_activity_cannot_certify_an_old_drawdown_decision():
     assert item.mm_drawdown_ready()
 
 
+@pytest.mark.parametrize('outcome', ['ready', 'breach', 'unavailable'])
+def test_reconciled_runtime_checks_its_first_drawdown_before_the_clock_tick(outcome):
+    item = runner(spot='-11' if outcome == 'breach' else '-2', item=V2WithControllers.__new__(V2WithControllers))
+    item._mm_drawdown_bound = True
+    item.controller_reports_timestamp = None
+    item.controllers['life_spot'].executors_update_event = MagicMock()
+    item.executor_orchestrator.get_all_reports = MagicMock(return_value=item.controller_reports)
+    if outcome == 'unavailable':
+        item.executor_orchestrator.get_all_reports.side_effect = PositionCheckpointPending()
+    assert not item.mm_drawdown_ready()
+    with patch('hummingbot.strategy.strategy_v2_base.StrategyV2Base.start') as parent, \
+            patch('time.time', return_value=1000), \
+            patch('scripts.v2_with_controllers.HummingbotApplication.main_application') as app:
+        item.start(None, 1000)
+    parent.assert_called_once_with(None, 1000)
+    assert item.mm_drawdown_ready() is (outcome == 'ready')
+    if outcome == 'breach':
+        app.return_value.stop.assert_called_once_with(mm_drawdown_reason='drawdown_global_limit')
+    else:
+        app.return_value.stop.assert_not_called()
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("blocked", [PositionCheckpointPending, PositionCheckpointBusy])
 @pytest.mark.parametrize("outcome", ["ready", "breach", "valuation_missing"])

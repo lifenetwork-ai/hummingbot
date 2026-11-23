@@ -163,6 +163,44 @@ def test_rebuild_retains_setup_authority_and_binding_halt_cannot_reopen_new_orde
     assert owned.store.read()["recovery_state"]["halt"]
 
 
+@pytest.mark.parametrize('boundary', ['clean-handoff', 'cold', 'pending-proof'])
+def test_only_a_clean_prepared_handoff_can_keep_the_live_outflow_window(owned, boundary):
+    _, catalogue = setup(owned, window_seconds=3600)
+    previous = owned.owner.spot_outflow
+    assert owned.recorder.ensure_runtime_checkpoint()
+    historical_fill(owned)
+    assert owned.loop.run_until_complete(previous.initialize())
+    owned.market.ready = True
+    owned.market._update_positions = AsyncMock()
+    owned.market.account_positions = {}
+    owned.owner._open_orders = AsyncMock(return_value=[])
+    core = SimpleNamespace(
+        connector_manager=SimpleNamespace(connectors={'okx': owned.market}), KILL_TIMEOUT=1,
+        trade_fill_db=owned.manager, markets_recorder=owned.recorder,
+        retained_market_data_provider=None if boundary == 'cold' else object(),
+        strategy=SimpleNamespace(config=SimpleNamespace(
+            mm_drawdown_scope=None, mm_spot_outflow_policy=SpotOutflowPolicy.model_validate(catalogue.outflow_policy()))))
+
+    async def shutdown(**kwargs):
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = shutdown
+    assert owned.loop.run_until_complete(owned.owner.shutdown_core(
+        core, keep_market_data=boundary != 'cold'))
+    if boundary == 'pending-proof':
+        previous.mark_terminal_pending('proof-not-settled')
+    owned.owner.prepare(owned.owner.version, 'life_mm_profiles.yaml')
+
+    with patch.object(SpotOutflowGuard, '_load', autospec=True, side_effect=SpotOutflowGuard._load) as read:
+        owned.loop.run_until_complete(owned.owner.reconcile(core))
+    assert owned.owner.allow_new_orders
+    assert (owned.owner.spot_outflow is previous) is (boundary == 'clean-handoff')
+    assert read.call_count == (0 if boundary == 'clean-handoff' else 1)
+    assert owned.owner.spot_outflow.binding == previous.binding
+    assert owned.owner.spot_outflow.status()['recorded_net_outflow_quote'] == Decimal('10.1')
+
+
 @pytest.mark.parametrize("attribute,value", [("account_uid", "account-B"), ("trading_environment", "live")])
 def test_verified_binding_cannot_mix_another_account_or_environment(owned, attribute, value):
     _, catalogue = setup(owned)

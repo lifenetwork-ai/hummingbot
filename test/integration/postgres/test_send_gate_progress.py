@@ -170,6 +170,31 @@ def test_pending_transport_receipts_share_a_write_and_preserve_native_evidence(o
             assert entry.receipt == (expected if i < 3 else {'http_status': 503, 'code': '50013'})
 
 
+def test_received_transport_evidence_passes_queued_recorder_work(owned):
+    intent(owned)
+    owned.owner._record_send_attempt('order-1', {'clOrdId': 'order-1'}, 123456, {})
+    request = SimpleNamespace(url='https://offline.invalid' + ORDER_PATH, data='{"clOrdId":"order-1"}')
+    response = SimpleNamespace(status=200, json=AsyncMock(return_value={'code': '0'}))
+    observed = []
+
+    async def maintenance():
+        async with owned.recorder.order_writes:
+            with owned.manager.get_new_session() as db:
+                observed.append(db.get(SubmissionAttempt, 'order-1').receipt)
+
+    async def exercise():
+        async with owned.recorder.order_writes:
+            queued = asyncio.create_task(maintenance())
+            await asyncio.sleep(0)
+            receipt = asyncio.create_task(owned.owner.record_transport_receipt(request, response))
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+        await asyncio.gather(queued, receipt)
+
+    owned.loop.run_until_complete(exercise())
+    assert observed == [{'http_status': 200, 'code': '0'}]
+
+
 def test_cancelled_transport_waits_until_its_received_evidence_is_durable(owned):
     intent(owned)
     response = SimpleNamespace(status=200, json=AsyncMock(return_value={'code': '0'}))

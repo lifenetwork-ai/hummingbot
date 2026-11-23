@@ -249,6 +249,26 @@ def test_worker_ack_snapshot_keeps_other_missing_pending_orders(owned, tracking_
         assert db.query(MarketState).one().saved_state == {peer.client_order_id: peer.to_json()}
 
 
+@pytest.mark.parametrize('missing_peer', [False, True])
+def test_worker_ack_projects_old_snapshot_and_loads_json_only_for_a_missing_pending_peer(owned, missing_peer):
+    peer = intent(owned, 'pending') if missing_peer else None
+    order = intent(owned)
+    order.update_exchange_order_id('venue-ack')
+    order.current_state = OrderState.OPEN
+    created = replace(create(), order_id=order.client_order_id, exchange_order_id='venue-ack',
+                      price=order.price, creation_timestamp=order.creation_timestamp)
+    tracking = {order.client_order_id: order.to_json()}
+    with queries(owned.engine) as statements:
+        owned.loop.run_until_complete(owned.recorder.persist_order_update(
+            owned.market, [(MarketEvent.BuyOrderCreated, created)], tracking))
+    snapshot_reads = [sql for sql in statements if sql.startswith('SELECT') and 'FROM market_states' in sql]
+    assert len(snapshot_reads) == 1 + missing_peer
+    assert 'market_states.saved_state' not in snapshot_reads[0]
+    with owned.manager.get_new_session() as db:
+        expected = {**tracking, peer.client_order_id: peer.to_json()} if missing_peer else tracking
+        assert db.query(MarketState).one().saved_state == expected
+
+
 @pytest.mark.parametrize('prior', ['possibly_sent', 'uncertain', 'terminal', 'no_attempt', 'no_order'])
 def test_worker_ack_reads_creation_evidence_together_under_both_fences(owned, prior):
     if prior != 'no_order':

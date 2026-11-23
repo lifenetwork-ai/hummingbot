@@ -1446,14 +1446,23 @@ class ServiceHost:
                         pass
                 self.log.warning('Engine diagnostics could not start',
                                  extra={'event': 'engine_diagnostics_unavailable', 'scope': 'runtime'})
-        while not self.stop.is_set():
-            self.observer_progress_at = time.monotonic()
-            await self.observe_once()
-            self.observer_progress_at = time.monotonic()
-            try:
-                await asyncio.wait_for(self.stop.wait(), timeout=0.5)
-            except asyncio.TimeoutError:
-                pass
+        stopping = asyncio.create_task(self.stop.wait())
+        noticed_startup = None
+        try:
+            while not self.stop.is_set():
+                self.observer_progress_at = time.monotonic()
+                await self.observe_once()
+                self.observer_progress_at = time.monotonic()
+                triggers = {stopping}
+                startup = self.start_task
+                if startup is not None and startup is not noticed_startup:
+                    triggers.add(startup)
+                done, _ = await asyncio.wait(triggers, timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
+                if startup in done:
+                    noticed_startup = startup  # A recovery branch may defer consuming it.
+        finally:
+            stopping.cancel()
+            await asyncio.gather(stopping, return_exceptions=True)
 
     async def close(self):
         from hummingbot.core.order_submission_guard import install_guard

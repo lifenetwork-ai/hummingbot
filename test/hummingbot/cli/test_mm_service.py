@@ -70,6 +70,43 @@ async def test_effective_service_config_reuses_runner_and_binds_session_scope():
 
 
 @pytest.mark.asyncio
+async def test_observer_wakes_when_strategy_start_finishes_without_waiting_for_the_next_poll(monkeypatch):
+    host, _, _ = await setup_host()
+    host.bootstrap = AsyncMock()
+    startup = asyncio.get_running_loop().create_future()
+    wait = asyncio.wait
+    observed = asyncio.Event()
+
+    async def capture(triggers, **kwargs):
+        if not observed.is_set():
+            assert startup in triggers
+            observed.set()
+        else:
+            assert startup not in triggers
+        return await wait(triggers, **kwargs)
+
+    def observe():
+        if host.start_task is None:
+            host.start_task = startup
+        else:
+            assert startup.done()
+            host.stop.set()
+
+    host.observe_once = AsyncMock(side_effect=observe)
+    monkeypatch.setattr(asyncio, 'wait', capture)
+    task = asyncio.create_task(host.run())
+    try:
+        await asyncio.wait_for(observed.wait(), 2)
+        startup.set_result(True)
+        await asyncio.wait_for(task, 2)
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    assert host.observe_once.await_count == 2
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('stop_while_preparing', [False, True])
 async def test_profile_preparation_leaves_current_controller_admitted_until_promotion(stop_while_preparing):
     host, controllers, provider = await setup_host()

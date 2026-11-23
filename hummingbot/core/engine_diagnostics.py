@@ -60,6 +60,7 @@ _SUBMISSION_TIMING_OPERATIONS = {
     'final_journal_ms': 'order.place',
     'wire_headers_ms': 'order.place',
     'transport_receipt_ms': 'order.place',
+    'receipt_persistence_ms': 'order.place',
     'tracker_ack_ms': 'order.place',
     'tracker_recorder_wait_ms': 'order.place',
 }

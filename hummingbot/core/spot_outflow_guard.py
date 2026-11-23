@@ -50,6 +50,21 @@ class SpotOutflowGuard:
         except ValueError as error:
             raise ValueError('spot_outflow_' + str(error)) from error
 
+    def can_reuse_for_handoff(self, policy, row):
+        projection = self.projection
+        saved = (row['recovery_state'] or {}).get('spot_outflow') or {}
+        if (projection is None or self.initializing or self.reason_code or self.pending or self.pending_overflow
+                or self.orders or self.terminal_pending or projection.reservations or projection.reason()
+                or int(row['database_now'] * 1000) < projection.now_ms
+                or self.policy != policy or saved.get('policy') != policy
+                or self.binding is None or saved.get('binding') != self.binding
+                or saved.get('coverage_start_ms') != projection.coverage_start_ms):
+            return False
+        try:
+            return self.identity() == self.binding
+        except ValueError:
+            return False
+
     async def initialize(self):
         row = self.owner.check_owner()
         try:

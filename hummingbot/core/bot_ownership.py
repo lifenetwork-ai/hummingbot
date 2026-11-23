@@ -147,6 +147,7 @@ class BotOwnership:
         self.cleanup_versions = {}
         self.cleanup_intents = {}
         self.spot_outflow = None
+        self._handoff_spot_outflow = None
         self.listing_bootstrap = None
         self.volatility_checkpoints = None
         from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
@@ -464,11 +465,11 @@ class BotOwnership:
 
             task.add_done_callback(forget)
 
-    def order_write_scope(self):
+    def order_write_scope(self, *, received_evidence=False):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         recorder = MarketsRecorder._shared_instance
         if recorder is not None and recorder.sql_manager.engine is self.engine:
-            return recorder.order_writes
+            return recorder.order_writes.final_send() if received_evidence else recorder.order_writes
         return nullcontext()
 
     def notify_position_checkpoint_ready(self):
@@ -833,11 +834,12 @@ class BotOwnership:
         # Keep the original transport task registered until its received
         # evidence has a known durability outcome, even during shutdown.
         cancelled = None
-        while not stored.done():
-            try:
-                await asyncio.shield(stored)
-            except asyncio.CancelledError as error:
-                cancelled = error
+        with submission_timing('receipt_persistence_ms'):
+            while not stored.done():
+                try:
+                    await asyncio.shield(stored)
+                except asyncio.CancelledError as error:
+                    cancelled = error
         error = stored.result()
         if error is not None:
             raise error
@@ -848,7 +850,9 @@ class BotOwnership:
         active = []
         try:
             while self._order_receipts:
-                async with self.order_write_scope():
+                # These orders already reached the venue. Give their evidence
+                # bounded priority over queued work without interrupting a writer.
+                async with self.order_write_scope(received_evidence=True):
                     receipts = {}
                     # Only group responses already parsed while this writer
                     # was waiting. A single reply never waits to fill a batch.
@@ -1321,6 +1325,7 @@ class BotOwnership:
     @trace_runtime('startup.reconcile')
     async def reconcile(self, core):
         """Reuse connector read APIs and tracker events before adding strategy to clock."""
+        handoff_outflow, self._handoff_spot_outflow = self._handoff_spot_outflow, None
         row = self.check_owner()
         self.connectors = core.connector_manager.connectors
         self.allow_new_orders = False
@@ -1420,19 +1425,27 @@ class BotOwnership:
             self.reconciling = False
         if halted or getattr(core.strategy, "_is_stop_triggered", False):
             raise SubmissionBlocked("Reconciliation ran, but prior unresolved effects still require operator recovery.")
-        final_state = self.check_owner()["recovery_state"] or {}
+        final_row = self.check_owner()
+        final_state = final_row["recovery_state"] or {}
         if final_state.get("halt") or final_state.get("pending_mutations"):
             raise SubmissionBlocked("Reconciliation has unresolved durable effects.")
         from hummingbot.core.spot_outflow import SpotOutflowPolicy
         policy = getattr(getattr(core.strategy, "config", None), "mm_spot_outflow_policy", None)
         if isinstance(policy, SpotOutflowPolicy):
             from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
-            self.spot_outflow = SpotOutflowGuard(self, policy.model_dump(mode="json"))
+            policy = policy.model_dump(mode="json")
+            reuse_outflow = (handoff_outflow is not None and handoff_outflow is self.spot_outflow
+                             and not automatic_bootstrap and getattr(core, 'retained_market_data_provider', None) is not None
+                             and handoff_outflow.can_reuse_for_handoff(policy, final_row))
             # Controllers may still finish account setup while a large window
             # is reconstructed. Keep setup permission without admitting orders.
             self.reconciling = True
             try:
-                await self.spot_outflow.initialize()
+                if reuse_outflow:
+                    await self.spot_outflow.advance(int(final_row['database_now'] * 1000))
+                else:
+                    self.spot_outflow = SpotOutflowGuard(self, policy)
+                    await self.spot_outflow.initialize()
                 policies = getattr(core.strategy.config, "mm_bootstrap_policies", None)
                 if policies:
                     from hummingbot.core.listing_bootstrap import ListingBootstrapGuard
@@ -1644,6 +1657,7 @@ class BotOwnership:
         False means the host must exit without returning ownership to standby while
         remaining tasks can act. The service host supplies the process hard deadline.
         """
+        self._handoff_spot_outflow = None
         self.allow_new_orders = False
         self.reconciling = False
         deadline = asyncio.get_running_loop().time() + timeout
@@ -1894,4 +1908,8 @@ class BotOwnership:
             finished = True
 
         persisted = await self._write_shutdown_recovery(finish, deadline, finishing_row['control_version'])
+        if persisted and finished and keep_market_data and recoverable_shutdown and not deferred and not recovery.get('reason'):
+            # Capture this one time, after order/position/ownership proof and a
+            # durable shutdown. The same runtime keeps observing fills until startup.
+            self._handoff_spot_outflow = self.spot_outflow
         return persisted and finished

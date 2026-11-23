@@ -128,6 +128,14 @@ class V2WithControllers(StrategyV2Base):
         if config.mm_drawdown_scope:
             self.mm_valuation_task = asyncio.create_task(self.initialize_mm_valuations())
 
+    def start(self, clock, timestamp):
+        super().start(clock, timestamp)
+        if self.config.mm_drawdown_scope and self._mm_drawdown_bound and not self._is_stop_triggered:
+            # The owner has bound the checkpoint and reconciled positions.
+            # Publish and check the first report before waiting for a clock tick.
+            self.update_executors_info()
+            self._control_mm_drawdown()
+
     def update_executors_info(self):
         checkpoint_blocked = self.controller_reports_error in ("position_checkpoint_pending", "position_checkpoint_waiting")
         super().update_executors_info()

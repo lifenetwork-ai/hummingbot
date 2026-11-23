@@ -807,6 +807,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         config = yaml.safe_load(original)
         config['markets']['spot']['quote_guards'] = dict(
             enabled=True, max_deviation_bps='200', resume_deviation_bps='100', recovery_delay_seconds='5')
+        config.update(max_global_drawdown_quote='20', spot_outflow=dict(
+            window_seconds=3600, max_net_outflow_quote='500', fee_allowance_rate='.01'))
         path.write_text(yaml.safe_dump(config))
         try:
             self._guarded_profile_switch()
@@ -859,6 +861,9 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert gap_ms >= 0
         state = self.state()
         assert state['owner_uuid'] == original['owner_uuid'] and not state['recovery_state'].get('halt')
+        assert state['recovery_state']['spot_outflow'] == original['recovery_state']['spot_outflow']
+        poll(lambda: ((self.admin(port, '/status')[1] or {}).get('drawdown') or {}).get('ready'),
+             description='new profile has a fresh drawdown report')
         self.mm_command(port, 'stop')
         assert not live() and not self.ledger()['unknown']
         self.metrics['profile_switch'] = dict(old_quotes_working_during_preparation=True, terminal_before_new_posts=True,
