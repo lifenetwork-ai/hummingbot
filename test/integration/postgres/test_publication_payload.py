@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import create_engine, event, select, text, update
 from sqlalchemy.orm import Session
 
-from hummingbot.model.bot_state import BotState
+from hummingbot.model.bot_state import BotLiquidityCheckpoint, BotState
 from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
 from hummingbot.model.mm_event import MMEvent
@@ -144,38 +144,23 @@ def test_private_checkpoint_is_written_before_the_ownership_lock_and_restored_at
         event.remove(owned.engine, 'before_cursor_execute', measure)
 
 
-def test_publication_transfers_changed_buckets_and_preserves_restart_payload(owned):
+def test_publication_preserves_bucket_deletions_and_types_across_a_cold_writer(owned):
     status = large_status()
     status['mm_liquidity'].pop('_overview_recovery')
     args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
                 version=1, save_balances=False)
-    payloads = []
-
-    def measure(connection, cursor, statement, parameters, context, executemany):
-        if statement.startswith(('INSERT INTO bot_liquidity_checkpoints', 'UPDATE bot_liquidity_checkpoints')):
-            payloads.append(len(cursor.mogrify(statement, parameters)))
-
-    event.listen(owned.engine, 'before_cursor_execute', measure)
-    try:
-        assert owned.store.publish(**args, status=status)
-        expected = deepcopy(status)
-        buckets = expected['mm_liquidity']['_coverage_buckets']
-        buckets['spot'].pop('0')
-        buckets['spot']['1'][2] = True  # This is a different JSON value from 1.0.
-        buckets['spot']['1800'] = [1800, 1801, 1., 0., 1., 0., 0., 0., 0., 0., 0.]
-        buckets.pop('perpetual')
-        assert owned.store.publish(**args, status=expected)
-        assert owned.store.read()['status'] == expected
-        assert owned.store.read()['status']['mm_liquidity']['_coverage_buckets']['spot']['1'][2] is True
-        assert payloads[1] < payloads[0] / 10
-
-        # A new process has no confirmed basis and writes a complete checkpoint.
-        assert BotStateStore(owned.engine, owned.store.bot_id).publish(**args, status=expected)
-        assert owned.store.read()['status'] == expected
-        assert len(payloads) == 3
-        assert payloads[2] > payloads[1] * 10
-    finally:
-        event.remove(owned.engine, 'before_cursor_execute', measure)
+    assert owned.store.publish(**args, status=status)
+    expected = deepcopy(status)
+    buckets = expected['mm_liquidity']['_coverage_buckets']
+    buckets['spot'].pop('0')
+    buckets['spot']['1'][2] = True  # This is a different JSON value from 1.0.
+    buckets['spot']['1800'] = [1800, 1801, 1., 0., 1., 0., 0., 0., 0., 0., 0.]
+    buckets.pop('perpetual')
+    cold_writer = BotStateStore(owned.engine, owned.store.bot_id)
+    assert cold_writer.read()['status'] == status
+    assert cold_writer.publish(**args, status=expected)
+    assert owned.store.read()['status'] == expected
+    assert owned.store.read()['status']['mm_liquidity']['_coverage_buckets']['spot']['1'][2] is True
 
 
 def test_publication_rechecks_bucket_basis_after_speculative_work(owned, monkeypatch):
@@ -202,28 +187,88 @@ def test_publication_rechecks_bucket_basis_after_speculative_work(owned, monkeyp
     assert owned.store.read()['status'] == updated
 
 
-def test_large_private_history_is_not_resent_as_uncompressed_json(owned):
+def test_changed_checkpoint_is_packed_without_rebuilding_buckets_in_postgres(owned):
     status = large_status()
     args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
                 version=1, save_balances=False)
     assert owned.store.publish(**args, status=status)
-    payloads = []
+    status['mm_liquidity']['_coverage_buckets']['spot']['1'][2] = True
+    writes = []
 
     def measure(connection, cursor, statement, parameters, context, executemany):
-        if statement.startswith('UPDATE bot_liquidity_checkpoints'):
-            payloads.append(len(cursor.mogrify(statement, parameters)))
+        if 'INSERT INTO bot_liquidity_checkpoints' in statement or 'UPDATE bot_liquidity_checkpoints' in statement:
+            writes.append((statement, len(cursor.mogrify(statement, parameters))))
 
-    status['mm_liquidity']['_coverage_buckets']['spot'].pop('0')
     event.listen(owned.engine, 'before_cursor_execute', measure)
     try:
         assert owned.store.publish(**args, status=status)
     finally:
         event.remove(owned.engine, 'before_cursor_execute', measure)
-    assert len(payloads) == 1 and payloads[0] < 50_000
+    assert len(writes) == 1
+    statement, size = writes[0]
+    assert 'jsonb_set' not in statement and 'jsonb_build_object' not in statement
+    assert size < 80_000
+    with owned.engine.connect() as connection:
+        assert set(connection.scalar(select(BotLiquidityCheckpoint.payload))) == {'history_zlib_v1'}
+    assert BotStateStore(owned.engine, owned.store.bot_id).read()['status'] == status
+    assert owned.store.read()['status']['mm_liquidity']['_coverage_buckets']['spot']['1'][2] is True
+
+
+def test_locked_private_checkpoint_does_not_stall_publication_or_advance_heartbeat(owned):
+    status = large_status()
+    args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
+                version=1, save_balances=False)
+    assert owned.store.publish(**args, status=status)
+    previous = owned.store.read()
+    changed = deepcopy(status)
+    changed['mm_liquidity']['_coverage_buckets']['spot'].pop('0')
+
+    def extend_lock_wait(connection, cursor, statement, parameters, context, executemany):
+        if 'INSERT INTO bot_liquidity_checkpoints' in statement or 'UPDATE bot_liquidity_checkpoints' in statement:
+            cursor.execute("SET LOCAL lock_timeout='8s'")
+            cursor.execute("SET LOCAL statement_timeout='9s'")
+
+    event.listen(owned.engine, 'before_cursor_execute', extend_lock_wait)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as worker, owned.engine.begin() as blocker:
+            blocker.execute(select(BotLiquidityCheckpoint.bot_id).with_for_update()).one()
+            pending = worker.submit(owned.store.publish, **args, status=changed)
+            assert pending.result(timeout=3) is False
+            assert owned.store.read()['heartbeat'] == previous['heartbeat']
+            assert owned.store.read()['status'] == previous['status']
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', extend_lock_wait)
+    assert owned.store.publish(**args, status=changed)
+    assert owned.store.read()['status'] == changed
+
+
+def test_unchanged_private_checkpoint_is_reused_only_with_its_durable_reference(owned):
+    status = large_status()
+    args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
+                version=1, save_balances=False)
+    assert owned.store.publish(**args, status=status)
+    writes = []
+
+    def measure(connection, cursor, statement, parameters, context, executemany):
+        if 'INSERT INTO bot_liquidity_checkpoints' in statement:
+            writes.append(statement)
+
+    status['phase'] = 'waiting_for_mm_readiness'
+    event.listen(owned.engine, 'before_cursor_execute', measure)
+    try:
+        assert owned.store.publish(**args, status=status)
+        assert not writes
+        assert owned.store.read()['status'] == status
+        with owned.engine.begin() as connection:
+            connection.execute(BotLiquidityCheckpoint.__table__.delete())
+        assert owned.store.publish(**args, status=status)
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', measure)
+    assert len(writes) == 1
     assert owned.store.read()['status'] == status
 
 
-def test_publication_stages_bucket_merge_before_locking_authority(owned):
+def test_publication_stages_checkpoint_before_locking_authority(owned):
     status = large_status()
     status['mm_session'] = dict(id='session', generation=7)
     args = dict(owner_uuid=owned.owner.owner_uuid, owner_generation=owned.owner.generation,
@@ -232,38 +277,32 @@ def test_publication_stages_bucket_merge_before_locking_authority(owned):
         connection.execute(update(BotState).values(mm_session={**status['mm_session'], 'profile_id': 'follow_market'}))
     assert owned.store.publish(**args, status=status)
     status['phase'] = 'waiting_for_mm_readiness'
+    status['mm_liquidity']['_coverage_buckets']['spot'].pop('0')
     with owned.engine.begin() as connection:
         connection.execute(text('''
-            CREATE FUNCTION pause_bucket_merge(jsonb, text[], jsonb) RETURNS jsonb LANGUAGE plpgsql AS $$
+            CREATE FUNCTION pause_checkpoint_write() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
                 PERFORM pg_advisory_xact_lock(76135);
-                RETURN jsonb_set($1, $2, $3);
+                RETURN NEW;
             END;
-            $$
+            $$;
+            CREATE TRIGGER pause_checkpoint_write BEFORE UPDATE ON bot_liquidity_checkpoints
+            FOR EACH ROW EXECUTE FUNCTION pause_checkpoint_write()
         '''))
 
-    def hold_merge(connection, cursor, statement, params, context, executemany):
-        if statement.startswith('UPDATE bot_liquidity_checkpoints'):
-            statement = statement.replace('jsonb_set(', 'pause_bucket_merge(')
-        return statement, params
-
-    event.listen(owned.engine, 'before_cursor_execute', hold_merge, retval=True)
-    try:
-        with ThreadPoolExecutor(max_workers=1) as work:
-            with owned.engine.begin() as blocker:
-                blocker.execute(text('SELECT pg_advisory_xact_lock(76135)'))
-                pending = work.submit(owned.store.publish, **args, status=status)
-                deadline = time.monotonic() + 1
-                while not blocker.scalar(text("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' "
-                                              "AND classid=0 AND objid=76135 AND NOT granted)")):
-                    assert time.monotonic() < deadline and not pending.done(), 'The staged merge did not block'
-                    time.sleep(.01)
-                with Session(owned.engine) as session, session.begin():
-                    owned.owner.fence_session(session, nowait=True)
-                    session.execute(select(BotState.bot_id).with_for_update(nowait=True)).one()
-            assert pending.result(timeout=3)
-    finally:
-        event.remove(owned.engine, 'before_cursor_execute', hold_merge)
+    with ThreadPoolExecutor(max_workers=1) as work:
+        with owned.engine.begin() as blocker:
+            blocker.execute(text('SELECT pg_advisory_xact_lock(76135)'))
+            pending = work.submit(owned.store.publish, **args, status=status)
+            deadline = time.monotonic() + 1
+            while not blocker.scalar(text("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype='advisory' "
+                                          "AND classid=0 AND objid=76135 AND NOT granted)")):
+                assert time.monotonic() < deadline and not pending.done(), 'The staged checkpoint did not block'
+                time.sleep(.01)
+            with Session(owned.engine) as session, session.begin():
+                owned.owner.fence_session(session, nowait=True)
+                session.execute(select(BotState.bot_id).with_for_update(nowait=True)).one()
+        assert pending.result(timeout=3)
 
 
 @pytest.mark.parametrize('writers', [1, 2])

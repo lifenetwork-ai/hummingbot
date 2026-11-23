@@ -8,8 +8,8 @@ from threading import Lock
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Text, bindparam, case, cast, func, literal_column, select, text, update
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, insert
+from sqlalchemy import bindparam, case, cast, func, literal, select, text, update
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 
@@ -21,52 +21,16 @@ _COVERAGE_BUCKETS = '_coverage_buckets'
 _CHECKPOINT_FIELDS = frozenset((_COVERAGE_BUCKETS, '_coverage_history', '_overview_recovery'))
 _CHECKPOINT_REF = '_liquidity_checkpoint_ref'
 _PACKED_HISTORY = 'history_zlib_v1'
-_EMPTY_JSON_OBJECT = literal_column("'{}'::jsonb", type_=JSONB)
 
 
-def _coverage_changes(previous, current, signatures):
-    """Send only changed seconds when the complete published basis is still present."""
-    changes = {}
-    for market, rows in current.items():
-        old = previous.get(market, {})
-        deleted = list(old.keys() - rows.keys())
-        written = {second: row for second, row in rows.items()
-                   if signatures[market][second] != old.get(second)}
-        changes[market] = deleted, written
-    if sum(len(deleted) + len(written) for deleted, written in changes.values()) < sum(map(len, current.values())):
-        return changes
-
-
-def _coverage_buckets(checkpoint):
-    buckets = checkpoint.get(_COVERAGE_BUCKETS)
-    if (isinstance(buckets, dict) and buckets.keys() <= {'spot', 'perpetual'}
-            and all(isinstance(rows, dict) and all(isinstance(second, str) for second in rows)
-                    for rows in buckets.values())):
-        return buckets
-
-
-def _pack_history(checkpoint, serialize):
-    history = {key: value for key, value in checkpoint.items() if key != _COVERAGE_BUCKETS}
-    if history:
-        raw = serialize(history).encode('utf-8')
-        packed = base64.b64encode(zlib.compress(raw, level=1))
-        if len(packed) + len(_PACKED_HISTORY) + 5 < len(raw):
-            return {**{key: value for key, value in checkpoint.items() if key == _COVERAGE_BUCKETS},
-                    _PACKED_HISTORY: packed.decode('ascii')}
-    return checkpoint
-
-
-def _merge_coverage(value, changes, serialize):
-    markets = []
-    prior = BotLiquidityCheckpoint.payload[_COVERAGE_BUCKETS]
-    for market, (deleted, written) in changes.items():
-        rows = func.coalesce(prior[market], _EMPTY_JSON_OBJECT)
-        if deleted:
-            rows = rows.op('-')(bindparam(f'deleted_{market}', deleted, type_=ARRAY(Text)))
-        if written:
-            rows = rows.op('||')(cast(bindparam(f'written_{market}', serialize(written)), JSONB))
-        markets.extend((market, rows))
-    return func.jsonb_set(value, [_COVERAGE_BUCKETS], func.jsonb_build_object(*markets))
+def _serialize_checkpoint(checkpoint, serialize, *, pack):
+    payload = serialize(checkpoint)
+    if not pack:
+        return payload
+    raw = payload.encode('utf-8')
+    packed = base64.b64encode(zlib.compress(raw, level=1)).decode('ascii')
+    encoded = serialize({_PACKED_HISTORY: packed})
+    return encoded if len(encoded) < len(raw) else payload
 
 
 def _optional_statement_timeout(error):
@@ -97,7 +61,7 @@ class BotStateStore:
         self.engine = engine
         self.bot_id = bot_id
         self.checkpoint_schema_pending = checkpoint_schema_pending
-        self._published_coverage = None
+        self._published_checkpoint = None
         self.publication_fence = Lock()
 
     def read(self, *, publication: bool = False) -> Optional[dict]:
@@ -233,17 +197,18 @@ class BotStateStore:
             return result
 
     @trace_runtime('service.checkpoint_write')
-    def _write_liquidity_checkpoint(self, connection, token, previous_token, payload, changes, serialize):
+    def _write_liquidity_checkpoint(self, connection, token, payload):
         value = cast(bindparam('liquidity_checkpoint_payload', payload), JSONB)
-        if changes is not None:
-            statement = update(BotLiquidityCheckpoint).where(
-                BotLiquidityCheckpoint.bot_id == self.bot_id, BotLiquidityCheckpoint.token == previous_token,
-            ).values(token=token, payload=_merge_coverage(value, changes, serialize))
-        else:
-            insert_checkpoint = insert(BotLiquidityCheckpoint).values(bot_id=self.bot_id, token=token, payload=value)
-            statement = insert_checkpoint.on_conflict_do_update(
-                index_elements=[BotLiquidityCheckpoint.bot_id],
-                set_=dict(token=token, payload=insert_checkpoint.excluded.payload))
+        existing = select(BotLiquidityCheckpoint.bot_id).where(BotLiquidityCheckpoint.bot_id == self.bot_id)
+        unlocked = existing.with_for_update(skip_locked=True).cte('liquidity_checkpoint_target')
+        # The MVCC read distinguishes a missing row from a locked row. The
+        # latter must not reach ON CONFLICT, which would wait for its writer.
+        writable = select(literal(self.bot_id), literal(token), value).where(
+            select(unlocked.c.bot_id).exists() | ~existing.exists())
+        insert_checkpoint = insert(BotLiquidityCheckpoint).from_select(['bot_id', 'token', 'payload'], writable)
+        statement = insert_checkpoint.on_conflict_do_update(
+            index_elements=[BotLiquidityCheckpoint.bot_id],
+            set_=dict(token=token, payload=insert_checkpoint.excluded.payload))
         return connection.execute(statement.returning(BotLiquidityCheckpoint.bot_id)).first() is not None
 
     @trace_runtime('service.publication')
@@ -270,24 +235,17 @@ class BotStateStore:
         # and Stop. Guard/error metadata is validated under the final row lock.
         custom_serializer = self.engine.dialect._json_serializer
         serialize = custom_serializer or partial(json.dumps, separators=(',', ':'), allow_nan=False)
-        cached = self._published_coverage
+        cached = self._published_checkpoint
         frame = status.get('mm_liquidity')
         checkpoint = ({key: value for key, value in frame.items() if key in _CHECKPOINT_FIELDS}
                       if isinstance(frame, dict) else {})
-        token = uuid4().hex if checkpoint else None
+        payload = _serialize_checkpoint(checkpoint, serialize, pack=custom_serializer is None) if checkpoint else None
+        unchanged = cached is not None and cached[1] == payload
+        token = None
         base_status = {key: value for key, value in status.items() if key != _CHECKPOINT_REF}
         if checkpoint:
             base_status['mm_liquidity'] = {key: value for key, value in frame.items() if key not in _CHECKPOINT_FIELDS}
-            base_status[_CHECKPOINT_REF] = token
         prepared_status = serialize(base_status)
-        if custom_serializer is None:
-            checkpoint = _pack_history(checkpoint, serialize)
-        buckets = _coverage_buckets(checkpoint) if custom_serializer is None else None
-        # Detach the comparison basis from the caller's lists. JSON scalar
-        # types matter, including when Python equates True and 1.
-        signatures = ({market: {second: repr(row) for second, row in rows.items()} for market, rows in buckets.items()}
-                      if buckets is not None else None)
-        changes = _coverage_changes(cached[1], buckets, signatures) if cached is not None and signatures is not None else None
         with ExitStack() as fence_scope, self.engine.connect() as connection, connection.begin() as transaction:
             # Guard history needs its previous observation, not private telemetry
             # histories. Keep malformed legacy status behavior and the full
@@ -305,6 +263,10 @@ class BotStateStore:
             reference = BotState.status[_CHECKPOINT_REF].astext
             statement = select(guard_status, BotState.mm_session, BotState.desired_state,
                                halt_basis.label('halt_basis'), reference.label('checkpoint_ref')).where(*authority)
+            if unchanged:
+                checkpoint_exists = select(BotLiquidityCheckpoint.bot_id).where(
+                    BotLiquidityCheckpoint.bot_id == BotState.bot_id, BotLiquidityCheckpoint.token == reference).exists()
+                statement = statement.add_columns(checkpoint_exists.label('checkpoint_exists'))
             previous = connection.execute(statement).mappings().first()
             if previous is None or (previous['halt_basis'] is True and status.get('running') is True):
                 return False
@@ -326,8 +288,6 @@ class BotStateStore:
                 same_json(guard_status, previous['status'], 'publication_guard_basis'))
             previous_token = previous['checkpoint_ref']
             fence = fence.where(reference.is_not_distinct_from(previous_token))
-            if changes is not None and cached[0] != previous_token:
-                changes = None
             # Receipt and balance SQL may wait on their own tables. Never hold
             # the row needed by the recorder's FOR SHARE while doing that work.
             AdminStore.record_observation(connection, self.bot_id, version, status, previous)
@@ -344,11 +304,12 @@ class BotStateStore:
 
             # Write and TOAST private history on its own row before the
             # ownership fence. If the fence loses, roll back both publications.
-            if checkpoint:
-                payload = serialize(checkpoint if changes is None else {
-                    key: value for key, value in checkpoint.items() if key != _COVERAGE_BUCKETS})
+            if unchanged and cached[0] == previous_token and previous['checkpoint_exists']:
+                token = previous_token
+            elif payload is not None:
+                token = uuid4().hex
                 try:
-                    written = self._write_liquidity_checkpoint(connection, token, previous_token, payload, changes, serialize)
+                    written = self._write_liquidity_checkpoint(connection, token, payload)
                 except OperationalError as error:
                     if not _optional_statement_timeout(error):
                         raise
@@ -374,6 +335,8 @@ class BotStateStore:
             # separate client round trip before writing the heartbeat.
             metadata = {key: status[key] for key in
                         ("mm_guard_observation", "mm_history_error", "daily_snapshot_error") if key in status}
+            if token is not None:
+                metadata[_CHECKPOINT_REF] = token
             value = cast(bindparam("prepared_status_json", prepared_status), JSONB).op("||")(
                 cast(bindparam("publication_status_metadata", serialize(metadata)), JSONB))
             target = fence.with_for_update(skip_locked=True).cte('publication_target')
@@ -391,8 +354,8 @@ class BotStateStore:
             if result is None:
                 transaction.rollback()
                 return False
-        # A failed/ambiguous commit cannot become the basis of a later patch.
-        self._published_coverage = (token, signatures) if signatures else None
+        # Reuse only a payload whose reference was durably published by us.
+        self._published_checkpoint = (token, payload) if token is not None else None
         return True
 
     def request_mm_session(self, *, action, expected_version, catalogue=None, request=None,
