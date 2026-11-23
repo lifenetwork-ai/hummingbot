@@ -22,6 +22,7 @@ from aiohttp import web
 
 from hummingbot.core.engine_diagnostics import EngineDiagnostics, trace_runtime
 from hummingbot.core.mm_readiness import MM_READINESS_REASONS
+from hummingbot.core.reporting import verified_account_identity
 
 
 class ShutdownDeadline:
@@ -1212,14 +1213,20 @@ class ServiceHost:
             zone_name = status.get("reporting_timezone", "Asia/Ho_Chi_Minh")
             zone = ZoneInfo(zone_name)
             session = status.get("mm_session") or {}
+            reporting = status.get("reporting") or {}
             balance_days = frozenset((account["account_id"], account["environment"], balance["currency"], zone_name,
                                       datetime.fromtimestamp(float(balance["observed_at"]), timezone.utc)
-                                      .astimezone(zone).date())
-                                     for account in (status.get("reporting") or {}).get("accounts", [])
+                                      .astimezone(zone).date(), balance.get("cash_balance") is not None)
+                                     for account in reporting.get("accounts", [])
                                      if account.get("identity_verified")
                                      for balance in account.get("balances", [])
                                      if balance.get("present_in_latest_snapshot", True))
-            signature = (session.get("id"), session.get("started_at"), balance_days)
+            # The other connector can verify the same account after the last
+            # daily write without adding a currency. Retry opening cash on
+            # that transition as well as on the first running publication.
+            opening_account = (verified_account_identity(reporting) if status.get("running")
+                               and session.get("status") == "running" else None)
+            signature = (session.get("id"), session.get("started_at"), balance_days, opening_account)
         except (ValueError, TypeError, KeyError, OverflowError, OSError):
             # Leave malformed samples to the isolated writer; do not bypass its
             # retry deadline or turn optional projection into an owner failure.

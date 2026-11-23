@@ -3,6 +3,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from threading import Event
+from types import SimpleNamespace
 
 import pytest
 from aiohttp import BasicAuth, web
@@ -10,7 +11,9 @@ from aiohttp.test_utils import TestClient, TestServer
 from sqlalchemy import event, text
 
 from hummingbot.cli.admin_api import ADMIN_PREFIX, AdminAPI, admin_middleware
+from hummingbot.cli.service import ServiceHost
 from hummingbot.client.config.admin_config import AdminSettings
+from hummingbot.client.config.runtime_config import RuntimeSettings
 from hummingbot.model.account_balance_changes import MIGRATION
 from hummingbot.model.admin_store import AdminStore
 from hummingbot.model.bot_state_store import BotStateStore
@@ -84,6 +87,44 @@ def test_session_uses_fresh_cash_observed_just_before_start(store):
     result = store.balance_changes(period="session", reporting_timezone="UTC", start_day=None, end_day=None)
     assert result["rows"][0]["opening_observed_at"] == observed
     assert result["rows"][0]["delta_cash"] == "0"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("delayed", ["account_verification", "runtime_ready", "cash_observation"])
+async def test_first_eligible_session_cash_bypasses_daily_write_cadence(store, delayed):
+    with store.engine.connect() as connection:
+        observed = connection.scalar(text("SELECT clock_timestamp()"))
+    session = set_session(store, observed)
+    bindings = {name: dict(account_id="uid", environment="demo") for name in ("okx", "okx_perpetual")}
+    balances = [dict(currency=asset, connector="okx", cash_balance=cash, observed_at=observed.timestamp(),
+                     source="okx_account_balance") for asset, cash in (("LIFE", "9"), ("USDT", "100"))]
+    status = dict(running=True, mm_session=session, reporting_timezone="UTC", reporting=dict(
+        active_connectors=list(bindings), active_account_bindings=bindings,
+        accounts=[dict(account_id="uid", environment="demo", identity_verified=True, balances=balances)]))
+    if delayed == "account_verification":
+        bindings["okx_perpetual"]["account_id"] = None
+    elif delayed == "runtime_ready":
+        status["running"] = False
+    else:
+        for balance in balances:
+            balance["cash_balance"] = None
+    host = ServiceHost(RuntimeSettings.from_environment({"DATABASE_URL": "postgresql://unused/test"}), asyncio.Event(), None)
+    host.owner = SimpleNamespace(owner_uuid="owner", generation=1, store=store.store)
+    host.snapshot = lambda: status
+    await host.publish_status(0)
+    with store.engine.connect() as connection:
+        assert connection.scalar(text("SELECT count(*) FROM session_cash_baselines")) == 0
+    assert host._daily_next_write_at > 0
+
+    bindings["okx_perpetual"]["account_id"] = "uid"
+    status["running"] = True
+    for balance, cash in zip(balances, ("9", "100")):
+        balance["cash_balance"] = cash
+    await host.publish_status(0)
+
+    result = store.balance_changes(period="session", reporting_timezone="UTC", start_day=None, end_day=None)
+    assert result["reason_code"] is None
+    assert {row["currency"]: row["delta_cash"] for row in result["rows"]} == {"LIFE": "0", "USDT": "0"}
 
 
 def test_legacy_session_and_yesterdays_closing_observation_stay_unqualified(store):
