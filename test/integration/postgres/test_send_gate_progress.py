@@ -21,6 +21,7 @@ from hummingbot.core.data_type.order_book import OrderBook
 from hummingbot.core.data_type.order_book_row import OrderBookRow
 from hummingbot.core.order_submission_guard import SubmissionBlocked, session_order_scope
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+from hummingbot.model.bot_state import BotState
 from hummingbot.model.order import Order
 from hummingbot.model.runtime_journal import SubmissionAttempt, digest
 from hummingbot.strategy_v2.utils.quote_guard import observe_market
@@ -51,6 +52,28 @@ def test_intent_and_send_read_pending_orders_with_fresh_owner_authority(owned):
         assert 'LIMIT' in combined[0]  # Preserve the sentinel for an over-capacity recovery ledger.
         assert not [sql for sql in pending_reads if 'orders.id AS orders_id, orders.market AS orders_market' in sql]
 
+    transport.call.assert_awaited_once()
+
+
+def test_native_order_authority_reads_only_the_risk_fields_it_uses(owned):
+    intent(owned)
+    recovery = dict(owned.store.read()['recovery_state'])
+    recovery['unrelated_history'] = {'records': ['historical value'] * 40000}
+    with owned.engine.begin() as connection:
+        connection.execute(update(BotState).values(recovery_state=recovery))
+
+    with queries(owned.engine) as statements:
+        projected = owned.owner.check_owner(new_risk=True, include_pending=True, order_authority=True)
+    assert projected['pending_intents'] == [['order-1', 'okx']]
+    assert 'unrelated_history' not in projected['recovery_state']
+    assert len(statements) == 1 and 'pg_locks' in statements[0]
+    assert owned.owner.check_owner()['recovery_state']['unrelated_history'] == recovery['unrelated_history']
+
+    rest, transport = assistant()
+    with queries(owned.engine) as statements:
+        owned.loop.run_until_complete(send(rest, 'order-1'))
+    [authority] = [statement for statement in statements if 'creation_pending IS true' in statement]
+    assert 'jsonb_build_object' in authority
     transport.call.assert_awaited_once()
 
 

@@ -18,6 +18,7 @@ from hummingbot.core.order_submission_guard import SessionSubmissionBlocked
 from hummingbot.model.admin_store import AdminStore
 from hummingbot.model.bot_state_store import BotStateStore, ControlConflict
 from hummingbot.model.db_migration.postgres.runner import bootstrap_postgres
+from hummingbot.model.mm_event import session_events
 
 
 @pytest.fixture
@@ -54,6 +55,35 @@ def test_migration_replay_preserves_pending_draw(sessions):
     saved = store.read()["mm_session"]
     bootstrap_postgres(store.engine, auto_migrate=True)
     assert store.read()["mm_session"] == saved
+
+
+def test_continued_random_steps_preserve_anchors_and_record_each_boundary(sessions):
+    store, catalogue = sessions
+    receipt = store.request_mm_session(
+        action="start", expected_version=0, catalogue=catalogue,
+        request=MMSessionRequest(market_mode="spot", selection="random", duration_seconds=3600,
+                                 profile_ids=["follow_market", "sideways"]),
+        rng=SimpleNamespace(choice=lambda _: "sideways"))
+    owner = BotOwnership(store.engine, "hummingbot")
+    assert owner.try_acquire()
+    try:
+        scope = dict(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1,
+                     session_id=receipt["session_id"], generation=0)
+        anchors = {"life_spot": {"life": "0.1", "sources": {}}}
+        current = store.update_mm_session(**scope, change=lambda session, now: session.ready(now=now, anchors=anchors))
+        for step in (1, 2):
+            boundary = current.step_expires_at + .001
+            current = store.update_mm_session(**scope, change=lambda session, _: session.advance(
+                now=boundary, rng=None, repeat=True))
+            assert current.step_index == step
+            assert current.generation == 0 and current.anchors == anchors and current.status == "running"
+            assert current.permits(session_id=current.id, generation=0, now=boundary)
+        history = session_events(store, current.id, event_type="step_changed")["items"]
+        assert [event["payload"]["step_index"] for event in history] == [2, 1]
+        assert all(event["payload"]["status"] == "running" for event in history)
+        assert len({event["event_key"] for event in history}) == 2
+    finally:
+        owner.release()
 
 
 def test_session_update_reads_database_time_after_lock_in_one_projected_query(sessions):

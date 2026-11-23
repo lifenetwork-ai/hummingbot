@@ -15,18 +15,26 @@ class ProfileSwitchPreparation:
         self.provider = provider
         self.controllers = [LifeMMController(LifeMMConfig.model_validate(config), provider, asyncio.Queue())
                             for config in configs]
+        self.strict_guards = [controller for controller in self.controllers if controller.config.quote_guards.enabled
+                              and controller.config.quote_guards.mode == 'strict']
         self.references = {}
         for controller in self.controllers:
             config = controller.config
             if config.references:
                 self.references.setdefault(config.reference_connector, set()).update(ref.pair for ref in config.references)
         self.candles = []
+        self.guard_samples = {}
+        self.guard_task = None
         self.task = asyncio.create_task(self.prepare())
         self.promoted = False
 
     @property
     def ready(self):
         return self.task.done() and not self.task.cancelled() and self.task.exception() is None
+
+    @property
+    def guards_ready(self):
+        return all(self.guard_samples.get(controller.config.id) is not None for controller in self.strict_guards)
 
     async def prepare(self):
         async with asyncio.timeout(PREPARE_SECONDS):
@@ -59,14 +67,34 @@ class ProfileSwitchPreparation:
                         controller._fresh_price(config.connector_name, config.trading_pair, config.initial_anchor)
                         for reference in config.references:
                             controller._fresh_price(config.reference_connector, reference.pair)
-                    return
+                    break
                 except (ValueError, EnvironmentError):
                     await asyncio.sleep(.1)
+        if self.strict_guards:
+            self.guard_task = asyncio.create_task(self.sample_guards())
+
+    async def sample_guards(self):
+        while True:
+            for controller in self.strict_guards:
+                self.guard_samples[controller.config.id] = controller.sample_profile_guard()
+            await asyncio.sleep(.25)
+
+    def apply_guards(self, controllers):
+        previews = {controller.config.id: controller for controller in self.controllers}
+        for controller in controllers:
+            preview = previews.get(controller.config.id)
+            if preview is not None:
+                controller.use_profile_guard(preview, self.guard_samples.get(controller.config.id))
+        if self.guard_task is not None:
+            self.guard_task.cancel()
 
     async def close(self):
         if not self.task.done():
             self.task.cancel()
         await asyncio.gather(self.task, return_exceptions=True)
+        if self.guard_task is not None:
+            self.guard_task.cancel()
+            await asyncio.gather(self.guard_task, return_exceptions=True)
         for config in self.candles:
             self.provider.release_candle_feed(config, self)
         for name, pairs in self.references.items():

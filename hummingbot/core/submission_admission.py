@@ -6,6 +6,8 @@ from contextvars import Context, copy_context
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+MAX_READY_SENDS = 4
+
 
 @dataclass
 class QueuedIntent:
@@ -18,7 +20,7 @@ class QueuedIntent:
 
 
 class SubmissionAdmission:
-    """FIFO per class; two final sends at most before a waiting new admission.
+    """FIFO per class, with room to send one committed intent batch first.
 
     The slot covers synchronous owner/intent checks, never network I/O. Waiters
     inherit their caller's context and stay owned by the service event loop.
@@ -36,7 +38,7 @@ class SubmissionAdmission:
     async def acquire(self, *, final=False, intent=None):
         if not self._locked and not self._admissions and not self._sends:
             self._locked = True
-            self._send_streak = min(2, self._send_streak + 1) if final else 0
+            self._send_streak = min(MAX_READY_SENDS, self._send_streak + 1) if final else 0
             return True
         queue = self._sends if final else self._admissions
         future = asyncio.get_running_loop().create_future()
@@ -95,9 +97,9 @@ class SubmissionAdmission:
         for queue in (self._admissions, self._sends):
             while queue and queue[0].done():
                 queue.popleft()
-        if self._sends and (not self._admissions or self._send_streak < 2):
+        if self._sends and (not self._admissions or self._send_streak < MAX_READY_SENDS):
             future = self._sends.popleft()
-            self._send_streak = min(2, self._send_streak + 1)
+            self._send_streak = min(MAX_READY_SENDS, self._send_streak + 1)
         elif self._admissions:
             future = self._admissions.popleft()
             self._send_streak = 0

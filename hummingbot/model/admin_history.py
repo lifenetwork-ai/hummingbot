@@ -61,7 +61,8 @@ def sessions_page(store, *, limit=100, cursor=None):
                                             BotState.mm_session["status"].astext.label("status"),
                                             BotState.mm_session["profile_id"].astext.label("profile_id")).where(
             BotState.bot_id == store.bot_id)).mappings().first() or {}
-        latest = connection.execute(select(MMEvent.session_id, MMEvent.event_type, MMEvent.created_at, MMEvent.new_profile).where(
+        latest = connection.execute(select(MMEvent.session_id, MMEvent.event_type, MMEvent.created_at, MMEvent.new_profile,
+                                           MMEvent.payload["status"].astext.label("session_status")).where(
             MMEvent.bot_id == store.bot_id, MMEvent.session_id.in_([row["session_id"] for row in selected]),
             MMEvent.event_type.in_(tuple(TRANSITIONS))).distinct(MMEvent.session_id).order_by(MMEvent.session_id, MMEvent.id.desc())).mappings().all() if selected else []
     by_id = {row["session_id"]: row for row in latest}
@@ -70,10 +71,12 @@ def sessions_page(store, *, limit=100, cursor=None):
         identity = row["session_id"]
         last = by_id.get(identity, row)
         is_current = identity == current.get("id")
+        last_status = ('running' if last.get("event_type") == "step_changed" and last.get("session_status") == "running"
+                       else TRANSITIONS.get(last.get("event_type"), "unknown"))
         items.append(dict(id=identity, created_at=row["created_at"], last_event_at=last["created_at"],
                           request=row["request"], config_hash=row["config_hash"], is_current=is_current,
                           profile_id=current.get("profile_id") if is_current else last["new_profile"],
-                          status=current.get("status") if is_current else TRANSITIONS.get(last.get("event_type"), "unknown"),
+                          status=current.get("status") if is_current else last_status,
                           state_source="current_session" if is_current else "last_recorded_transition",
                           configuration_url=f"/api/v1/admin/sessions/{identity}/configuration",
                           events_url=f"/api/v1/admin/sessions/{identity}/events"))

@@ -800,8 +800,23 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
 
     def profile_switch_scenario(self):
         print('Offline E2E: a slow public reference leaves current quotes working until Switch', flush=True)
+        import yaml
+
+        path = self.assets / 'life_mm_profiles.yaml'
+        original = path.read_bytes()
+        config = yaml.safe_load(original)
+        config['markets']['spot']['quote_guards'] = dict(
+            enabled=True, max_deviation_bps='200', resume_deviation_bps='100', recovery_delay_seconds='5')
+        path.write_text(yaml.safe_dump(config))
+        try:
+            self._guarded_profile_switch()
+        finally:
+            path.write_bytes(original)
+
+    def _guarded_profile_switch(self):
         self.env.update(ADMIN_API_ENABLED='true', ADMIN_BASIC_AUTH_ENABLED='true',
                         ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
+        self.control(target_updates_per_second=20, include_own_orders=True)
         _, port = self.start('profile-switch')
         self.mm_command(port, 'start', market_mode='spot', selection='fixed', profile_id='sideways', duration_seconds=600)
 

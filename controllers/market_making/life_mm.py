@@ -2,7 +2,7 @@
 import asyncio
 import math
 import time
-from copy import deepcopy
+from copy import copy, deepcopy
 from decimal import ROUND_CEILING, ROUND_DOWN, Decimal, localcontext
 from typing import Dict, List, Literal, Optional
 
@@ -423,6 +423,52 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                                         reference_model=bool(self.config.references),
                                         configured_anchor=self._life_anchor == self.config.initial_anchor)
 
+    def _quote_market_observation(self):
+        cfg = self.config
+        provider = self.market_data_provider
+        connector = provider.get_connector_with_fallback(cfg.connector_name)
+        if cfg.trading_pair not in connector.trading_rules:
+            raise ValueError("reference_pair_unavailable")
+        book = provider.get_order_book(cfg.connector_name, cfg.trading_pair)
+        observation = observe_market(connector, book, cfg.trading_pair, now=provider.time(),
+                                     max_age_seconds=cfg.max_data_age_seconds, max_levels=cfg.quote_guards.max_book_levels,
+                                     max_orders=cfg.quote_guards.max_own_orders)
+        return connector, book, observation
+
+    def sample_profile_guard(self):
+        """Sample strict public readiness while the old strategy owns the account."""
+        if not self.config.quote_guards.enabled or self._bootstrap is not None or self._life_anchor is not None:
+            return None
+        cfg = self.config
+        try:
+            connector, book, observation = self._quote_market_observation()
+            for ref in cfg.references:
+                self._fresh_price(cfg.reference_connector, ref.pair)
+            mid = observation.market_mid
+            if mid is None or not cfg.min_price <= mid <= cfg.max_price:
+                raise ValueError("Unavailable market price for profile guard")
+        except (ValueError, TypeError, ArithmeticError, AttributeError, LookupError, OSError):
+            self._quote_guard.invalidate()
+            return None
+        now = time.monotonic()
+        # Startup without anchors evaluates the outside midpoint as its reference.
+        status = self._quote_guard.evaluate(observation, mid, now, sample=True)
+        return (now, connector, book) if status["ready"] else None
+
+    def use_profile_guard(self, preview, witness):
+        if (witness is None or self.config != preview.config or preview._quote_guard.blocked
+                or self._life_anchor is not None or self._bootstrap is not None):
+            return
+        sampled_at, connector, book = witness
+        age = time.monotonic() - sampled_at
+        if not 0 <= age <= min(1, self.config.max_data_age_seconds):
+            return
+        cold_guard = self._quote_guard
+        self._quote_guard = copy(preview._quote_guard)
+        current = self.sample_profile_guard()
+        if current is None or current[1] is not connector or current[2] is not book:
+            self._quote_guard = cold_guard
+
     def admit_session(self, session_id, generation):
         if (session_id, generation) != (self.config.mm_session_id, self.config.mm_generation):
             raise ValueError("Session admission identity changed")
@@ -659,14 +705,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 raise ValueError("perpetual_account_not_confirmed")
             observation = None
             if self.config.quote_guards.enabled:
-                connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
-                if self.config.trading_pair not in connector.trading_rules:
-                    raise ValueError("reference_pair_unavailable")
-                book = self.market_data_provider.get_order_book(self.config.connector_name, self.config.trading_pair)
-                observation = observe_market(
-                    connector, book, self.config.trading_pair, now=self.market_data_provider.time(),
-                    max_age_seconds=self.config.max_data_age_seconds, max_levels=self.config.quote_guards.max_book_levels,
-                    max_orders=self.config.quote_guards.max_own_orders)
+                _, _, observation = self._quote_market_observation()
                 if observation.market_mid is None and self._bootstrap is None:
                     guard_status = self._evaluate_guard(observation, Decimal("1"), sample_guard)
                     raise ValueError("market_price_unavailable")

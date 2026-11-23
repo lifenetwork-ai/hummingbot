@@ -255,18 +255,33 @@ class BotOwnership:
         return connection
 
     @trace_runtime('owner.read')
-    def _read_owner(self, *, identity_only=False, include_pending=False):
+    def _read_owner(self, *, identity_only=False, include_pending=False, order_authority=False):
         """Fresh proof on the physical owner session; writes need no state JSON."""
         connection = self.require_owner_connection()
         try:
-            # Only this internal write-fence path omits the state payload. The
-            # observer and submission gates always retain their complete fresh
-            # row. Neither projection reuses authority or changes the lock query.
             columns = "pg_backend_pid() AS backend_pid" if identity_only else """
                 b.bot_id, b.config_file_path, b.config_type, b.desired_state, b.control_version,
                 b.acknowledged_version, b.owner_uuid, b.owner_generation, b.heartbeat, b.revision,
-                b.recovery_state, b.mm_session, pg_backend_pid() AS backend_pid,
+                pg_backend_pid() AS backend_pid,
                 EXTRACT(EPOCH FROM clock_timestamp()) AS database_now""".strip()
+            if order_authority:
+                # The order gate still reads fresh state on the lock-owning
+                # session. Leave checkpoint history and profile definitions in PG.
+                columns += """,
+                    CASE WHEN jsonb_typeof(b.recovery_state) = 'object' THEN jsonb_build_object(
+                        'halt', b.recovery_state->'halt', 'halt_kind', b.recovery_state->'halt_kind',
+                        'reason', b.recovery_state->'reason',
+                        'shutdown_incomplete', b.recovery_state->'shutdown_incomplete',
+                        'pending_mutations', b.recovery_state->'pending_mutations',
+                        'listing_bootstrap', b.recovery_state->'listing_bootstrap'
+                    ) ELSE b.recovery_state END AS recovery_state,
+                    CASE WHEN jsonb_typeof(b.mm_session->'catalogue') = 'object' THEN
+                        jsonb_set(b.mm_session - ARRAY['anchors', 'config_hash'], '{catalogue}',
+                            jsonb_build_object('allow_until_stopped', b.mm_session->'catalogue'->'allow_until_stopped',
+                                               'markets', b.mm_session->'catalogue'->'markets'))
+                    ELSE b.mm_session END AS mm_session"""
+            elif not identity_only:
+                columns += ", b.recovery_state, b.mm_session"
             parameters = {"bot_id": self.store.bot_id, "owner": self.owner_uuid, "generation": self.generation,
                           "namespace": OWNER_NAMESPACE, "key": OWNER_KEY}
             if include_pending:
@@ -313,10 +328,13 @@ class BotOwnership:
             diagnostic['sqlstate'] = sqlstate
         return self._lose_ownership("The bot ownership session failed; submissions are closed.", code, **diagnostic)
 
-    def check_owner(self, *, new_risk=False, allow_setup=False, include_pending=False):
+    def check_owner(self, *, new_risk=False, allow_setup=False, include_pending=False, order_authority=False):
         if new_risk:
             self._check_shutdown()
-        row = self._read_owner(include_pending=True) if include_pending else self._read_owner()
+        if order_authority:
+            row = self._read_owner(include_pending=True, order_authority=True)
+        else:
+            row = self._read_owner(include_pending=True) if include_pending else self._read_owner()
         # A signal can arrive while the synchronous database check is in flight.
         if new_risk:
             self._check_shutdown()
@@ -650,7 +668,7 @@ class BotOwnership:
         from hummingbot.core.cleanup_authority import current_cleanup_scope, validate_close
         from hummingbot.core.order_submission_guard import current_session_scope
         cleanup = current_cleanup_scope()
-        row = self.check_owner(new_risk=cleanup is None, include_pending=True)
+        row = self.check_owner(new_risk=cleanup is None, include_pending=True, order_authority=cleanup is None)
         if time.monotonic() < self._intent_admission_retry_at:
             raise IntentAdmissionBusy('Intent admission is backing off after ownership-row contention.')
         if (connector.in_flight_orders.get(order.client_order_id) is not order
@@ -1039,9 +1057,9 @@ class BotOwnership:
             while True:
                 checkpoint_ready = self.position_checkpoint_ready
                 try:
-                    async with self.submission_admission.final_send():
+                    async with timed_submission_lock(self.submission_admission.final_send(), 'final_slot_wait_ms'):
                         await asyncio.sleep(0)
-                        async with self.order_write_scope():
+                        async with timed_submission_lock(self.order_write_scope(), 'final_recorder_wait_ms'):
                             if active_guard() is not self:
                                 raise SubmissionBlocked('Trading owner changed before final send authorization.')
                             if checkpoint_deadline is not None:
@@ -1066,7 +1084,10 @@ class BotOwnership:
         except (TypeError, ValueError):
             raise SubmissionBlocked("Order submission requires a valid object payload.") from None
         cleanup = self.cleanup_intents.get(data.get("clOrdId")) if path == ORDER_PATH else None
-        row = self.check_owner(new_risk=path == ORDER_PATH and cleanup is None, include_pending=path == ORDER_PATH)
+        order_authority = path == ORDER_PATH and cleanup is None
+        with submission_timing('final_owner_read_ms'):
+            row = self.check_owner(new_risk=order_authority, include_pending=path == ORDER_PATH,
+                                   order_authority=order_authority)
         if path in CANCEL_PATHS:
             return None
         if path == ORDER_PATH:
@@ -1112,8 +1133,6 @@ class BotOwnership:
             if client_id not in self.active_intents or client_id in self.sent_intents:
                 raise SubmissionBlocked("Order identity is absent or was already sent; reconcile instead of retrying.")
             if self.scoped_recovery_enabled and self.automatic_recovery.active:
-                connector, order = next(((connector, connector.in_flight_orders[client_id])
-                                         for connector in self.connectors.values() if client_id in connector.in_flight_orders), (None, None))
                 if order is None:
                     raise MarketReadinessBlocked('uncertain_order_tracking_unavailable')
                 # This gate is after throttling/authentication, before transport.
@@ -1122,8 +1141,6 @@ class BotOwnership:
             if self.spot_outflow is not None:
                 self.spot_outflow.authorize(data, row)
             if self.mm_quote_check is not None:
-                connector, order = next(((connector, connector.in_flight_orders[client_id])
-                                         for connector in self.connectors.values() if client_id in connector.in_flight_orders), (None, None))
                 if order is None:
                     raise SubmissionBlocked("Spread policy tracked order unavailable")
                 size = Decimal(str(data.get("sz")))
@@ -1161,7 +1178,8 @@ class BotOwnership:
             # A lost COMMIT reply cannot establish that this order stayed local.
             if order is not None and getattr(order, '_managed_before_transport', False) is True:
                 order._managed_before_transport = False
-            self._record_send_attempt(client_id, data, expiry, headers)
+            with submission_timing('final_journal_ms'):
+                self._record_send_attempt(client_id, data, expiry, headers)
             return None
         if path not in ACCOUNT_PATHS:
             raise SubmissionBlocked("Unreviewed authenticated exchange mutation is blocked.")

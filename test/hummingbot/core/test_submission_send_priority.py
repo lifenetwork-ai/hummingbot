@@ -56,7 +56,7 @@ async def test_twelve_order_pipeline_improves_enqueue_to_acceptance_with_equal_w
 
 
 @pytest.mark.asyncio
-async def test_two_sends_then_waiting_admission_preserves_fifo_in_each_queue():
+async def test_committed_four_order_batch_can_send_before_the_next_waiting_admission():
     gate = BotOwnership(None, 'test').submission_admission
     await gate.acquire()
     granted = []
@@ -71,7 +71,7 @@ async def test_two_sends_then_waiting_admission_preserves_fifo_in_each_queue():
     await asyncio.sleep(0)
     gate.release()
     await asyncio.gather(*tasks)
-    assert granted == ['send-0', 'send-1', 'admit-0', 'send-2', 'send-3', 'admit-1', 'send-4', 'send-5']
+    assert granted == ['send-0', 'send-1', 'send-2', 'send-3', 'admit-0', 'send-4', 'send-5', 'admit-1']
     assert not gate.locked()
 
 

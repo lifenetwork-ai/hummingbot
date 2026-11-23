@@ -4,7 +4,7 @@ from contextlib import nullcontext
 from decimal import Decimal
 from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -116,6 +116,10 @@ async def test_profile_preparation_leaves_current_controller_admitted_until_prom
         else:
             release.set()
             await asyncio.wait_for(host.profile_switch.task, 1)
+            with patch.object(type(host.profile_switch), 'guards_ready', new_callable=PropertyMock, return_value=False, create=True):
+                assert await host.observe_profile_switch(preparing) is preparing
+                assert host.running and all(controller.session_admitted for controller in controllers.values())
+                host.store.finish_profile_switch.assert_not_called()
             assert await host.observe_profile_switch(preparing) == promoted
             assert host.profile_switch.promoted
             provider.release_order_books.assert_not_awaited()
@@ -153,6 +157,101 @@ async def test_random_preparation_is_local_until_the_db_step_deadline():
     missed = session.model_copy(deep=True)
     host.advance_profile(missed, 1031, reroll, prepared)
     assert missed.profile_id == 'follow_market' and missed.step_index == 2
+
+
+@pytest.mark.asyncio
+async def test_hot_random_repeat_extends_the_window_without_replacing_quote_authority():
+    host, _, _ = await setup_host()
+    draw = MagicMock(return_value='follow_market')
+    chooser = SimpleNamespace(choice=draw)
+    session = MMSession.create(host.mm_session.catalogue, MMSessionRequest(
+        market_mode='both', selection='random', profile_ids=['follow_market', 'sideways'],
+        step_duration_seconds=15, duration_seconds=600), rng=chooser)
+    anchors = {key: {'life': '.1', 'sources': {'BTC-USDT': '100', 'ETH-USDT': '10'}}
+               for key in ('life_spot', 'life_perpetual')}
+    session.ready(now=1000, anchors=anchors)
+    host.running = host.owner.allow_new_orders = True
+    host.phase = 'running'
+    host.applied_mm_identity = (session.id, 0)
+    host.prepare_profile_switch = MagicMock()
+    row = dict(desired_state='running', control_version=1, recovery_state={}, database_now=1010)
+    draw.reset_mock()
+    host.prepare_next_random_profile(row, session, chooser)
+    host.prepare_next_random_profile({**row, 'database_now': 1011}, session, chooser)
+    host.prepare_profile_switch.assert_not_called()
+    draw.assert_called_once()
+
+    # The selected repeat survives until cutover without another draw.
+    at_cutover = session.model_copy(deep=True)
+    host.advance_profile(at_cutover, 1015, None, None, repeat=host.random_repeat)
+    assert (at_cutover.step_index, at_cutover.generation, at_cutover.status) == (1, 0, 'running')
+    assert at_cutover.anchors == anchors
+    assert at_cutover.step_expires_at == 1030
+    assert at_cutover.permits(session_id=session.id, generation=0, now=1015)
+    assert not at_cutover.permits(session_id=session.id, generation=0, now=1030)
+
+    # A missed window still requires a fresh generation even if the draw repeats.
+    missed = session.model_copy(deep=True)
+    host.advance_profile(missed, 1031, chooser, None, repeat=host.random_repeat)
+    assert (missed.step_index, missed.generation, missed.status) == (2, 1, 'preparing')
+    assert missed.anchors == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', [None, 'stale-reference', 'missing-reference', 'stale-sample', 'replaced-book'])
+async def test_hot_switch_can_reuse_strict_guard_samples_from_the_target_profile(monkeypatch, failure):
+    _, controllers, provider = await setup_host()
+    old = controllers["life_spot"]
+    cfg = LifeMMConfig.model_validate({**old.config.model_dump(), 'mm_generation': 1,
+                                       'quote_guards': dict(enabled=True, max_deviation_bps="200",
+                                                            resume_deviation_bps="100", recovery_delay_seconds="2")})
+    preview, target = (LifeMMController(cfg, provider, asyncio.Queue()) for _ in range(2))
+    connector = provider.get_connector_with_fallback('okx')
+    connector.name = 'okx'
+    connector.in_flight_orders = {}
+    connector._order_tracker = SimpleNamespace(cached_orders={}, lost_orders={})
+    connector.trading_rules['LIFE-USDT'] = SimpleNamespace(min_order_size=Decimal('.01'), min_base_amount_increment=Decimal('.01'))
+    now = [1000, 50]
+    monkeypatch.setattr('controllers.market_making.life_mm.time', SimpleNamespace(monotonic=lambda: now[1]))
+    provider.time.side_effect = lambda: now[0]
+    book = OrderBook()
+    reference_age = [0]
+    reference_available = [True]
+
+    def get_book(name, pair):
+        if pair == 'LIFE-USDT':
+            return book
+        if not reference_available[0]:
+            raise KeyError(pair)
+        return SimpleNamespace(snapshot_uid=now[0] - reference_age[0], last_diff_uid=0)
+
+    provider.get_order_book.side_effect = get_book
+
+    def publish(book):
+        book.apply_snapshot([OrderBookRow(.099, 1000, now[0])], [OrderBookRow(.101, 1000, now[0])], now[0])
+
+    publish(book)
+    preview.sample_profile_guard()
+    assert preview._quote_guard.blocked
+    now[:] = [1002, 52]
+    preview.sample_profile_guard()  # Re-reading the same book does not count.
+    assert preview._quote_guard.blocked
+    publish(book)
+    witness = preview.sample_profile_guard()
+    assert not preview._quote_guard.blocked and not preview.session_admitted
+    if failure == 'stale-reference':
+        reference_age[0] = 60
+    elif failure == 'missing-reference':
+        reference_available[0] = False
+    elif failure == 'stale-sample':
+        now[1] += 2
+    elif failure == 'replaced-book':
+        book = OrderBook()
+        publish(book)
+    target.use_profile_guard(preview, witness)
+    target.update_reference()
+    assert target.processed_data['ready'] is (failure is None)
+    assert not target.session_admitted
 
 
 @pytest.mark.asyncio

@@ -98,6 +98,7 @@ class ServiceHost:
         self.next_outflow_poll = 0
         self.applied_mm_identity = None
         self.profile_switch = None
+        self.random_repeat = None
         self.catalogue = {}
         self.config_hashes = {}
         self._daily_signature = None
@@ -659,6 +660,10 @@ class ServiceHost:
         try:
             await self.owner.reconcile(core)
             await asyncio.gather(*tasks)
+            preparation = self.profile_switch
+            if (preparation is not None and preparation.promoted and self.mm_session is not None
+                    and preparation.identity == (self.mm_session.id, self.mm_session.generation)):
+                preparation.apply_guards(controllers)
         except BaseException:
             for task in tasks:
                 task.cancel()
@@ -669,6 +674,7 @@ class ServiceHost:
             raise
 
     async def stop_core(self, *, keep_market_data=False):
+        self.random_repeat = None
         self.running = False
         self.owner.allow_new_orders = False
         if not keep_market_data and getattr(self, 'profile_switch', None) is not None:
@@ -755,6 +761,14 @@ class ServiceHost:
             return row
         elif not preparation.ready:
             error = 'profile_preparation_unavailable'
+        elif not preparation.guards_ready:
+            # Spend the remaining warmup budget with the working orders live.
+            # Leave a turn to finish before the request or old step expires.
+            deadline = pending['queued_at'] + PREPARE_SECONDS
+            if expiry is not None:
+                deadline = min(deadline, expiry)
+            if float(row['database_now']) < deadline - 1:
+                return row
         async with self.owner.order_write_scope():
             self.owner.check_owner()
             promoted = self.store.finish_profile_switch(
@@ -773,7 +787,11 @@ class ServiceHost:
 
         step_end = session.step_expires_at
         recovery = row['recovery_state'] or {}
+        step = (session.id, session.generation, session.step_index)
+        if self.random_repeat != step:
+            self.random_repeat = None
         if (self.profile_switch is not None or not self.running or session.status != 'running'
+                or self.random_repeat == step
                 or row['desired_state'] != 'running' or row['control_version'] != self.applied_version
                 or (session.id, session.generation) != self.applied_mm_identity
                 or any(recovery.get(key) for key in ('mm_profile_switch', 'halt', 'pending_mutations'))
@@ -784,11 +802,15 @@ class ServiceHost:
         if 0 < step_end - float(row['database_now']) <= lead:
             target = session.model_copy(deep=True)
             if target.advance(now=nextafter(step_end, inf), rng=rng) and target.status == 'preparing':
-                self.prepare_profile_switch(target, automatic=True)
+                if (len(session.request.profile_ids) > 1 and target.profile_id == session.profile_id
+                        and self.phase == 'running' and self.owner.allow_new_orders):
+                    self.random_repeat = step
+                else:
+                    self.prepare_profile_switch(target, automatic=True)
 
     @staticmethod
-    def advance_profile(session, now, rng, preparation):
-        session.advance(now=now, rng=rng)
+    def advance_profile(session, now, rng, preparation, *, repeat=None):
+        session.advance(now=now, rng=rng, repeat=repeat == (session.id, session.generation, session.step_index))
         if (preparation is not None and preparation.automatic and preparation.ready
                 and (session.id, session.generation, session.step_index, session.status) == (
                     *preparation.identity, preparation.session.step_index, 'preparing')):
@@ -919,13 +941,19 @@ class ServiceHost:
                     and (not (row["recovery_state"] or {}).get("halt") or session_expired)
                     and (session_expired or not self.mm_startup_pending())):
                 preparation = self.profile_switch
+                recovery = row['recovery_state'] or {}
+                repeat = self.random_repeat if (self.running and self.phase == 'running' and self.owner.allow_new_orders
+                                                and row['control_version'] == self.applied_version
+                                                and not recovery.get('pending_mutations')
+                                                and not recovery.get('mm_profile_switch')) else None
                 try:
                     self.mm_session = await self._update_mm_session(
                         owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=row["control_version"],
                         session_id=self.mm_session.id, generation=self.mm_session.generation,
-                        change=lambda session, now: self.advance_profile(session, now, rng, preparation))
+                        change=lambda session, now: self.advance_profile(session, now, rng, preparation, repeat=repeat))
                 except ControlConflict:
                     return
+                self.random_repeat = None
                 if (preparation is not None and preparation.automatic and preparation.ready
                         and preparation.identity == (self.mm_session.id, self.mm_session.generation)
                         and self.mm_session.status == 'preparing'

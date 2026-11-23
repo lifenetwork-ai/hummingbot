@@ -167,7 +167,7 @@ class MMSession(BaseModel):
         self.anchors = json.loads(json.dumps(anchors))
         self.status = "running"
 
-    def advance(self, *, now, rng):
+    def advance(self, *, now, rng, repeat=False):
         if self.status in ("stopping", "stopped", "expired") or self.started_at is None:
             return False
         if not math.isfinite(now) or now < self.started_at:
@@ -181,11 +181,13 @@ class MMSession(BaseModel):
         step_index = int((now - self.started_at) // self.request.step_duration_seconds)
         if step_index == self.step_index:
             return False
+        keep_generation = repeat and self.status == 'running' and step_index == self.step_index + 1
         self.step_index = step_index
-        self.generation += 1
-        self.profile_id = self._draw(self.catalogue, self.request, rng)
-        self.status = "preparing"
-        self.anchors = {}
+        if not keep_generation:
+            self.generation += 1
+            self.profile_id = self._draw(self.catalogue, self.request, rng)
+            self.status = "preparing"
+            self.anchors = {}
         step_end = self.started_at + (step_index + 1) * self.request.step_duration_seconds
         self.step_expires_at = min(self.expires_at, step_end) if self.expires_at is not None else step_end
         return True

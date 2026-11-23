@@ -83,8 +83,10 @@ def record_transition(connection, bot_id, previous, current, version, *, source=
         kind = "step_started"
     if kind:
         payload = {key: current[key] for key in ("status", "step_index", "started_at", "expires_at", "step_expires_at", "anchors")}
+        identity = ([current["generation"], version, current["step_index"]]
+                    if kind == "step_changed" and current["generation"] == previous["generation"] else None)
         append_event(connection, bot_id=bot_id, session=current, previous=previous, event_type=kind, version=version,
-                     source=source, principal=principal, payload=payload)
+                     source=source, principal=principal, payload=payload, identity=identity)
 
 
 def record_guards(connection, bot_id, session, previous, status, version):
