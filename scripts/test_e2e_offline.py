@@ -1094,6 +1094,37 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                                                                 session_pinned=True, session_cash_verified=True,
                                                                 clean_stop=True)
 
+    def mm_reconciliation(self, port):
+        for attempt in (1, 2):
+            key = str(uuid.uuid4())
+            status, receipt = self.admin(port, "/reconciliation/check", {"market": "all"}, key)
+            if attempt == 2 and status == 409 and receipt.get("code") == "check_cooldown":
+                delay = receipt.get("retry_after_seconds")
+                assert type(delay) is int and 1 <= delay <= 30, receipt
+                time.sleep(delay)
+                status, receipt = self.admin(port, "/reconciliation/check", {"market": "all"}, key)
+            assert status == 202, receipt
+
+            def completed():
+                code, value = self.admin(port, "/reconciliation")
+                assert code == 200 and value["check"]["id"] == receipt["id"], value
+                return value["check"] if value["check"]["status"] in ("succeeded", "failed") else None
+
+            check = poll(completed, timeout=30, description="MM observational check completion")
+            assert check["status"] == "succeeded", check
+            report = check["report"]
+            markets = report["markets"]
+            # A fill handoff can still cross the read window. Take one new
+            # snapshot only when neither market reported a discrepancy.
+            if not (attempt == 1 and report["state"] == "incomplete" and markets
+                    and all(row["state"] == "incomplete" and row["reasons"] == ["local_state_changed_during_check"]
+                            and not row["differences"] for row in markets)):
+                break
+        assert report["state"] == "matched", check
+        code, stored = self.admin(port, "/reconciliation/" + check["id"])
+        assert code == 200 and stored["id"] == check["id"] and stored["report"] == report
+        self.metrics["reconciliation_attempts"] = attempt
+
     def mm_scenario(self, *, matrix=True):
         print("Offline E2E: LIFE admin three scenarios x spot/perpetual/both", flush=True)
         self.env.update(ADMIN_API_ENABLED="true", ADMIN_BASIC_AUTH_ENABLED="true", ADMIN_API_USERNAME="operator", ADMIN_API_PASSWORD="offline-admin", FUNDING_SYNC_INTERVAL_SECONDS="5")
@@ -1202,15 +1233,11 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         poll(lambda: sum(order['state'] in ('live', 'partially_filled') for order in self.ledger()['orders']) == 8
              and self.sql("SELECT count(*) FROM orders WHERE id IN (SELECT order_id FROM trade_fills) "
                           "AND last_status IN ('BuyOrderCompleted','SellOrderCompleted')") == '2'
+             and self.sql("SELECT count(DISTINCT connector_name) FROM positions WHERE trading_pair = 'LIFE-USDT' "
+                          "AND amount > 0 AND connector_name IN ('okx', 'okx_perpetual')") == '2'
              and not (self.state().get('recovery_state') or {}).get('pending_mutations'),
              timeout=30, description='full-fill handoffs and replacement ACKs settle before observational check')
-        status, receipt = self.admin(port, "/reconciliation/check", {"market": "all"}, str(uuid.uuid4()))
-        assert status == 202
-        report = poll(lambda: (value if (value := self.admin(port, "/reconciliation")[1])["check"]["status"] in ("succeeded", "failed") else None),
-                      description="MM observational check completion")
-        assert report["report"]["state"] == "matched", report
-        stable_check = self.admin(port, "/reconciliation/" + receipt["id"])[1]
-        assert stable_check["id"] == receipt["id"] and stable_check["report"] == report["report"]
+        self.mm_reconciliation(port)
         # OKX may cancel a post-only order in the private stream before its
         # positive REST create response. A terminal exchange identity resolves
         # that durable intent without reopening the order or halting the bot.

@@ -79,6 +79,38 @@ def test_command_timeout_retains_readiness_reason_without_dumping_payload(monkey
     assert 'private-input' not in message
 
 
+@pytest.mark.parametrize('differences', [[], [{'kind': 'position_quantity'}]])
+def test_life_reconciliation_rechecks_only_a_pure_snapshot_race(monkeypatch, differences):
+    def receipt(identity, state, reasons, differences):
+        return dict(id=identity, status='succeeded', report=dict(state=state, markets=[
+            dict(market=market, state=state, reasons=reasons, differences=differences)
+            for market in ('spot', 'perpetual')
+        ]))
+
+    first = receipt('first', 'incomplete', ['local_state_changed_during_check'], differences)
+    second = receipt('second', 'matched', [], [])
+    admin = MagicMock(side_effect=[
+        (202, first), (200, {'check': first, 'report': first['report']}),
+        (409, {'code': 'check_cooldown', 'retry_after_seconds': 27}),
+        (202, second), (200, {'check': second, 'report': second['report']}), (200, second),
+    ])
+    harness = SimpleNamespace(admin=admin, metrics={})
+    sleep = MagicMock()
+    monkeypatch.setattr(test_e2e_offline.time, 'sleep', sleep)
+    if differences:
+        with pytest.raises(AssertionError, match='position_quantity'):
+            test_e2e_offline.Harness.mm_reconciliation(harness, 'bot')
+        assert admin.call_count == 2
+        sleep.assert_not_called()
+    else:
+        test_e2e_offline.Harness.mm_reconciliation(harness, 'bot')
+        sleep.assert_called_once_with(27)
+        keys = [call.args[-1] for call in admin.call_args_list if call.args[1] == '/reconciliation/check']
+        assert len(keys) == 3 and keys[0] != keys[1] == keys[2]
+        assert admin.call_args_list[-1].args == ('bot', '/reconciliation/second')
+        assert harness.metrics['reconciliation_attempts'] == 2
+
+
 def test_completed_fault_is_saved_when_a_later_window_fails(monkeypatch, tmp_path):
     from scripts.test_mm_load import save_fault_progress
 
