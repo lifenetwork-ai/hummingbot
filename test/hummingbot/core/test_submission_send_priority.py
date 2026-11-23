@@ -6,6 +6,7 @@ import pytest
 
 from hummingbot.core import order_submission_guard as gates
 from hummingbot.core.bot_ownership import BotOwnership
+from hummingbot.core.submission_admission import QueuedWrite
 
 
 class FIFOAdmission(asyncio.Lock):
@@ -92,6 +93,30 @@ async def test_ready_sends_and_order_updates_keep_fifo_as_they_pass_a_waiting_in
         await asyncio.sleep(0)
     await asyncio.gather(*tasks)
     assert granted == ['receipt', 'fill', 'send-0', 'cancel', 'send-1', 'intent', 'send-2']
+
+
+@pytest.mark.asyncio
+async def test_claiming_batch_does_not_skip_an_intervening_recorder_write():
+    gate = BotOwnership(None, 'test').submission_admission
+    queue = [QueuedWrite(), None, QueuedWrite()]
+    granted = []
+
+    async def wait_for_slot(index, work):
+        if await gate.acquire(work=work):
+            try:
+                granted.append(index)
+            finally:
+                gate.release()
+
+    async with gate:
+        tasks = [asyncio.create_task(wait_for_slot(index, work)) for index, work in enumerate(queue)]
+        await asyncio.sleep(0)
+        (work, future), = gate.take_work(8, lambda item: isinstance(item, QueuedWrite))
+        assert work is queue[0] and not queue[2].claimed
+        future.set_result(None)
+    await asyncio.gather(*tasks)
+    assert granted == [1, 2]
+    assert not gate.locked()
 
 
 @pytest.mark.asyncio

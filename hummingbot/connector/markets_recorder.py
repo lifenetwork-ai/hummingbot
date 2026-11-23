@@ -6,10 +6,11 @@ import threading
 import time
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import copy_context
+from dataclasses import dataclass
 from decimal import Decimal
 from itertools import islice
 from shutil import move
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
 from sqlalchemy import and_, bindparam, func, or_, select, text, tuple_, union_all
@@ -23,7 +24,7 @@ from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.connector.utils import TradeFillOrderDetails
 from hummingbot.core.data_type.common import PriceType
 from hummingbot.core.data_type.trade_fee import TradeFeeBase
-from hummingbot.core.engine_diagnostics import timed_submission_lock, trace_runtime
+from hummingbot.core.engine_diagnostics import submission_timing, timed_submission_lock, trace_runtime
 from hummingbot.core.event.event_forwarder import SourceInfoEventForwarder
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
@@ -41,7 +42,7 @@ from hummingbot.core.event.events import (
     SellOrderCreatedEvent,
 )
 from hummingbot.core.operational_warnings import OrderAcknowledgementBusy
-from hummingbot.core.submission_admission import SubmissionAdmission
+from hummingbot.core.submission_admission import QueuedWrite, SubmissionAdmission
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.controllers import Controllers
 from hummingbot.model.executors import Executors
@@ -61,6 +62,16 @@ from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 _QUOTE_FEE_NOT_CALCULATED = object()
 _ORDER_FENCE_RETRY_SECONDS = 4.0
 _ORDER_FENCE_RETRY_INTERVAL = 0.1
+_ACK_RETRY_EXPIRED = object()
+MAX_OPEN_ACK_BATCH = 8
+
+
+@dataclass
+class _QueuedAcknowledgement(QueuedWrite):
+    market: ConnectorBase
+    owner: object
+    prepare: Callable
+    deadline: Optional[float]
 
 
 class MarketsRecorder:
@@ -186,13 +197,31 @@ class MarketsRecorder:
 
     async def retry_order_acknowledgement(self, market, owner, apply):
         """Run a native OPEN update, rebuilding its snapshot on each proven retry."""
-        loop = asyncio.get_running_loop()
-        async with self.native_order_lock(market, owner):
-            deadline = loop.time() + _ORDER_FENCE_RETRY_SECONDS
-            try:
+        async def attempt(deadline):
+            async with self.native_order_lock(market, owner):
+                if deadline is not None and asyncio.get_running_loop().time() >= deadline:
+                    return _ACK_RETRY_EXPIRED
                 return await apply()
-            except OrderAcknowledgementBusy as error:
-                failure, cancelled = error.error, error.cancellation
+
+        await self._retry_acknowledgement(attempt)
+
+    async def record_order_acknowledgement(self, market, owner, prepare):
+        async def attempt(deadline):
+            return await self._acknowledgement_turn(_QueuedAcknowledgement(market, owner, prepare, deadline))
+
+        # The original tracker task keeps its per-order lock and shutdown
+        # registration until the received ACK is committed and published.
+        _, cancelled = await self._drain_order_job(asyncio.create_task(self._retry_acknowledgement(attempt)))
+        if cancelled is not None:
+            raise cancelled
+
+    async def _retry_acknowledgement(self, attempt):
+        loop = asyncio.get_running_loop()
+        try:
+            return await attempt(None)
+        except OrderAcknowledgementBusy as error:
+            failure, cancelled = error.error, error.cancellation
+        deadline = loop.time() + _ORDER_FENCE_RETRY_SECONDS
 
         async def finish():
             current_failure = failure
@@ -200,13 +229,13 @@ class MarketsRecorder:
                 await self._sleep(min(deadline - loop.time(), _ORDER_FENCE_RETRY_INTERVAL))
                 if loop.time() >= deadline:
                     break
-                async with self.native_order_lock(market, owner):
-                    if loop.time() >= deadline:
+                try:
+                    result = await attempt(deadline)
+                    if result is _ACK_RETRY_EXPIRED:
                         break
-                    try:
-                        return await apply()
-                    except OrderAcknowledgementBusy as error:
-                        current_failure = error.error
+                    return result
+                except OrderAcknowledgementBusy as error:
+                    current_failure = error.error
             self._sql_manager.persistence_healthy = False
             raise current_failure
 
@@ -216,6 +245,85 @@ class MarketsRecorder:
         if interrupted is not None or cancelled is not None:
             raise interrupted or cancelled
         return result
+
+    async def _acknowledgement_turn(self, work):
+        from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
+
+        slot = self.order_writes
+        with submission_timing('tracker_recorder_wait_ms') as acquired:
+            work.on_claim = acquired
+            result = await slot.acquire(work=work)
+        if result is not True:
+            if isinstance(result, BaseException):
+                raise result
+            return result
+
+        peers = []
+        results = [None]
+        try:
+            if (active_guard() is not work.owner or work.owner.engine is not self._sql_manager.engine
+                    or self.service_recorder_for(work.market) is not self):
+                raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
+            peers = slot.take_work(MAX_OPEN_ACK_BATCH - 1, lambda peer: (
+                isinstance(peer, _QueuedAcknowledgement) and peer.market is work.market and peer.owner is work.owner))
+            results.extend([None] * len(peers))
+            prepared = []
+            now = asyncio.get_running_loop().time()
+            for index, item in enumerate([work, *(peer for peer, _ in peers)]):
+                if item.deadline is not None and now >= item.deadline:
+                    results[index] = _ACK_RETRY_EXPIRED
+                    continue
+                try:
+                    plan = item.context.run(item.prepare)
+                except Exception as error:
+                    results[index] = error
+                else:
+                    if plan is not None:
+                        prepared.append((index, item.context, plan))
+            if prepared:
+                cancelled = await self._persist_open_acknowledgements(work.market, prepared)
+                for index, context, plan in prepared:
+                    try:
+                        context.run(plan.apply)
+                    except Exception as error:
+                        results[index] = error
+                for index, context, plan in prepared:
+                    if results[index] is not None:
+                        continue
+                    try:
+                        context.run(plan.publish)
+                    except Exception as error:
+                        results[index] = error
+                if cancelled is not None and results[0] is None:
+                    results[0] = cancelled
+        except BaseException as error:
+            results = [error if result is None else result for result in results]
+        finally:
+            for (_, future), result in zip(peers, results[1:]):
+                future.set_result(result)
+            slot.release()
+        if isinstance(results[0], BaseException):
+            raise results[0]
+        return results[0]
+
+    async def _persist_open_acknowledgements(self, market, prepared):
+        tracking = dict(market.tracking_states)
+        fresh_order = None
+        for _, _, plan in prepared:
+            if plan.event.order_id in tracking:
+                fresh_order = plan.event.order_id
+                tracking[fresh_order] = plan.tracking_state
+
+        def stage(session):
+            with session.no_autoflush:
+                orders = [context.run(self._stage_order_creation, session, plan.tag.value, market, plan.event,
+                                      coalesce_snapshot=True, defer_snapshot=True)
+                          for _, context, plan in prepared]
+                self.save_market_states(self._config_file_path, market, session, new_order_id=fresh_order,
+                                        tracking_states=tracking, staged_orders=orders)
+
+        _, cancelled = await self._run_native_write(stage, defer_contention=OrderAcknowledgementBusy)
+        return cancelled
 
     async def _run_native_write(self, stage, *args, defer_contention=None):
         from hummingbot.core.bot_ownership import OwnershipLost
@@ -1207,7 +1315,8 @@ class MarketsRecorder:
         self.finish_recorded_order_creation(market, evt)
 
     @trace_runtime('order.created', order_parameter='evt')
-    def _stage_order_creation(self, session, event_tag, market, evt, *, tracking_states=None, coalesce_snapshot=False):
+    def _stage_order_creation(self, session, event_tag, market, evt, *, tracking_states=None, coalesce_snapshot=False,
+                              defer_snapshot=False):
         base_asset, quote_asset = evt.trading_pair.split("-")
         timestamp = int(evt.creation_timestamp * 1e3)
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
@@ -1267,9 +1376,10 @@ class MarketsRecorder:
                 if not history_recorded:
                     session.add(OrderStatus(order=order_record, timestamp=timestamp, status=event_type.name))
             if coalesce_snapshot:
-                self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states,
-                                        new_order_id=evt.order_id, staged_orders=(order_record,))
-                return
+                if not defer_snapshot:
+                    self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states,
+                                            new_order_id=evt.order_id, staged_orders=(order_record,))
+                return order_record
         self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
 
     @staticmethod

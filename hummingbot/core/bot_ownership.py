@@ -550,7 +550,7 @@ class BotOwnership:
         with submission_timing('admission_slot_wait_ms') as finish_wait:
             if intent is not None:
                 intent.on_claim = finish_wait
-            result = await queue.acquire() if intent is None else await queue.acquire(intent=intent)
+            result = await queue.acquire() if intent is None else await queue.acquire(work=intent)
         if result is False:
             return False  # The leader was cancelled before any batch write.
         if result is not True:
@@ -574,7 +574,7 @@ class BotOwnership:
                     raise SubmissionBlocked("Trading owner changed before durable order admission.")
                 if time.monotonic() < self._intent_admission_retry_at:
                     return False
-                peers = queue.take_intents(MAX_INTENT_BATCH - 1) if intent is not None and not self.automatic_recovery.active else []
+                peers = queue.take_work(MAX_INTENT_BATCH - 1) if intent is not None and not self.automatic_recovery.active else []
                 if peers:
                     await self._persist_intent_group(recorder, intent, peers)
                     return True

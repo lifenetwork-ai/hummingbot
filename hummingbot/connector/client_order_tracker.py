@@ -5,7 +5,7 @@ from collections import defaultdict
 from copy import copy
 from decimal import Decimal
 from itertools import chain
-from typing import TYPE_CHECKING, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Callable, Dict, NamedTuple, Optional, Union
 from weakref import WeakValueDictionary
 
 from cachetools import TTLCache
@@ -31,6 +31,14 @@ if TYPE_CHECKING:
     from hummingbot.connector.connector_base import ConnectorBase
 
 cot_logger = None
+
+
+class _StagedOpenAcknowledgement(NamedTuple):
+    tag: MarketEvent
+    event: Union[BuyOrderCreatedEvent, SellOrderCreatedEvent]
+    tracking_state: dict
+    apply: Callable
+    publish: Callable
 
 
 class ClientOrderTracker:
@@ -417,19 +425,39 @@ class ClientOrderTracker:
             async with self._order_event_lock(order.client_order_id):
                 retry_open = update.new_state is OrderState.OPEN and order.is_pending_create
 
-                async def apply():
+                def can_apply():
                     current = self.fetch_order(update.client_order_id, update.exchange_order_id)
-                    if current is not order or self._late_order_update(order, update):
+                    return (current is order and not self._late_order_update(order, update)
+                            and (not retry_open or order.is_pending_create))
+
+                async def apply():
+                    if not can_apply():
                         return
                     if proved_fills is not None and tuple(order.order_fills) != proved_fills:
                         # Let normal polling obtain a proof with the new fills.
                         order._terminal_proof_pending = True
                         return
-                    if retry_open and not order.is_pending_create:
-                        return
                     await self._persist_order_update(recorder, order, update, defer_ack_contention=retry_open)
 
-                if retry_open:
+                if (retry_open and update.exchange_order_id and recorder.cleanup_operation_id is None
+                        and order.client_order_id in owner.sent_intents):
+                    def prepare():
+                        if not can_apply():
+                            return None
+                        staged = self._stage_tracker_update(order, update)
+                        if staged is None:
+                            return None
+                        tag, event = self._creation_event(staged)
+
+                        def publish():
+                            self._finish_tracker_creation(recorder, order, update.new_state, event)
+                            recorder.publish_recorded_order_event(self._connector, tag, event)
+
+                        return _StagedOpenAcknowledgement(tag, event, staged.to_json(),
+                                                          lambda: order.update_with_order_update(update), publish)
+
+                    await recorder.record_order_acknowledgement(self._connector, owner, prepare)
+                elif retry_open:
                     await recorder.retry_order_acknowledgement(self._connector, owner, apply)
                 else:
                     async with recorder.native_order_lock(self._connector, owner):
@@ -453,12 +481,21 @@ class ClientOrderTracker:
             self._trigger_order_creation(order, previous_state, update.new_state)
             self._trigger_order_completion(order, update)
 
-    async def _persist_order_update(self, recorder, order, update, *, defer_ack_contention=False):
+    @staticmethod
+    def _stage_tracker_update(order, update):
         staged = copy(order)
         # The copy must not wake the live waiters before PostgreSQL commits.
         staged.exchange_order_id_update_event = asyncio.Event()
         staged.processed_by_exchange_event = asyncio.Event()
-        if not staged.update_with_order_update(update):
+        return staged if staged.update_with_order_update(update) else None
+
+    def _finish_tracker_creation(self, recorder, order, state, event):
+        recorder.finish_recorded_order_creation(self._connector, event)
+        self._note_creation(order, state)
+
+    async def _persist_order_update(self, recorder, order, update, *, defer_ack_contention=False):
+        staged = self._stage_tracker_update(order, update)
+        if staged is None:
             return
 
         created = self._should_emit_creation(order.current_state, update.new_state)
@@ -476,8 +513,7 @@ class ClientOrderTracker:
 
         order.update_with_order_update(update)
         if created:
-            recorder.finish_recorded_order_creation(self._connector, events[0][1])
-            self._note_creation(order, update.new_state)
+            self._finish_tracker_creation(recorder, order, update.new_state, events[0][1])
         for tag, payload in events:
             recorder.publish_recorded_order_event(self._connector, tag, payload)
         if not staged.is_open:

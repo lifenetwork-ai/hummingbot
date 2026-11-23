@@ -24,6 +24,12 @@ native = native_fixture
 
 
 class FIFOAdmission(asyncio.Lock):
+    async def acquire(self, *, work=None):
+        return await super().acquire()
+
+    def take_work(self, maximum, compatible=None):
+        return []
+
     def final_send(self):
         return self
 

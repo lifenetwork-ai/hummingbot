@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from psycopg2 import OperationalError as DriverOperationalError
 from sqlalchemy import event, select, text
 from sqlalchemy.exc import OperationalError
 
@@ -37,6 +38,116 @@ def acknowledge(context, identity='order-1'):
     context.recorder._did_create_order(MarketEvent.BuyOrderCreated.value, context.market, replace(
         create(), order_id=identity, exchange_order_id=order.exchange_order_id,
         price=order.price, creation_timestamp=order.creation_timestamp))
+
+
+@pytest.mark.parametrize('outcome', ['committed', 'cancelled', 'rejected', 'reply_lost'])
+def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeypatch, outcome):
+    tracker = native.market._order_tracker
+    identities = {f'burst-ack-{i}' for i in range(6)}
+    flushes, published, ack_connections = [], [], []
+    publish = native.recorder.publish_recorded_order_event
+    acquire = native.recorder.order_writes.acquire
+    queued = asyncio.Event()
+    waiting = 0
+    track_waiters = False
+    reject_commit = outcome == 'rejected'
+    reply_lost = outcome == 'reply_lost'
+
+    if reject_commit:
+        with native.engine.begin() as connection:
+            connection.execute(text("""
+                CREATE FUNCTION reject_burst_ack() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION 'burst ACK commit rejected' USING ERRCODE = '55P03'; END;
+                $$;
+                CREATE CONSTRAINT TRIGGER reject_burst_ack AFTER UPDATE ON orders
+                DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+                WHEN (NEW.id = 'burst-ack-3' AND NOT NEW.creation_pending) EXECUTE FUNCTION reject_burst_ack()
+            """))
+
+    def inspect_flush(session, *_):
+        created = {row.order.id for row in session.new
+                   if isinstance(row, OrderStatus) and row.status == 'BuyOrderCreated'}
+        if created:
+            flushes.append(created)
+            if reply_lost:
+                ack_connections.append(session.connection().connection.driver_connection)
+
+    if reply_lost:
+        driver_class = type(native.owner.connection.connection.driver_connection)
+        commit = driver_class.commit
+
+        def lose_ack_reply(driver):
+            commit(driver)
+            if driver in ack_connections:
+                ack_connections.remove(driver)
+                driver.close()
+                raise DriverOperationalError('test ACK COMMIT reply lost')
+
+        monkeypatch.setattr(driver_class, 'commit', lose_ack_reply)
+
+    def observe_publication(market, tag, payload):
+        assert all(tracker.fetch_tracked_order(identity).current_state is OrderState.OPEN for identity in identities)
+        with native.manager.get_new_session() as db:
+            published.append((payload.order_id, db.query(SubmissionAttempt).filter_by(state='acknowledged').count()))
+        publish(market, tag, payload)
+
+    async def observe_acquire(**kwargs):
+        nonlocal waiting
+        if track_waiters:
+            waiting += 1
+            if waiting == len(identities):
+                queued.set()
+        return await acquire(**kwargs)
+
+    async def exercise():
+        nonlocal track_waiters
+        orders = [InFlightOrder(identity, 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
+                                Decimal('5'), time.time(), Decimal('10')) for identity in sorted(identities)]
+        for order in orders:
+            tracker.start_tracking_order(order)
+        with session_order_scope(native.session.id, native.session.generation):
+            await asyncio.gather(*(native.owner.admit_order(native.market, order) for order in orders))
+        for order in orders:
+            identity = order.client_order_id
+            native.owner._record_send_attempt(identity, {'clOrdId': identity}, 123456, {})
+        async with native.recorder.order_writes:
+            track_waiters = True
+            tasks = [asyncio.create_task(tracker._process_order_update(OrderUpdate(
+                'LIFE-USDT', time.time(), OrderState.OPEN, order.client_order_id, f'venue-{order.client_order_id}')))
+                for order in orders]
+            await asyncio.wait_for(queued.wait(), 2)
+            if outcome == 'cancelled':
+                tasks[2].cancel()
+        return orders, await asyncio.gather(*tasks, return_exceptions=True)
+
+    monkeypatch.setattr(native.recorder, 'publish_recorded_order_event', observe_publication)
+    monkeypatch.setattr(native.recorder.order_writes, 'acquire', observe_acquire)
+    event.listen(native.manager._session_cls, 'before_flush', inspect_flush)
+    try:
+        orders, outcomes = native.loop.run_until_complete(exercise())
+    finally:
+        event.remove(native.manager._session_cls, 'before_flush', inspect_flush)
+    assert flushes == [identities]
+    with native.manager.get_new_session() as db:
+        assert {row.state for row in db.query(SubmissionAttempt)} == {'possibly_sent' if reject_commit else 'acknowledged'}
+        assert all(row.creation_pending is reject_commit for row in db.query(Order))
+        snapshot = db.query(MarketState).one().saved_state
+        if reply_lost:
+            assert set(snapshot) == identities
+            assert all(order.current_state is OrderState.PENDING_CREATE for order in orders)
+            assert all(state['exchange_order_id'] == f'venue-{identity}' for identity, state in snapshot.items())
+        else:
+            assert snapshot == {order.client_order_id: order.to_json() for order in orders}
+    if reject_commit or reply_lost:
+        assert all(isinstance(result, OperationalError) for result in outcomes)
+        assert not published and not native.manager.persistence_healthy
+    else:
+        if outcome == 'cancelled':
+            assert isinstance(outcomes[2], asyncio.CancelledError)
+            outcomes[2] = None
+        assert outcomes == [None] * len(orders)
+        assert set(published) == {(identity, len(identities)) for identity in identities}
+    assert not native.owner.terminal_tasks and not native.recorder.order_writes.locked()
 
 
 @pytest.mark.parametrize('outcome', ['confirmed', 'cancelled', 'commit_rejected'])
