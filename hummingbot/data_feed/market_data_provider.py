@@ -572,6 +572,15 @@ class MarketDataProvider:
             if consumer in users:
                 await self.release_order_books(name, [pair], consumer)
 
+    def retain_reference_books_for(self, current_consumer, next_consumer):
+        """Add a consumer to initialized subscriptions before the current consumer stops."""
+        retained = []
+        for key, users in self._reference_book_users.items():
+            if current_consumer in users:
+                users.add(next_consumer)
+                retained.append(key)
+        return retained
+
     async def remove_order_book(self, connector_name: str, trading_pair: str) -> bool:
         """
         Removes order book tracking for a trading pair from the specified connector.

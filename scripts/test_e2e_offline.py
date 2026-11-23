@@ -820,15 +820,29 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
                         ADMIN_API_USERNAME='operator', ADMIN_API_PASSWORD='offline-admin')
         self.control(target_updates_per_second=20, include_own_orders=True)
         _, port = self.start('profile-switch')
-        self.mm_command(port, 'start', market_mode='spot', selection='fixed', profile_id='sideways', duration_seconds=600)
+        self.mm_command(port, 'start', market_mode='both', selection='fixed', profile_id='sideways', duration_seconds=600)
 
         def live():
             return [order for order in self.ledger()['orders'] if order['state'] == 'live']
 
+        def drawdown_ready():
+            risk = (self.admin(port, '/status')[1] or {}).get('drawdown') or {}
+            return risk.get('ready') and risk['controllers']['life_perpetual']['pnl_quote'] is not None
+
+        buy = poll(lambda: next((order for order in live() if order['instId'] == 'LIFE-USDT-SWAP'
+                                 and order['side'] == 'buy'), None), description='perpetual quote to seed retained exposure')
+        self.control(fill=dict(clOrdId=buy['clOrdId'], amount=str(Decimal(buy['sz']) / 2), fee='.001'))
+        poll(lambda: self.sql('SELECT count(*) FROM trade_fills') == '1', description='retained perpetual fill')
+        held = position_exposure(self.ledger()['positions'])
+        assert held
+        self.mm_command(port, 'switch', market_mode='spot', selection='fixed', profile_id='sideways', duration_seconds=600)
+        self.wait_running(port)
+        poll(drawdown_ready, description='spot profile uses a public mark for the retained perpetual position')
         old_quotes = poll(lambda: quotes if len(quotes := live()) == 4 else None, description='original two-sided quotes')
+        assert all(order['instId'] == 'LIFE-USDT' for order in old_quotes)
         old_ids = {order['clOrdId'] for order in old_quotes}
         original = self.state()
-        self.control(book_snapshot_delays={'AVAX-USDT': 3})
+        self.control(book_snapshot_delays={'AVAX-USDT': 3, 'LIFE-USDT-SWAP': 6})
         receipt = self.mm_command(port, 'switch', wait=False, market_mode='spot',
                                   selection='fixed', profile_id='follow_token', duration_seconds=600)
 
@@ -862,12 +876,15 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         state = self.state()
         assert state['owner_uuid'] == original['owner_uuid'] and not state['recovery_state'].get('halt')
         assert state['recovery_state']['spot_outflow'] == original['recovery_state']['spot_outflow']
-        poll(lambda: ((self.admin(port, '/status')[1] or {}).get('drawdown') or {}).get('ready'),
-             description='new profile has a fresh drawdown report')
+        poll(drawdown_ready, description='new profile has a fresh drawdown report')
+        assert position_exposure(ledger['positions']) == held
+        swap_snapshots = sum(request.get('injected_book_snapshot_delay_s') == 6 for request in ledger['requests'])
+        print(f'Offline guarded Spot handoff with retained Perpetual exposure: gap={gap_ms}ms, cold snapshots={swap_snapshots}', flush=True)
+        assert swap_snapshots == 0, 'Profile switch restarted the public valuation book'
         self.mm_command(port, 'stop')
         assert not live() and not self.ledger()['unknown']
         self.metrics['profile_switch'] = dict(old_quotes_working_during_preparation=True, terminal_before_new_posts=True,
-                                              quote_gap_ms=gap_ms, simulated=True)
+                                              retained_perpetual_valuation=True, quote_gap_ms=gap_ms, simulated=True)
 
     def shutdown_proof_scenario(self):
         # The ordinary continuous scenario does not arm Spot outflow. This

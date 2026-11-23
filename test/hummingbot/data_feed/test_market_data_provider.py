@@ -59,6 +59,25 @@ class TestMarketDataProvider(IsolatedAsyncioWrapperTestCase):
         result = self.provider.get_order_book("mock_connector", "BTC-USDT")
         self.assertEqual(result, "mock_order_book")
 
+    async def test_retained_reference_book_survives_strategy_handoff(self):
+        old_strategy, preparation, new_strategy, other = [object() for _ in range(4)]
+        self.mock_connector.trading_pairs = []
+        name = "mock_connector"
+        with patch.object(self.provider, "initialize_order_book", new=AsyncMock(return_value=True)) as subscribe, \
+                patch.object(self.provider, "remove_order_book", new=AsyncMock(return_value=True)) as unsubscribe:
+            await self.provider.acquire_order_books(name, ["BTC-USDT"], old_strategy)
+            await self.provider.acquire_order_books(name, ["ETH-USDT"], other)
+            self.assertEqual(self.provider.retain_reference_books_for(old_strategy, preparation), [(name, "BTC-USDT")])
+            await self.provider.release_reference_books_for(old_strategy)
+            unsubscribe.assert_not_awaited()
+            await self.provider.acquire_order_books(name, ["BTC-USDT"], new_strategy)
+            await self.provider.release_reference_books_for(preparation)
+            unsubscribe.assert_not_awaited()
+            self.assertEqual(subscribe.await_count, 2)
+            await self.provider.release_reference_books_for(new_strategy)
+            unsubscribe.assert_awaited_once_with(name, "BTC-USDT")
+            await self.provider.release_reference_books_for(other)
+
     def test_get_price_by_type(self):
         self.mock_connector.get_price_by_type.return_value = 10000
         price = self.provider.get_price_by_type("mock_connector", "BTC-USDT", PriceType.MidPrice)

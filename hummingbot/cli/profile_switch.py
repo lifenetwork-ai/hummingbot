@@ -88,6 +88,10 @@ class ProfileSwitchPreparation:
         if self.guard_task is not None:
             self.guard_task.cancel()
 
+    def retain_valuation_books(self, strategy):
+        for name, pair in self.provider.retain_reference_books_for(strategy, self):
+            self.references.setdefault(name, set()).add(pair)
+
     async def close(self):
         if not self.task.done():
             self.task.cancel()

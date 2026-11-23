@@ -124,12 +124,14 @@ class V2WithControllers(StrategyV2Base):
         self.mm_drawdown_checkpoint_callback = None
         self._mm_drawdown_last_checkpoint = self._mm_drawdown_state = self._mm_drawdown_breach = None
         self._mm_drawdown_bound = False
+        self._mm_started = False
         self.mm_valuation_task = None
         if config.mm_drawdown_scope:
             self.mm_valuation_task = asyncio.create_task(self.initialize_mm_valuations())
 
     def start(self, clock, timestamp):
         super().start(clock, timestamp)
+        self._mm_started = True
         if self.config.mm_drawdown_scope and self._mm_drawdown_bound and not self._is_stop_triggered:
             # The owner has bound the checkpoint and reconciled positions.
             # Publish and check the first report before waiting for a clock tick.
@@ -317,7 +319,7 @@ class V2WithControllers(StrategyV2Base):
             while True:
                 try:
                     source = self.market_data_provider.get_connector_with_fallback(connector)
-                    if not source.is_trading_required:
+                    if not source.is_trading_required and pair not in source.trading_rules:
                         await asyncio.wait_for(source._update_trading_rules(), timeout=30)
                     result = await asyncio.wait_for(self.market_data_provider.acquire_order_books(connector, [pair], self), timeout=30)
                     if not result.get(pair):
@@ -330,6 +332,9 @@ class V2WithControllers(StrategyV2Base):
                     await asyncio.sleep(retry_delay(attempt, error))
                 else:
                     break
+        if required and self._mm_started and self._mm_drawdown_bound and not self._is_stop_triggered and not self.mm_drawdown_ready():
+            self.update_executors_info()
+            self._control_mm_drawdown()
 
     async def on_stop(self, **kwargs):
         if self.mm_valuation_task is not None and not self.mm_valuation_task.done():

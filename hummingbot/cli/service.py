@@ -700,6 +700,7 @@ class ServiceHost:
         self.observer_wait_until = time.monotonic() + 9
         try:
             if keep_market_data:
+                self.profile_switch.retain_valuation_books(strategy)
                 return await self.owner.shutdown_core(core, keep_market_data=True)
             return await self.owner.shutdown_core(core)
         finally:
@@ -1114,8 +1115,10 @@ class ServiceHost:
                         await controller.send_actions(controller.stop_quote_actions())
                 elif (self.profile_switch is not None and self.profile_switch.promoted
                       and all(controller._startup_stage == 'ready' for controller in self._mm_controllers())):
-                    preparation, self.profile_switch = self.profile_switch, None
-                    await preparation.close()
+                    valuation_task = getattr(core.strategy, 'mm_valuation_task', None)
+                    if valuation_task is None or valuation_task.done():
+                        preparation, self.profile_switch = self.profile_switch, None
+                        await preparation.close()
             if (core.trade_fill_db is None or not core.trade_fill_db.persistence_healthy
                     or (not self.owner.allow_new_orders and not automatic_active) or not core._strategy_running):
                 self.owner.require_recovery("Trading/recorder health requires reconciliation.")

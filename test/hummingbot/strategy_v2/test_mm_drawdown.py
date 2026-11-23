@@ -38,6 +38,7 @@ def runner(global_limit="10", controller_limit=None, spot="0", perpetual="0", *,
                             for key, value in (("life_spot", spot), ("life_perpetual", perpetual))},
         mm_drawdown_checkpoint_callback=MagicMock(), _mm_drawdown_last_checkpoint=None,
         _mm_drawdown_state=None, _mm_drawdown_breach=None, _mm_drawdown_bound=False,
+        _mm_started=False,
     )
     return item
 
@@ -219,7 +220,8 @@ async def test_retained_market_uses_existing_public_subscription_and_safe_read_r
     item.connectors = {"okx": object()}
     item.executor_orchestrator.positions_held = {"life_perpetual": [SimpleNamespace(
         connector_name="okx_perpetual", trading_pair="LIFE-USDT", net_amount_base=Decimal("1"))]}
-    source = SimpleNamespace(is_trading_required=False, _update_trading_rules=AsyncMock(side_effect=[asyncio.TimeoutError(), None]))
+    source = SimpleNamespace(is_trading_required=False, trading_rules={},
+                             _update_trading_rules=AsyncMock(side_effect=[asyncio.TimeoutError(), None]))
     item.market_data_provider.get_connector_with_fallback = lambda name: source
     item.market_data_provider.acquire_order_books = AsyncMock(return_value={"LIFE-USDT": True})
     item.market_data_provider.release_order_books = AsyncMock()
@@ -230,12 +232,51 @@ async def test_retained_market_uses_existing_public_subscription_and_safe_read_r
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('pnl', ['-2', '-11'])
+async def test_retained_valuation_completes_drawdown_without_waiting_for_tick(pnl):
+    item = runner(spot=pnl, item=V2WithControllers.__new__(V2WithControllers))
+    item._mm_drawdown_bound = True
+    item.connectors = {"okx": object()}
+    item.controllers['life_spot'].executors_update_event = asyncio.Event()
+    runtime = item.executor_orchestrator
+    runtime.positions_held = {"life_perpetual": [SimpleNamespace(
+        connector_name="okx_perpetual", trading_pair="LIFE-USDT", net_amount_base=Decimal("1"))]}
+    source = SimpleNamespace(is_trading_required=False, trading_rules={"LIFE-USDT": object()},
+                             _update_trading_rules=AsyncMock())
+    item.market_data_provider.get_connector_with_fallback = lambda name: source
+    item.market_data_provider.release_order_books = AsyncMock()
+    ready = asyncio.Event()
+    runtime.mm_valuation_ready = ready.is_set
+    runtime.get_all_reports = MagicMock(return_value=item.controller_reports)
+
+    async def acquire(*args):
+        ready.set()
+        return {"LIFE-USDT": True}
+
+    item.market_data_provider.acquire_order_books = AsyncMock(side_effect=acquire)
+    with patch('hummingbot.strategy.strategy_v2_base.StrategyV2Base.start'), \
+            patch('time.time', return_value=1000), \
+            patch('scripts.v2_with_controllers.HummingbotApplication.main_application') as app:
+        item.start(None, 1000)
+        assert not item.mm_drawdown_ready()
+        await item.initialize_mm_valuations()
+    source._update_trading_rules.assert_not_awaited()
+    item.market_data_provider.acquire_order_books.assert_awaited_once_with('okx_perpetual', ['LIFE-USDT'], item)
+    assert item.mm_drawdown_ready() is (pnl == '-2')
+    if pnl == '-11':
+        app.return_value.stop.assert_called_once_with(mm_drawdown_reason='drawdown_global_limit')
+    else:
+        app.return_value.stop.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_stop_can_cancel_pending_read_only_valuation_initialization():
     item = runner()
     item.connectors = {"okx": object()}
     item.executor_orchestrator.positions_held = {"life_perpetual": [SimpleNamespace(
         connector_name="okx_perpetual", trading_pair="LIFE-USDT", net_amount_base=Decimal("1"))]}
-    item.market_data_provider.get_connector_with_fallback = lambda name: SimpleNamespace(is_trading_required=False, _update_trading_rules=AsyncMock())
+    item.market_data_provider.get_connector_with_fallback = lambda name: SimpleNamespace(
+        is_trading_required=False, trading_rules={}, _update_trading_rules=AsyncMock())
     entered = asyncio.Event()
 
     async def waiting(*args):
