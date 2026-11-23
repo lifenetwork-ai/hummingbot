@@ -905,33 +905,39 @@ class MarketsRecorder:
             return
         with self._sql_manager.get_new_session() as session:
             if compact:
-                # Use one database snapshot. Only counts can be grouped: retain
-                # scan order for the Float-to-Decimal additions, and leave any
-                # non-finite held row in the stream for validation.
+                # Keep both branches in one snapshot. Count-only rows do not
+                # need an ordinal. Keep non-finite held rows for validation.
+                # OFFSET 0 keeps the contribution filter above the original
+                # controller scan so it cannot change the Float-to-Decimal
+                # addition order by changing that scan's access path.
                 statement = text("""
-                    WITH scoped AS (
+                    WITH scoped AS NOT MATERIALIZED (
                         SELECT controller_id, close_type, net_pnl_quote, filled_amount_quote,
-                               row_number() OVER () AS scan_position,
                                (net_pnl_quote = 0 AND filled_amount_quote = 0)
                                OR (close_type IS NOT DISTINCT FROM :held
                                    AND abs(net_pnl_quote) < 'Infinity'::double precision
                                    AND abs(filled_amount_quote) < 'Infinity'::double precision) AS count_only
                         FROM executors
                         WHERE controller_id IN :controller_ids
-                    ), contributions AS (
-                        SELECT controller_id, close_type,
-                               CASE WHEN count_only THEN 0 ELSE scan_position END AS ordinal,
-                               CASE WHEN count_only THEN 0 ELSE net_pnl_quote END AS net_pnl_quote,
-                               CASE WHEN count_only THEN 0 ELSE filled_amount_quote END AS filled_amount_quote
-                        FROM scoped
                     )
-                    SELECT controller_id, close_type, net_pnl_quote, filled_amount_quote, count(*) AS history_count
-                    FROM contributions
-                    GROUP BY ordinal, controller_id, close_type, net_pnl_quote, filled_amount_quote
+                    SELECT controller_id, close_type, net_pnl_quote, filled_amount_quote, history_count
+                    FROM (
+                        SELECT controller_id, close_type, 0::double precision AS net_pnl_quote,
+                               0::double precision AS filled_amount_quote, count(*) AS history_count, 0 AS ordinal
+                        FROM scoped
+                        WHERE count_only
+                        GROUP BY controller_id, close_type
+                        UNION ALL
+                        SELECT controller_id, close_type,
+                               net_pnl_quote, filled_amount_quote, 1 AS history_count, row_number() OVER () AS ordinal
+                        FROM (SELECT * FROM scoped OFFSET 0) AS source
+                        WHERE NOT count_only
+                    ) AS history
                     ORDER BY ordinal
                 """).bindparams(bindparam('controller_ids', expanding=True))
+                # Fetch projected rows in bounded batches to reduce cursor round trips.
                 yield from session.execute(statement, {'controller_ids': controller_ids, 'held': CloseType.POSITION_HOLD.value},
-                                           execution_options={'yield_per': 1000})
+                                           execution_options={'yield_per': 4000})
                 return
             yield from (session.query(Executors.id, Executors.close_type, Executors.net_pnl_quote,
                                       Executors.filled_amount_quote, Executors.controller_id)

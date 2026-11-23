@@ -4,14 +4,16 @@ import os
 import threading
 import time
 from contextlib import closing
+from test.integration.postgres.test_admin_load_plans import nodes
 from test.integration.postgres.test_ownership import owned as _owned
-from test.integration.postgres.test_performance import queries, report, seed_executors
+from test.integration.postgres.test_performance import report, seed_executors
 from test.integration.postgres.test_recorder import recording as _recording
 from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import event, text
 
+from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
 from hummingbot.model.executors import Executors
 from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
 from scripts.v2_with_controllers import V2WithControllers
@@ -93,7 +95,8 @@ def test_managed_startup_counts_inactive_history_without_streaming_each_row(reco
     recorder = recording[0]
     benchmark = os.getenv('HBOT_PERFORMANCE_REPORT')
     row_count = 220000 if benchmark else 12000
-    with pg_engine.begin() as connection:
+    with pg_engine.begin() as connection, bootstrap_io_budget(connection, time.monotonic() + 30):
+        connection.exec_driver_sql("SET LOCAL statement_timeout='30s'")
         connection.execute(text("""
             INSERT INTO executors (
                 id, timestamp, type, close_type, status, config, net_pnl_pct, net_pnl_quote,
@@ -125,6 +128,11 @@ def test_managed_startup_counts_inactive_history_without_streaming_each_row(reco
     def build(connectors, config, *, startup_performance):
         return startup_performance
 
+    statements = []
+
+    def capture(connection, cursor, statement, parameters, *args):
+        statements.append((statement, parameters))
+
     measured = {}
     for label, read in [
         ('uncompressed', lambda: ExecutorOrchestrator.read_startup_performance(recorder, controller_ids)),
@@ -133,9 +141,13 @@ def test_managed_startup_counts_inactive_history_without_streaming_each_row(reco
         elapsed = []
         for _ in range(3 if benchmark else 1):
             rows_seen.clear()
+            statements.clear()
             start = time.perf_counter()
-            with queries(pg_engine) as statements:
+            event.listen(pg_engine, 'after_cursor_execute', capture)
+            try:
                 result = read()
+            finally:
+                event.remove(pg_engine, 'after_cursor_execute', capture)
             elapsed.append((time.perf_counter() - start) * 1000)
         assert len(statements) == 1
         measured[label] = dict(rows=len(rows_seen), elapsed_ms=elapsed)
@@ -146,6 +158,12 @@ def test_managed_startup_counts_inactive_history_without_streaming_each_row(reco
     report('managed_startup_history', measured)
     assert measured['managed']['rows'] < measured['uncompressed']['rows'] / 10
     assert pg_engine.pool.checkedout() == 0
+    statement, parameters = statements[0]
+    explain = 'EXPLAIN (ANALYZE, TIMING OFF, FORMAT JSON) ' + statement
+    with pg_engine.connect() as connection:
+        plan = connection.exec_driver_sql(explain, parameters).scalar_one()[0]['Plan']
+    numbered_rows = sum(node['Actual Rows'] * node['Actual Loops'] for node in nodes(plan) if node['Node Type'] == 'WindowAgg')
+    assert numbered_rows <= measured['managed']['rows'], 'Only individual contributions need a scan ordinal'
 
 
 @pytest.mark.parametrize('invalid', [
