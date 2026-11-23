@@ -1,14 +1,18 @@
 """Managed startup streams real PostgreSQL history on a worker-owned session."""
 import asyncio
+import os
 import threading
+import time
+from contextlib import closing
 from test.integration.postgres.test_ownership import owned as _owned
-from test.integration.postgres.test_performance import seed_executors
+from test.integration.postgres.test_performance import queries, report, seed_executors
 from test.integration.postgres.test_recorder import recording as _recording
 from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import event, text
 
+from hummingbot.model.executors import Executors
 from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
 from scripts.v2_with_controllers import V2WithControllers
 
@@ -83,3 +87,83 @@ def test_history_worker_closes_stream_and_preserves_native_totals(request, pg_en
     if physical is not None:
         assert context.owner.connection is physical
         context.owner.check_owner()
+
+
+def test_managed_startup_counts_inactive_history_without_streaming_each_row(recording, pg_engine, monkeypatch):
+    recorder = recording[0]
+    benchmark = os.getenv('HBOT_PERFORMANCE_REPORT')
+    row_count = 220000 if benchmark else 12000
+    with pg_engine.begin() as connection:
+        connection.execute(text("""
+            INSERT INTO executors (
+                id, timestamp, type, close_type, status, config, net_pnl_pct, net_pnl_quote,
+                cum_fees_quote, filled_amount_quote, is_active, is_trading, custom_info, controller_id
+            )
+            SELECT 'history-' || n, n, 'order_executor',
+                   CASE n % 20 WHEN 1 THEN 3 WHEN 2 THEN 10 WHEN 3 THEN NULL ELSE 5 END,
+                   3, '{}', 0, CASE n % 20
+                       WHEN 1 THEN CASE (n / 60) % 4 WHEN 0 THEN 1e27 WHEN 1 THEN 0.0001
+                           WHEN 2 THEN -1e27 ELSE -0.123 END
+                       WHEN 2 THEN -0.3 ELSE 0 END,
+                   0, CASE n % 20 WHEN 1 THEN 15.1 WHEN 2 THEN 9.4 ELSE 0 END,
+                   false, false, '{}', 'life-' || (n % 3)
+            FROM generate_series(1, :rows) AS n
+        """), {'rows': row_count})
+    controller_ids = ['life-0', 'life-2']
+    config = SimpleNamespace(mm_drawdown_scope=dict.fromkeys(controller_ids))
+    raw_reader = recorder.iter_executor_performance
+    rows_seen = []
+
+    def counted(*args, **kwargs):
+        with closing(raw_reader(*args, **kwargs)) as rows:
+            for row in rows:
+                rows_seen.append(1)
+                yield row
+
+    monkeypatch.setattr(recorder, 'iter_executor_performance', counted)
+
+    def build(connectors, config, *, startup_performance):
+        return startup_performance
+
+    measured = {}
+    for label, read in [
+        ('uncompressed', lambda: ExecutorOrchestrator.read_startup_performance(recorder, controller_ids)),
+        ('managed', lambda: asyncio.run(V2WithControllers.create_with_async_history.__func__(build, {}, config))),
+    ]:
+        elapsed = []
+        for _ in range(3 if benchmark else 1):
+            rows_seen.clear()
+            start = time.perf_counter()
+            with queries(pg_engine) as statements:
+                result = read()
+            elapsed.append((time.perf_counter() - start) * 1000)
+        assert len(statements) == 1
+        measured[label] = dict(rows=len(rows_seen), elapsed_ms=elapsed)
+        if label == 'uncompressed':
+            reference = dict((key, (pnl, volume, dict(counts))) for key, pnl, volume, counts in result.totals)
+        else:
+            assert dict((key, (pnl, volume, dict(counts))) for key, pnl, volume, counts in result.totals) == reference
+    report('managed_startup_history', measured)
+    assert measured['managed']['rows'] < measured['uncompressed']['rows'] / 10
+    assert pg_engine.pool.checkedout() == 0
+
+
+@pytest.mark.parametrize('invalid', [
+    {'net_pnl_quote': float('nan'), 'close_type': 10},
+    {'filled_amount_quote': float('inf'), 'close_type': 10},
+    {'close_type': 999},
+])
+def test_managed_history_never_hides_invalid_rows(recording, pg_engine, invalid):
+    values = dict(id='invalid', controller_id='life', timestamp=1, type='order_executor', close_type=5,
+                  status=3, config={}, custom_info={}, net_pnl_quote=0, net_pnl_pct=0, cum_fees_quote=0,
+                  filled_amount_quote=0, is_active=False, is_trading=False)
+    with pg_engine.begin() as connection:
+        connection.execute(Executors.__table__.insert().values({**values, **invalid}))
+
+    def build(*args, **kwargs):
+        pytest.fail('Invalid executor history reached strategy construction')
+
+    with pytest.raises(ValueError):
+        asyncio.run(V2WithControllers.create_with_async_history.__func__(
+            build, {}, SimpleNamespace(mm_drawdown_scope={'life': None})))
+    assert pg_engine.pool.checkedout() == 0

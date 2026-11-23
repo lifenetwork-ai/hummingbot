@@ -78,7 +78,8 @@ class V2WithControllers(StrategyV2Base):
         def read_history():
             # The cold executor import loads several native modules before any history I/O.
             from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
-            return ExecutorOrchestrator.read_startup_performance(recorder, identities, cancelled=cancelled)
+            return ExecutorOrchestrator.read_startup_performance(
+                recorder, identities, cancelled=cancelled, compact=getattr(recorder, 'durable_position_checkpoints', False) is True)
 
         job = asyncio.get_running_loop().run_in_executor(None, copy_context().run, read_history)
         try:

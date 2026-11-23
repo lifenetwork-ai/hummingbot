@@ -434,12 +434,14 @@ class ExecutorOrchestrator:
         return True
 
     @classmethod
-    def read_startup_performance(cls, recorder, controller_ids, initial=None, cancelled=None):
+    @trace_runtime('startup.history')
+    def read_startup_performance(cls, recorder, controller_ids, initial=None, cancelled=None, *, compact=False):
         """Worker-safe streaming reduction; never access strategy/native ownership."""
         selected, totals = set(controller_ids), {}
         if cancelled is not None and cancelled.is_set():
             raise asyncio.CancelledError()
-        with closing(recorder.iter_executor_performance(list(controller_ids))) as db_executors:
+        options = {'compact': True} if compact else {}
+        with closing(recorder.iter_executor_performance(list(controller_ids), **options)) as db_executors:
             for executor in db_executors:
                 if cancelled is not None and cancelled.is_set():
                     raise asyncio.CancelledError()
@@ -456,7 +458,7 @@ class ExecutorOrchestrator:
                     values[0] += pnl
                     values[1] += volume
                 if close_type:
-                    values[2][close_type] = values[2].get(close_type, 0) + 1
+                    values[2][close_type] = values[2].get(close_type, 0) + getattr(executor, 'history_count', 1)
         return StartupPerformance(tuple(controller_ids), tuple(
             (identity, pnl, volume, tuple(counts.items())) for identity, (pnl, volume, counts) in totals.items()))
 

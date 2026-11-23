@@ -12,7 +12,7 @@ from shutil import move
 from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy import or_, select, tuple_, union_all
+from sqlalchemy import bindparam, or_, select, text, tuple_, union_all
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Query, Session, defer
@@ -55,6 +55,7 @@ from hummingbot.model.range_position_update import RangePositionUpdate
 from hummingbot.model.sql_connection_manager import SQLConnectionManager
 from hummingbot.model.trade_fill import TradeFill
 from hummingbot.strategy_v2.controllers.controller_base import ControllerConfigBase
+from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 _QUOTE_FEE_NOT_CALCULATED = object()
@@ -780,7 +781,7 @@ class MarketsRecorder:
             executors = session.query(Executors).all()
             return [executor.to_executor_info() for executor in executors]
 
-    def iter_executor_performance(self, controller_ids: List[str]) -> Iterator[Row]:
+    def iter_executor_performance(self, controller_ids: List[str], *, compact: bool = False) -> Iterator[Row]:
         """Stream only historical PnL fields for the selected controllers.
 
         Keep aggregation in the existing orchestrator: SQL SUM on Float columns
@@ -790,6 +791,35 @@ class MarketsRecorder:
         if not controller_ids:
             return
         with self._sql_manager.get_new_session() as session:
+            if compact:
+                # Use one database snapshot. Only counts can be grouped: retain
+                # scan order for the Float-to-Decimal additions, and leave any
+                # non-finite held row in the stream for validation.
+                statement = text("""
+                    WITH scoped AS (
+                        SELECT controller_id, close_type, net_pnl_quote, filled_amount_quote,
+                               row_number() OVER () AS scan_position,
+                               (net_pnl_quote = 0 AND filled_amount_quote = 0)
+                               OR (close_type IS NOT DISTINCT FROM :held
+                                   AND abs(net_pnl_quote) < 'Infinity'::double precision
+                                   AND abs(filled_amount_quote) < 'Infinity'::double precision) AS count_only
+                        FROM executors
+                        WHERE controller_id IN :controller_ids
+                    ), contributions AS (
+                        SELECT controller_id, close_type,
+                               CASE WHEN count_only THEN 0 ELSE scan_position END AS ordinal,
+                               CASE WHEN count_only THEN 0 ELSE net_pnl_quote END AS net_pnl_quote,
+                               CASE WHEN count_only THEN 0 ELSE filled_amount_quote END AS filled_amount_quote
+                        FROM scoped
+                    )
+                    SELECT controller_id, close_type, net_pnl_quote, filled_amount_quote, count(*) AS history_count
+                    FROM contributions
+                    GROUP BY ordinal, controller_id, close_type, net_pnl_quote, filled_amount_quote
+                    ORDER BY ordinal
+                """).bindparams(bindparam('controller_ids', expanding=True))
+                yield from session.execute(statement, {'controller_ids': controller_ids, 'held': CloseType.POSITION_HOLD.value},
+                                           execution_options={'yield_per': 1000})
+                return
             yield from (session.query(Executors.id, Executors.close_type, Executors.net_pnl_quote,
                                       Executors.filled_amount_quote, Executors.controller_id)
                         .filter(Executors.controller_id.in_(controller_ids)).yield_per(1000))
