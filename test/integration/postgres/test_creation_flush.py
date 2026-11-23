@@ -41,7 +41,7 @@ def acknowledge(context, identity='order-1'):
 
 @pytest.mark.parametrize('outcome', ['confirmed', 'cancelled', 'commit_rejected'])
 def test_native_open_ack_yields_recorder_during_rollback_retry(native, monkeypatch, outcome):
-    monkeypatch.setattr(markets_recorder, '_ORDER_FENCE_RETRY_INTERVAL', .8)
+    monkeypatch.setattr(markets_recorder, '_ORDER_FENCE_RETRY_SECONDS', 15)
     tracker = native.market._order_tracker
     if outcome == 'commit_rejected':
         # A lock error at COMMIT is outside the verified prewrite failure path.
@@ -69,6 +69,13 @@ def test_native_open_ack_yields_recorder_during_rollback_retry(native, monkeypat
         tracked = tracker.fetch_tracked_order('busy-ack')
         loop = asyncio.get_running_loop()
         rejected = asyncio.Event()
+        retry_waiting, release_retry = asyncio.Event(), asyncio.Event()
+
+        async def pause_retry(_delay):
+            retry_waiting.set()
+            await release_retry.wait()
+
+        monkeypatch.setattr(native.recorder, '_sleep', pause_retry)
 
         def notice_rejected_fence(context):
             if getattr(context.original_exception, 'pgcode', None) == '55P03' and 'FOR SHARE NOWAIT' in (context.statement or ''):
@@ -83,10 +90,12 @@ def test_native_open_ack_yields_recorder_during_rollback_retry(native, monkeypat
         event.listen(native.engine, 'handle_error', notice_rejected_fence)
         try:
             with native.engine.connect() as blocker:
+                blocker.exec_driver_sql("SET LOCAL idle_in_transaction_session_timeout = '12s'")
                 blocker.exec_driver_sql('SELECT bot_id FROM bot_state FOR UPDATE').all()
                 ack = asyncio.create_task(tracker._process_order_update(open_update))
                 tasks.append(ack)
-                await asyncio.wait_for(rejected.wait(), 2)
+                await asyncio.wait_for(retry_waiting.wait(), 5)
+                assert rejected.is_set()
                 if outcome == 'cancelled':
                     ack.cancel()
                 if outcome != 'commit_rejected':
@@ -94,7 +103,7 @@ def test_native_open_ack_yields_recorder_during_rollback_retry(native, monkeypat
                     tasks.append(cancel)
                 receipt = asyncio.create_task(native.owner.record_transport_receipt(request, response))
                 tasks.append(receipt)
-                await asyncio.wait_for(asyncio.shield(receipt), .4)
+                await asyncio.wait_for(asyncio.shield(receipt), 5)
                 assert ack in native.owner.terminal_tasks and not ack.done()
                 assert tracked.current_state is OrderState.PENDING_CREATE
                 if outcome != 'commit_rejected':
@@ -103,7 +112,8 @@ def test_native_open_ack_yields_recorder_during_rollback_retry(native, monkeypat
                     assert db.get(SubmissionAttempt, 'independent-receipt').receipt == {'http_status': 200, 'code': '0'}
                     assert db.get(Order, 'busy-ack').creation_pending
                 blocker.rollback()
-            result, *others = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), 2)
+            release_retry.set()
+            result, *others = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), 5)
             assert all(other is None for other in others) and not native.owner.terminal_tasks
             if outcome == 'commit_rejected':
                 assert isinstance(result, OperationalError) and result.orig.pgcode == '55P03'
@@ -115,6 +125,7 @@ def test_native_open_ack_yields_recorder_during_rollback_retry(native, monkeypat
                     assert result is None
                 assert tracked.current_state is OrderState.PENDING_CANCEL and native.manager.persistence_healthy
         finally:
+            release_retry.set()
             event.remove(native.engine, 'handle_error', notice_rejected_fence)
             await asyncio.gather(*tasks, return_exceptions=True)
 

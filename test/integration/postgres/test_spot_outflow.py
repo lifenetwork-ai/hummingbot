@@ -37,8 +37,9 @@ def setup(context, *, initialize=True, **changes):
     data["spot_outflow"].update(changes)
     catalogue = MMProfilesConfig.model_validate(data)
     session = MMSession.create(catalogue, MMSessionRequest(market_mode="spot", profile_id="sideways", duration_seconds=60), rng=random.Random(1))
-    session.ready(now=time.time(), anchors={"life_spot": dict(life=".1", sources={})})
     with context.engine.begin() as connection:
+        now = float(connection.scalar(text("SELECT EXTRACT(EPOCH FROM clock_timestamp())")))
+        session.ready(now=now, anchors={"life_spot": dict(life=".1", sources={})})
         connection.execute(text("UPDATE bot_state SET config_type='mm-session', config_file_path='life_mm_profiles.yaml', mm_session=CAST(:value AS jsonb)"),
                            {"value": json.dumps(session.model_dump(mode="json"))})
     context.owner.config_file_path = context.recorder._config_file_path = "life_mm_profiles.yaml"

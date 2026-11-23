@@ -195,7 +195,7 @@ class MarketsRecorder:
         async def finish():
             current_failure = failure
             while loop.time() < deadline:
-                await asyncio.sleep(min(deadline - loop.time(), _ORDER_FENCE_RETRY_INTERVAL))
+                await self._sleep(min(deadline - loop.time(), _ORDER_FENCE_RETRY_INTERVAL))
                 if loop.time() >= deadline:
                     break
                 async with self.native_order_lock(market, owner):
