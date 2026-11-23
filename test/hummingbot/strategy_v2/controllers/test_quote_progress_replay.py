@@ -6,11 +6,11 @@ long periodic interval isolates event progress from the regular clock fallback;
 it is not a proposed production setting or a Cloud latency benchmark.
 """
 import asyncio
-import time
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from test.hummingbot.strategy_v2.controllers.test_filled_entry_handoff import account_observed
 from test.hummingbot.strategy_v2.controllers.test_inventory_cap_lifecycle import fill, observe_account, setup_lifecycle
+from threading import Event
 from types import MethodType, SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -271,24 +271,49 @@ async def test_late_account_after_session_revocation_cannot_reopen_quote(monkeyp
 @pytest.mark.asyncio
 async def test_slow_synchronous_checkpoint_reproduces_watchdog_stall_then_native_progress(monkeypatch):
     records = []
-    tracer = EngineDiagnostics(emit=records.append)
+    loop = asyncio.get_running_loop()
+    checkpoint_entered = Event()
+    stall_sampled = Event()
+    recovered = asyncio.Event()
+
+    def emit(record):
+        records.append(record)
+        if record['event'] == 'engine_loop_stall':
+            stall_sampled.set()
+        elif record['event'] == 'engine_loop_recovered':
+            loop.call_soon_threadsafe(recovered.set)
+
+    tracer = EngineDiagnostics(emit=emit)
+    watch_once = tracer.watch_once
+
+    def sample_after_checkpoint_enters():
+        if checkpoint_entered.is_set():
+            watch_once()
+
+    # Only sample the injected fault, so setup scheduling cannot consume the
+    # watchdog's first stall report before the checkpoint starts.
+    monkeypatch.setattr(tracer, 'watch_once', sample_after_checkpoint_enters)
     async with replay(monkeypatch, TradeType.BUY) as state:
-        await tracer.start()
+        assert await tracer.start()
         try:
-            await asyncio.sleep(.06)  # Establish a healthy native heartbeat before the injected fault.
+            first_heartbeat = tracer._beat_ns
+            await eventually(lambda: tracer._beat_ns != first_heartbeat, timeout=5)
 
             def slow_checkpoint(*args, **kwargs):
                 assert not state.creates
                 with tracer.span('position.checkpoint'):
-                    time.sleep(.4)  # Simulated blocking persistence, not a measured Cloud database delay.
+                    # Keep the synchronous persistence fault active until the
+                    # real watchdog has sampled it, even on a loaded runner.
+                    checkpoint_entered.set()
+                    assert stall_sampled.wait(5), 'Watchdog did not sample the blocked checkpoint'
                 assert not state.creates
 
             state.recorder.checkpoint_held_positions.side_effect = slow_checkpoint
             account_observed(state, TradeType.BUY, initial=(2000, 0))
             complete(state)
-            await asyncio.wait_for(state.created.wait(), 1)
+            await asyncio.wait_for(state.created.wait(), 6)
             assert_replaced(state, TradeType.BUY)
-            await eventually(lambda: any(row['event'] == 'engine_loop_recovered' for row in records))
+            await asyncio.wait_for(recovered.wait(), 5)
             stalls = [row for row in records if row['event'] == 'engine_loop_stall']
             assert stalls and stalls[0]['heartbeat_gap_ms'] >= 250
             assert any(row['operation'] == 'strategy.reports' for row in stalls[0]['active'])
