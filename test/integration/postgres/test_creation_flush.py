@@ -44,6 +44,7 @@ def acknowledge(context, identity='order-1'):
 def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeypatch, outcome):
     tracker = native.market._order_tracker
     identities = {f'burst-ack-{i}' for i in range(6)}
+    existing_history = min(identities)
     flushes, published, ack_connections = [], [], []
     publish = native.recorder.publish_recorded_order_event
     acquire = native.recorder.order_writes.acquire
@@ -101,8 +102,9 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
 
     async def exercise():
         nonlocal track_waiters
+        created_at = time.time()
         orders = [InFlightOrder(identity, 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
-                                Decimal('5'), time.time(), Decimal('10')) for identity in sorted(identities)]
+                                Decimal('5'), created_at, Decimal('10')) for identity in sorted(identities)]
         for order in orders:
             tracker.start_tracking_order(order)
         with session_order_scope(native.session.id, native.session.generation):
@@ -110,6 +112,10 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
         for order in orders:
             identity = order.client_order_id
             native.owner._record_send_attempt(identity, {'clOrdId': identity}, 123456, {})
+        # One order already has creation history at the shared timestamp.
+        with native.engine.begin() as connection:
+            connection.execute(OrderStatus.__table__.insert().values(
+                order_id=existing_history, timestamp=int(created_at * 1e3), status='BuyOrderCreated'))
         async with native.recorder.order_writes:
             track_waiters = True
             tasks = [asyncio.create_task(tracker._process_order_update(OrderUpdate(
@@ -124,11 +130,17 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
     monkeypatch.setattr(native.recorder.order_writes, 'acquire', observe_acquire)
     event.listen(native.manager._session_cls, 'before_flush', inspect_flush)
     try:
-        orders, outcomes = native.loop.run_until_complete(exercise())
+        with queries(native.engine) as statements:
+            orders, outcomes = native.loop.run_until_complete(exercise())
     finally:
         event.remove(native.manager._session_cls, 'before_flush', inspect_flush)
-    assert flushes == [identities]
+    assert flushes == [identities - {existing_history}]
+    evidence_reads = [statement for statement in statements if statement.startswith('SELECT')
+                      and 'JOIN submission_attempts' in statement and 'FROM order_status' in statement]
+    assert len(evidence_reads) == 1
     with native.manager.get_new_session() as db:
+        history = db.scalars(select(OrderStatus.order_id).where(OrderStatus.status == 'BuyOrderCreated')).all()
+        assert sorted(history) == ([existing_history] if reject_commit else sorted(identities))
         assert {row.state for row in db.query(SubmissionAttempt)} == {'possibly_sent' if reject_commit else 'acknowledged'}
         assert all(row.creation_pending is reject_commit for row in db.query(Order))
         snapshot = db.query(MarketState).one().saved_state

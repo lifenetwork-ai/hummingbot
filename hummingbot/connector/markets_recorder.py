@@ -13,7 +13,7 @@ from shutil import move
 from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy import and_, bindparam, func, or_, select, text, tuple_, union_all
+from sqlalchemy import and_, bindparam, column, func, or_, select, text, tuple_, union_all, values
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Query, Session, defer, load_only
@@ -316,8 +316,13 @@ class MarketsRecorder:
 
         def stage(session):
             with session.no_autoflush:
+                evidence = self._read_creation_evidence_batch(session, [
+                    (plan.event.order_id, int(plan.event.creation_timestamp * 1e3), plan.tag.name)
+                    for _, _, plan in prepared
+                ]) if len(prepared) > 1 else {}
                 orders = [context.run(self._stage_order_creation, session, plan.tag.value, market, plan.event,
-                                      coalesce_snapshot=True, defer_snapshot=True)
+                                      coalesce_snapshot=True, defer_snapshot=True,
+                                      evidence=evidence.get(plan.event.order_id))
                           for _, context, plan in prepared]
                 self.save_market_states(self._config_file_path, market, session, new_order_id=fresh_order,
                                         tracking_states=tracking, staged_orders=orders)
@@ -1316,12 +1321,13 @@ class MarketsRecorder:
 
     @trace_runtime('order.created', order_parameter='evt')
     def _stage_order_creation(self, session, event_tag, market, evt, *, tracking_states=None, coalesce_snapshot=False,
-                              defer_snapshot=False):
+                              defer_snapshot=False, evidence=None):
         base_asset, quote_asset = evt.trading_pair.split("-")
         timestamp = int(evt.creation_timestamp * 1e3)
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
 
-        evidence = self._read_creation_evidence(session, evt.order_id, timestamp, event_type.name) if coalesce_snapshot else None
+        if coalesce_snapshot and evidence is None:
+            evidence = self._read_creation_evidence(session, evt.order_id, timestamp, event_type.name)
         order_record = evidence[0] if evidence is not None else session.get(Order, evt.order_id)
         config_file_path, strategy_name = self._event_configuration(session, market, order_record)
         if order_record is not None and (
@@ -1391,6 +1397,20 @@ class MarketsRecorder:
             load_only(SubmissionAttempt.state)).outerjoin(
             SubmissionAttempt, SubmissionAttempt.order_id == Order.id
         ).where(Order.id == identity)).one_or_none()
+
+    @staticmethod
+    def _read_creation_evidence_batch(session, acknowledgements):
+        from hummingbot.model.runtime_journal import SubmissionAttempt
+
+        requested = values(column('order_id', Order.id.type), column('timestamp', OrderStatus.timestamp.type),
+                           column('status', OrderStatus.status.type), name='requested_acks').data(acknowledgements)
+        history_recorded = select(OrderStatus.id).where(
+            OrderStatus.order_id == Order.id, OrderStatus.timestamp == requested.c.timestamp,
+            OrderStatus.status == requested.c.status).exists()
+        statement = (select(Order, SubmissionAttempt, history_recorded).options(load_only(SubmissionAttempt.state))
+                     .select_from(requested).join(Order, Order.id == requested.c.order_id)
+                     .outerjoin(SubmissionAttempt, SubmissionAttempt.order_id == Order.id))
+        return {row[0].id: row for row in session.execute(statement)}
 
     def finish_recorded_order_creation(self, market, evt):
         if evt.exchange_order_id and self._uses_reconstruction_history(market):

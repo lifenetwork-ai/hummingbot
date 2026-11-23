@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 import pytest
 
 from controllers.market_making.life_mm import LifeMMConfig, LifeMMController
+from hummingbot.cli import profile_switch
 from hummingbot.cli.service import ServiceHost
 from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.client.config.runtime_config import RuntimeSettings
@@ -163,6 +164,54 @@ async def test_profile_preparation_leaves_current_controller_admitted_until_prom
     finally:
         if host.profile_switch is not None:
             await host.profile_switch.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('stop_while_preparing', [False, True])
+async def test_profile_preparation_overlaps_reference_books_and_volatility(monkeypatch, stop_while_preparing):
+    host, _, provider = await setup_host()
+    configs = host.mm_effective_config(host.mm_session)['controller_config_overrides']
+    for config in configs:
+        config['spread_policy'] = {'volatility': {'enabled': True}}
+    books_started, release_books, books_finished = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    indicator_started = asyncio.Event()
+    feed = SimpleNamespace(ready=False)
+
+    async def acquire_books(name, pairs, consumer):
+        books_started.set()
+        try:
+            await release_books.wait()
+            return dict.fromkeys(pairs, True)
+        finally:
+            books_finished.set()
+
+    async def warm_indicator():
+        indicator_started.set()
+        return True
+
+    provider.acquire_order_books = AsyncMock(side_effect=acquire_books)
+    provider.release_order_books = AsyncMock()
+    provider.acquire_candle_feed.return_value = feed
+    monkeypatch.setattr(profile_switch, 'prepare_natr', warm_indicator)
+    preparation = profile_switch.ProfileSwitchPreparation(host.mm_session, provider, configs)
+    try:
+        await asyncio.wait_for(books_started.wait(), 2)
+        await asyncio.wait_for(indicator_started.wait(), 2)
+        assert provider.acquire_candle_feed.call_count == len(configs)
+        assert not books_finished.is_set() and not preparation.ready
+        if not stop_while_preparing:
+            release_books.set()
+            await asyncio.wait_for(books_finished.wait(), 2)
+            assert not preparation.task.done()
+            feed.ready = True
+            await asyncio.wait_for(preparation.task, 2)
+            assert preparation.ready
+    finally:
+        await preparation.close()
+    assert books_finished.is_set()
+    assert preparation.task.cancelled() is stop_while_preparing
+    provider.release_order_books.assert_awaited_once()
+    assert provider.release_candle_feed.call_args_list == provider.acquire_candle_feed.call_args_list
 
 
 @pytest.mark.asyncio

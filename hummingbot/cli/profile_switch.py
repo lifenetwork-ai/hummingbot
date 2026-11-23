@@ -38,28 +38,10 @@ class ProfileSwitchPreparation:
 
     async def prepare(self):
         async with asyncio.timeout(PREPARE_SECONDS):
-            for name, pairs in self.references.items():
-                connector = self.provider.get_connector_with_fallback(name)
-                if not connector.is_trading_required and not pairs.issubset(connector.trading_rules):
-                    await connector._update_trading_rules()
-                while True:
-                    results = await self.provider.acquire_order_books(name, sorted(pairs), self)
-                    if all(results.get(pair) for pair in pairs):
-                        break
-                    await asyncio.sleep(.2)
-            feeds = []
-            for controller in self.controllers:
-                volatility = controller.config.spread_policy.volatility
-                if volatility.enabled:
-                    config = controller._spread_candle_config()
-                    self.candles.append(config)
-                    feed = self.provider.acquire_candle_feed(config, self)
-                    if volatility.on_unavailable == 'wait':
-                        feeds.append(feed)
-            if self.candles and not await prepare_natr() and feeds:
-                raise OSError('Profile volatility indicator unavailable')
-            while not all(feed.ready for feed in feeds):
-                await asyncio.sleep(.1)
+            async with asyncio.TaskGroup() as tasks:
+                for name, pairs in self.references.items():
+                    tasks.create_task(self._prepare_reference_books(name, pairs))
+                tasks.create_task(self._prepare_candles())
             while True:
                 try:
                     for controller in self.controllers:
@@ -72,6 +54,32 @@ class ProfileSwitchPreparation:
                     await asyncio.sleep(.1)
         if self.strict_guards:
             self.guard_task = asyncio.create_task(self.sample_guards())
+
+    async def _prepare_reference_books(self, name, pairs):
+        connector = self.provider.get_connector_with_fallback(name)
+        if not connector.is_trading_required and not pairs.issubset(connector.trading_rules):
+            await connector._update_trading_rules()
+        trading_pairs = sorted(pairs)
+        while True:
+            results = await self.provider.acquire_order_books(name, trading_pairs, self)
+            if all(results.get(pair) for pair in trading_pairs):
+                return
+            await asyncio.sleep(.2)
+
+    async def _prepare_candles(self):
+        feeds = []
+        for controller in self.controllers:
+            volatility = controller.config.spread_policy.volatility
+            if volatility.enabled:
+                config = controller._spread_candle_config()
+                self.candles.append(config)
+                feed = self.provider.acquire_candle_feed(config, self)
+                if volatility.on_unavailable == 'wait':
+                    feeds.append(feed)
+        if self.candles and not await prepare_natr() and feeds:
+            raise OSError('Profile volatility indicator unavailable')
+        while not all(feed.ready for feed in feeds):
+            await asyncio.sleep(.1)
 
     async def sample_guards(self):
         while True:
