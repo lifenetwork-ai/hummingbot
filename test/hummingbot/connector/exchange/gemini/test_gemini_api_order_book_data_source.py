@@ -151,16 +151,17 @@ class GeminiAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
     async def test_listen_for_subscriptions_subscribes(self, ws_connect_mock):
-        ws_connect_mock.return_value = self.mocking_assistant.create_websocket_mock()
+        websocket = ws_connect_mock.return_value = self.mocking_assistant.create_websocket_mock()
         self.mocking_assistant.add_websocket_aiohttp_message(
-            websocket_mock=ws_connect_mock.return_value,
+            websocket_mock=websocket,
             message=json.dumps({"result": None, "id": 1}))
+        self.mocking_assistant.add_websocket_aiohttp_exception(websocket, asyncio.CancelledError())
 
-        self.listening_task = self.local_event_loop.create_task(self.data_source.listen_for_subscriptions())
-        await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(ws_connect_mock.return_value)
+        with self.assertRaises(asyncio.CancelledError):
+            await self.data_source.listen_for_subscriptions()
+        self.assertEqual(2, websocket.receive.await_count)
 
-        sent = self.mocking_assistant.json_messages_sent_through_websocket(
-            websocket_mock=ws_connect_mock.return_value)
+        sent = self.mocking_assistant.json_messages_sent_through_websocket(websocket)
         self.assertEqual(2, len(sent))
         self.assertEqual([CONSTANTS.WS_TRADE_STREAM.format(self.ex_trading_pair)], sent[0]["params"])
         self.assertEqual([CONSTANTS.WS_DEPTH_STREAM.format(self.ex_trading_pair)], sent[1]["params"])

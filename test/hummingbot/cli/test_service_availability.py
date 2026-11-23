@@ -179,7 +179,10 @@ async def test_queued_order_is_blocked_after_task_failure_but_cancellation_is_al
     from hummingbot.core.order_submission_guard import SubmissionBlocked
     owner = BotOwnership(MagicMock(), "hummingbot")
     monkeypatch.setattr(gates, 'active_guard', lambda: owner)
-    owner.check_owner = MagicMock(return_value={})
+    owner.allow_new_orders = True
+    owner.version, owner.config_file_path = 1, 'test.yml'
+    owner._read_owner = MagicMock(return_value=dict(desired_state='running', control_version=owner.version,
+                                                    config_file_path=owner.config_file_path, recovery_state={}))
     owner.runtime_ready_check = lambda: False
     order = SimpleNamespace(client_order_id='queued', is_pending_create=True)
     connector = SimpleNamespace(in_flight_orders={'queued': order})
@@ -188,6 +191,7 @@ async def test_queued_order_is_blocked_after_task_failure_but_cancellation_is_al
     with pytest.raises(SubmissionBlocked, match='runtime task is not healthy'):
         await owner.authorize_rest(SimpleNamespace(url="https://www.okx.com/api/v5/trade/order"))
     assert await owner.authorize_rest(SimpleNamespace(url="https://www.okx.com/api/v5/trade/cancel-order")) is None
+    owner._read_owner.assert_called_with(identity_only=True)
 
 
 def test_declared_initialization_wait_does_not_look_like_a_stalled_task():
