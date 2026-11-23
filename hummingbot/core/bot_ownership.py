@@ -1095,6 +1095,10 @@ class BotOwnership:
 
     async def _authorize_rest(self, request, *, after_checkpoint_wait=False):
         path = urlparse(request.url).path
+        if path in CANCEL_PATHS:
+            # A cancel needs fresh physical ownership even during Stop/HALT.
+            self._read_owner(identity_only=True)
+            return None
         try:
             data = json.loads(getattr(request, "data", None) or "{}") if path == ORDER_PATH else {}
             if not isinstance(data, dict):
@@ -1106,8 +1110,6 @@ class BotOwnership:
         with submission_timing('final_owner_read_ms'):
             row = self.check_owner(new_risk=order_authority, include_pending=path == ORDER_PATH,
                                    order_authority=order_authority)
-        if path in CANCEL_PATHS:
-            return None
         if path == ORDER_PATH:
             if cleanup is not None:
                 from hummingbot.connector.markets_recorder import MarketsRecorder
@@ -1365,9 +1367,25 @@ class BotOwnership:
             # Query the dedicated account's complete open-order set. Unknown client
             # IDs require reconciliation; never cancel another writer's orders blindly.
             known = {order_id for connector in self.connectors.values() for order_id in connector.in_flight_orders}
-            for connector in self.connectors.values():
-                open_orders = await self._open_orders(connector)
-                await reconcile_open_order_visibility(self, core.trade_fill_db, connector, open_orders, known)
+            reads = [(connector, asyncio.create_task(self._open_orders(connector)))
+                     for connector in self.connectors.values()]
+            try:
+                refresh = False
+                for connector, read in reads:
+                    if refresh:
+                        # A wait for cancel visibility can leave subsequent
+                        # snapshots older than the completed proof.
+                        read.cancel()
+                        await asyncio.gather(read, return_exceptions=True)
+                        open_orders = await self._open_orders(connector)
+                    else:
+                        open_orders = await read
+                    waited = await reconcile_open_order_visibility(self, core.trade_fill_db, connector, open_orders, known)
+                    refresh = refresh or waited
+            finally:
+                for _, read in reads:
+                    read.cancel()
+                await asyncio.gather(*(read for _, read in reads), return_exceptions=True)
             for connector in self.connectors.values():
                 restored = [order for order in connector.in_flight_orders.values()
                             if not (self.automatic_recovery.isolated

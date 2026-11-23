@@ -93,16 +93,17 @@ async def _venue_canceled_without_fills(owner, connector, proof):
     return True
 
 
-async def reconcile_open_order_visibility(owner, manager, connector, open_orders, known):
+async def reconcile_open_order_visibility(owner, manager, connector, open_orders, known) -> bool:
     """Never restore/cancel/resubmit an untracked identity or clear a prior HALT.
 
     The enclosing startup still enforces its original 30-second deadline. Only
     locally acknowledged zero-fill cancellations get a bounded visibility wait;
     both their status and fill views must agree before AND after they disappear.
+    Return whether that visibility wait occurred.
     """
     unknown = [item for item in open_orders if item.get('clOrdId') not in known]
     if not unknown:
-        return
+        return False
     original = unknown
 
     def observation(code):
@@ -142,7 +143,7 @@ async def reconcile_open_order_visibility(owner, manager, connector, open_orders
                     reject('untracked_order_terminal_proof_changed')
                 logging.getLogger(__name__).warning('Startup canceled-order visibility resolved; verified=%s reads=%s',
                                                     len(proof), attempt + 1)
-                return
+                return True
             # A new or conflicting identity never inherits the earlier proof.
             if _canceled_without_local_fills(owner, manager, unknown) != {item['clOrdId']: proof.get(item['clOrdId']) for item in unknown}:
                 reject('untracked_order_identity_changed')

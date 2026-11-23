@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 from hummingbot.client.config.client_config_map import MarketDataCollectionConfigMap
 from hummingbot.connector.markets_recorder import MarketsRecorder
@@ -109,6 +109,32 @@ async def send(rest, path=ORDER_PATH):
     return await rest.execute_request(url="https://offline.invalid" + path, method=RESTMethod.POST,
                                       throttler_limit_id="order", is_auth_required=True,
                                       data={"clOrdId": "order-1", "instId": "BTC-USDT", "side": "buy", "sz": "0.1"})
+
+
+@pytest.mark.parametrize('path', ['/api/v5/trade/cancel-order', '/api/v5/trade/cancel-batch-orders'])
+def test_cancel_reads_only_physical_ownership_even_when_halted(owned, path):
+    owned.store.control(expected_version=1, desired_state='stopped')
+    owned.owner.require_recovery('test halted owner')
+    rest, transport = assistant()
+    selected_columns = []
+
+    def capture(connection, cursor, statement, *args):
+        if connection is owned.owner.connection:
+            selected_columns.append(tuple(column.name for column in cursor.description))
+
+    event.listen(owned.engine, 'after_cursor_execute', capture)
+    try:
+        owned.loop.run_until_complete(send(rest, path=path))
+    finally:
+        event.remove(owned.engine, 'after_cursor_execute', capture)
+    assert selected_columns == [('backend_pid',)]
+    transport.call.assert_awaited_once()
+
+    with owned.engine.begin() as connection:
+        connection.execute(text('SELECT pg_terminate_backend(:pid)'), {'pid': owned.owner.backend_pid})
+    with pytest.raises(OwnershipLost):
+        owned.loop.run_until_complete(send(rest, path=path))
+    transport.call.assert_awaited_once()
 
 
 def test_mm_final_gate_rejects_expired_or_superseded_step_while_cancel_remains_allowed(owned):

@@ -5,25 +5,120 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hummingbot.core.bot_ownership import BotOwnership
+from hummingbot.core.startup_order_reconciliation import UntrackedOpenOrders
 
 
 @pytest.fixture
 def readiness_startup():
-    connector = SimpleNamespace(ready=False, in_flight_orders={}, cancel_all=AsyncMock())
+    connector = SimpleNamespace(name='okx', ready=False, in_flight_orders={}, cancel_all=AsyncMock())
     owner = BotOwnership(MagicMock(), 'test')
     owner.config_file_path = 'test.yml'
     owner.allow_new_orders, owner.reconciling = True, True
     state = {}
     owner.check_owner = MagicMock(return_value={'recovery_state': state})
+    owner._mutate_recovery = MagicMock(side_effect=lambda change: change(state))
     owner.require_recovery = MagicMock()
     owner._open_orders = AsyncMock(return_value=[])
     owner._refresh_orders = AsyncMock()
     owner._check_intents = MagicMock()
     core = SimpleNamespace(strategy=SimpleNamespace(config=None),
-                           trade_fill_db=SimpleNamespace(assert_persistence_healthy=MagicMock()),
+                           trade_fill_db=SimpleNamespace(assert_persistence_healthy=MagicMock(), get_new_session=MagicMock()),
                            markets_recorder=SimpleNamespace(),
                            connector_manager=SimpleNamespace(connectors={'okx': connector}))
     return SimpleNamespace(owner=owner, connector=connector, core=core, state=state)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('outcome', ['ready', 'stop', 'untracked', 'read_failed'])
+async def test_startup_reads_both_open_order_lists_before_touching_orders(readiness_startup, outcome):
+    item = readiness_startup
+    item.connector.ready = True
+    perpetual = SimpleNamespace(name='okx_perpetual', ready=True, in_flight_orders={}, cancel_all=AsyncMock())
+    item.core.connector_manager.connectors['okx_perpetual'] = perpetual
+    active = set()
+    started = asyncio.Event()
+    first, second = asyncio.Event(), asyncio.Event()
+
+    async def open_orders(connector):
+        active.add(connector.name)
+        if len(active) == 2:
+            started.set()
+        try:
+            await (first if connector is item.connector else second).wait()
+            if connector is item.connector:
+                if outcome == 'untracked':
+                    return [{'clOrdId': 'unknown'}]
+                if outcome == 'read_failed':
+                    raise OSError('order list read failed')
+            return []
+        finally:
+            active.remove(connector.name)
+
+    item.owner._open_orders.side_effect = open_orders
+    task = asyncio.create_task(item.owner.reconcile(item.core))
+    try:
+        await asyncio.wait_for(started.wait(), timeout=5)
+        assert not item.owner.allow_new_orders
+        item.owner._refresh_orders.assert_not_awaited()
+        if outcome == 'stop':
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            first.set()
+            if outcome == 'ready':
+                await asyncio.sleep(0)
+                item.owner._refresh_orders.assert_not_awaited()
+                second.set()
+                await task
+            else:
+                error = UntrackedOpenOrders if outcome == 'untracked' else OSError
+                with pytest.raises(error):
+                    await task
+        assert not active
+        assert item.owner.allow_new_orders is (outcome == 'ready')
+        assert item.owner._refresh_orders.await_count == (2 if outcome == 'ready' else 0)
+        assert item.owner.require_recovery.call_count == int(outcome in ('untracked', 'read_failed'))
+        assert ('startup_untracked_orders' in item.state) is (outcome == 'untracked')
+        item.connector.cancel_all.assert_not_awaited()
+        perpetual.cancel_all.assert_not_awaited()
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_startup_refreshes_later_order_list_after_waiting_for_cancel_visibility(readiness_startup, monkeypatch):
+    item = readiness_startup
+    item.connector.ready = True
+    perpetual = SimpleNamespace(ready=True, in_flight_orders={})
+    item.core.connector_manager.connectors['okx_perpetual'] = perpetual
+    early_read = asyncio.Event()
+    late_order = {'clOrdId': 'untracked-after-spot-proof'}
+
+    async def open_orders(connector):
+        if connector is item.connector:
+            return [{'clOrdId': 'old-spot-cancel'}]
+        if early_read.is_set():
+            return [late_order]
+        early_read.set()
+        return []
+
+    async def visibility(owner, manager, connector, orders, known):
+        if connector is item.connector:
+            await asyncio.wait_for(early_read.wait(), timeout=5)
+            return True
+        assert orders == [late_order]
+        raise UntrackedOpenOrders({'reason_code': 'untracked_order_identity_unproven'})
+
+    item.owner._open_orders.side_effect = open_orders
+    monkeypatch.setattr('hummingbot.core.bot_ownership.reconcile_open_order_visibility', visibility)
+    with pytest.raises(UntrackedOpenOrders):
+        await item.owner.reconcile(item.core)
+    assert item.owner._open_orders.await_count == 3
+    item.owner._refresh_orders.assert_not_awaited()
+    assert not item.owner.allow_new_orders
+    assert item.state['startup_untracked_orders']['reason_code'] == 'untracked_order_identity_unproven'
 
 
 @pytest.mark.asyncio
