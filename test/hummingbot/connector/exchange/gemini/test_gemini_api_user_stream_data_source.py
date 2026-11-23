@@ -1,7 +1,6 @@
 import asyncio
 import json
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
-from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from bidict import bidict
@@ -46,7 +45,6 @@ class GeminiUserStreamDataSourceTests(IsolatedAsyncioWrapperTestCase):
     async def asyncSetUp(self) -> None:
         await super().asyncSetUp()
         self.log_records = []
-        self.listening_task: Optional[asyncio.Task] = None
         self.mocking_assistant = NetworkMockingAssistant()
 
         self.connector = GeminiExchange(
@@ -66,10 +64,6 @@ class GeminiUserStreamDataSourceTests(IsolatedAsyncioWrapperTestCase):
 
         self.connector._set_trading_pair_symbol_map(bidict({self.ex_trading_pair: self.trading_pair}))
 
-    def tearDown(self) -> None:
-        self.listening_task and self.listening_task.cancel()
-        super().tearDown()
-
     def handle(self, record):
         self.log_records.append(record)
 
@@ -86,6 +80,20 @@ class GeminiUserStreamDataSourceTests(IsolatedAsyncioWrapperTestCase):
         self.mocking_assistant.add_websocket_aiohttp_message(
             websocket_mock=websocket_mock,
             message=json.dumps({"id": "user_balances", "status": 200, "result": {}}))
+
+    async def _receive_user_stream_messages(self, ws_connect_mock, *messages):
+        websocket = ws_connect_mock.return_value = self.mocking_assistant.create_websocket_mock()
+        self._queue_subscription_success_acks(websocket)
+        for message in messages:
+            self.mocking_assistant.add_websocket_aiohttp_message(websocket, json.dumps(message))
+        # Stop the listener after the subscription ACKs and payloads have been processed.
+        self.mocking_assistant.add_websocket_aiohttp_exception(websocket, asyncio.CancelledError())
+
+        output = asyncio.Queue()
+        with self.assertRaises(asyncio.CancelledError):
+            await self.data_source.listen_for_user_stream(output)
+        self.assertEqual(websocket.receive.await_count, 2 + len(messages) + 1)
+        return output
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
     async def test_connected_websocket_assistant_sends_auth_headers(self, ws_connect_mock):
@@ -166,9 +174,6 @@ class GeminiUserStreamDataSourceTests(IsolatedAsyncioWrapperTestCase):
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
     async def test_listen_for_user_stream_queues_order_event(self, ws_connect_mock):
-        ws_connect_mock.return_value = self.mocking_assistant.create_websocket_mock()
-        self._queue_subscription_success_acks(ws_connect_mock.return_value)
-
         order_event = {
             "e": "executionReport",
             "E": 1700000000000000000,
@@ -183,15 +188,7 @@ class GeminiUserStreamDataSourceTests(IsolatedAsyncioWrapperTestCase):
             "z": "0",
             "T": 1700000000000000000,
         }
-        self.mocking_assistant.add_websocket_aiohttp_message(
-            websocket_mock=ws_connect_mock.return_value,
-            message=json.dumps(order_event))
-
-        msg_queue: asyncio.Queue = asyncio.Queue()
-        self.listening_task = self.local_event_loop.create_task(
-            self.data_source.listen_for_user_stream(msg_queue))
-
-        await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(ws_connect_mock.return_value)
+        msg_queue = await self._receive_user_stream_messages(ws_connect_mock, order_event)
 
         self.assertEqual(1, msg_queue.qsize())
         self.assertEqual(order_event, msg_queue.get_nowait())
@@ -200,42 +197,19 @@ class GeminiUserStreamDataSourceTests(IsolatedAsyncioWrapperTestCase):
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
     async def test_listen_for_user_stream_queues_balance_event(self, ws_connect_mock):
-        ws_connect_mock.return_value = self.mocking_assistant.create_websocket_mock()
-        self._queue_subscription_success_acks(ws_connect_mock.return_value)
-
         balance_event = {
             "e": "balanceUpdate",
             "E": 1700000000000,
             "B": [{"a": "USD", "f": "207.39", "c": "300.00"}],
         }
-        self.mocking_assistant.add_websocket_aiohttp_message(
-            websocket_mock=ws_connect_mock.return_value,
-            message=json.dumps(balance_event))
-
-        msg_queue: asyncio.Queue = asyncio.Queue()
-        self.listening_task = self.local_event_loop.create_task(
-            self.data_source.listen_for_user_stream(msg_queue))
-
-        await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(ws_connect_mock.return_value)
+        msg_queue = await self._receive_user_stream_messages(ws_connect_mock, balance_event)
 
         self.assertEqual(1, msg_queue.qsize())
         self.assertEqual(balance_event, msg_queue.get_nowait())
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
     async def test_listen_for_user_stream_does_not_queue_empty_payload(self, ws_connect_mock):
-        ws_connect_mock.return_value = self.mocking_assistant.create_websocket_mock()
-        self._queue_subscription_success_acks(ws_connect_mock.return_value)
-
-        self.mocking_assistant.add_websocket_aiohttp_message(
-            websocket_mock=ws_connect_mock.return_value,
-            message=json.dumps({}))
-
-        msg_queue: asyncio.Queue = asyncio.Queue()
-        self.listening_task = self.local_event_loop.create_task(
-            self.data_source.listen_for_user_stream(msg_queue))
-
-        await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(ws_connect_mock.return_value)
-
+        msg_queue = await self._receive_user_stream_messages(ws_connect_mock, {})
         self.assertEqual(0, msg_queue.qsize())
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
