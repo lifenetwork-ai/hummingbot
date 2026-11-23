@@ -364,14 +364,15 @@ def test_performance_fenced_fill_transaction(owned, pg_engine):
             record()
         measurements["indexed" if indexed else "unindexed"] = {**measure(record, samples=25),
                                                                "statements": len(statements)}
-    # The scoped identity/pending union excludes never-admitted queued creates
-    # and retains lost-ack identities in one statement, independent of order count.
+    # PostgreSQL reads the checkpoint and its scoped order identities together.
+    # This saves one round trip while still excluding never-admitted creates and
+    # retaining unresolved identities.
     # Steady fills reuse the existing status; coalescing the Order update removes
     # its premature owner-check roundtrip, while every real flush stays fenced.
     # One additional INSERT durably journals the fill in its existing transaction.
     # The applied-order flag reuses the already-loaded Order; no extra lookup or
     # ownership roundtrip is added to the fill path.
-    assert measurements["indexed"]["statements"] == measurements["unindexed"]["statements"] == 11
+    assert {mode: values["statements"] for mode, values in measurements.items()} == {"indexed": 10, "unindexed": 10}
     with pg_engine.connect() as connection:
         assert connection.execute(text("SELECT count(*) FROM trade_fills")).scalar() == counter
         assert connection.execute(select(func.sum(TradeFill.amount))).scalar() == counter * Decimal(".0001")

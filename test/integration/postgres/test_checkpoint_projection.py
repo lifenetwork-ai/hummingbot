@@ -135,16 +135,21 @@ def test_projection_fault_keeps_missing_tracking_and_rolls_back_new_intent(owned
 
 def test_owner_loss_after_projected_read_cannot_commit_new_intent(owned):
     before = seed(owned)
-    original = owned.recorder._get_market_states
+    projected_reads = []
 
-    def read(*args, **kwargs):
-        row = original(*args, **kwargs)
-        owned.owner.release()
-        return row
+    def release_after_read(connection, cursor, statement, parameters, context, many):
+        if 'JOIN market_states' in statement and 'orders.creation_pending' in statement:
+            assert not tracking_reads([statement])
+            projected_reads.append(statement)
+            owned.owner.release()
 
-    with patch.object(owned.recorder, '_get_market_states', side_effect=read):
+    event.listen(owned.engine, 'after_cursor_execute', release_after_read)
+    try:
         with pytest.raises(OwnershipLost):
             intent(owned, 'new-intent')
+    finally:
+        event.remove(owned.engine, 'after_cursor_execute', release_after_read)
+    assert len(projected_reads) == 1
     assert stored(owned) == before
     with owned.engine.connect() as connection:
         assert connection.execute(select(Order.id).where(Order.id == 'new-intent')).first() is None
@@ -196,7 +201,7 @@ def test_duplicate_intent_identity_cannot_overwrite_checkpoint(owned):
 @pytest.mark.parametrize('case', ['small_new_intent', 'large_new_intent', 'large_unchanged_checkpoint', 'missing_pending'])
 def test_intent_checkpoint_paired_measurement(owned, case):
     old = seed(owned, large=case != 'small_new_intent', pending=case == 'missing_pending')
-    original = owned.recorder._get_market_states
+    original = owned.recorder._read_tracking_basis
     measurements = {mode: dict(durations_ms=[], thread_cpu_ms=[], sql_counts=[], old_json_reads=[], tracking_updates=[])
                     for mode in ['full', 'projected']}
     for repetition in range(7):
@@ -215,7 +220,7 @@ def test_intent_checkpoint_paired_measurement(owned, case):
                     kwargs['include_saved_state'] = True
                 return original(*args, **kwargs)
 
-            with patch.object(owned.recorder, '_get_market_states', side_effect=read):
+            with patch.object(owned.recorder, '_read_tracking_basis', side_effect=read):
                 start = time.perf_counter()
                 cpu = time.thread_time()
                 with queries(owned.engine) as statements:
@@ -233,6 +238,9 @@ def test_intent_checkpoint_paired_measurement(owned, case):
             values['sql_counts'].append(len(statements))
             values['old_json_reads'].append(len(tracking_reads(statements)))
             values['tracking_updates'].append(sum(sql.startswith('UPDATE market_states') and 'saved_state=' in sql for sql in statements))
+    if case in ('small_new_intent', 'large_new_intent'):
+        assert measurements['full']['old_json_reads'] == [1] * 7
+        assert measurements['projected']['old_json_reads'] == [0] * 7
     for values in measurements.values():
         values['p50_ms'] = median(values['durations_ms'])
         values['thread_cpu_p50_ms'] = median(values['thread_cpu_ms'])
