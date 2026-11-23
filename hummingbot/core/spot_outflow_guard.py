@@ -161,13 +161,21 @@ class SpotOutflowGuard:
             return False
         return True
 
-    def _require_bound_identity(self, *, spot_order):
+    def binding_blocker(self, *, spot_order):
         if not self._identity_matches():
-            raise SubmissionBlocked(self.reason_code)
+            return self.reason_code
         if spot_order and self.binding is None:
             # The first durable Spot intent would otherwise turn this account
             # into legacy history while the coverage baseline is still unset.
-            raise SpotOutflowPending('spot_outflow_initializing')
+            return 'spot_outflow_initializing'
+        return None
+
+    def _require_bound_identity(self, *, spot_order):
+        blocker = self.binding_blocker(spot_order=spot_order)
+        if blocker == 'spot_outflow_initializing':
+            raise SpotOutflowPending(blocker)
+        if blocker:
+            raise SubmissionBlocked(blocker)
 
     def _flat_fee(self, connector, order):
         base, quote = order.trading_pair.split("-")

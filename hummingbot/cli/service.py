@@ -416,6 +416,13 @@ class ServiceHost:
     async def admit_mm_session(self):
         if self.mm_session is None or self.mm_session.status not in ("preparing", "running"):
             return False
+        from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+        outflow = getattr(self.owner, "spot_outflow", None)
+        if isinstance(outflow, SpotOutflowGuard):
+            blocker = outflow.binding_blocker(spot_order=self.mm_session.request.market_mode != "perpetual")
+            if blocker:
+                self.mm_readiness_reason = blocker
+                return False
         bootstrap = getattr(self.owner, "listing_bootstrap", None)
         if bootstrap is not None and not bootstrap.sync_qualification():
             return False

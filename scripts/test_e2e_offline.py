@@ -1522,16 +1522,25 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert self.sql("SELECT count(*) FROM trade_fills") == "1"
         binding = self.state()["recovery_state"]["spot_outflow"]
         self.terminate(first)
-        _, port = self.start("outflow-restart", auto_migrate=False)
+        restart, port = self.start("outflow-restart", auto_migrate=False)
         self.mm_command(port, "start", market_mode="perpetual", selection="fixed", profile_id="sideways", duration_seconds=600)
         poll(lambda: flow().get("ready") and Decimal(flow()["recorded_net_outflow_quote"]) == expected,
              description="restarted perpetual-only session still covers prior spot outflow")
+        self.control(account_read_delay_seconds=3)
         self.mm_command(port, "switch", market_mode="spot", selection="fixed", profile_id="sideways", duration_seconds=600)
-        poll(lambda: len(live("LIFE-USDT", "sell")) == 2, description="funded spot sells continue while BUY levels exceed remaining cap")
+        self.control(account_read_delay_seconds=0)
+        sells = poll(lambda: rows if len(rows := live("LIFE-USDT", "sell")) >= 2 else None,
+                     description="funded spot sells continue while BUY levels exceed remaining cap")
+        assert len(sells) == len({row["px"] for row in sells}) == 2, "Spot opened duplicate SELL levels after switching."
+        assert any(row.get("injected_account_read_delay_s") == 3 for row in self.ledger()["requests"])
+        logs = docker('logs', restart)
+        assert not any('Order submission blocked by service checks' in line and (
+            'reason=spot_outflow_identity_unavailable' in line or 'reason=spot_outflow_initializing' in line)
+            for line in (logs.stdout + logs.stderr).splitlines()), 'Quotes were submitted before the outflow account was bound.'
         assert not live("LIFE-USDT", "buy")
         assert self.state()["status"]["phase"] == "running" and not self.state()["recovery_state"].get("halt")
         assert self.state()["recovery_state"]["spot_outflow"] == binding
-        sell = live("LIFE-USDT", "sell")[0]
+        sell = sells[0]
         sell_amount = Decimal("100")
         self.control(fill={"clOrdId": sell["clOrdId"], "amount": str(sell_amount), "fee": "-.001"}, duplicate=True)
         after_sell = expected - sell_amount * Decimal(sell["px"]) - Decimal(".001")
@@ -1544,6 +1553,7 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert self.sql("SELECT count(*) FROM trade_fills") == "2" and not self.ledger()["unknown"]
         self.metrics["spot_outflow"] = dict(buy_only_cap=True, perpetual_unaffected=True, funded_sells_continue=True,
                                             queued_denials=len(denied_ids), no_local_outflow_retry=True,
+                                            delayed_account_binding_before_quotes=True,
                                             partial_commit=True, original_usdt_fee_and_rebate=True, duplicates=2,
                                             terminal_proof_releases=True, restart_and_mode_switch=True, bound_identity=True,
                                             used_quote=str(after_sell), effective_config_sha256=hashlib.sha256(path.read_bytes()).hexdigest())

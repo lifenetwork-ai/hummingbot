@@ -16,6 +16,7 @@ from hummingbot.core.data_type.common import PositionAction
 from hummingbot.core.data_type.order_book import OrderBook
 from hummingbot.core.data_type.order_book_row import OrderBookRow
 from hummingbot.core.mm_session import MMSession, MMSessionRequest
+from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
 from hummingbot.data_feed.market_data_provider import MarketDataProvider
 from hummingbot.strategy_v2.utils.quote_guard import QuoteGuard
 
@@ -284,6 +285,39 @@ async def test_outflow_policy_survives_perpetual_selection_without_a_global_buy_
     host.mm_session.request.market_mode = "both"
     host.owner.spot_outflow = SimpleNamespace(status=lambda: dict(ready=False, remaining_quote=0))
     assert host.mm_runtime_ready()
+
+
+@pytest.mark.asyncio
+async def test_spot_session_waits_for_verified_outflow_binding_before_creating_quotes():
+    host, controllers, _ = await setup_host()
+    owner = host.owner
+    owner.connectors = host.hb.trading_core.connector_manager.connectors
+    for connector in owner.connectors.values():
+        connector.account_uid = "fixture"
+        connector.trading_environment = "demo"
+    spot = owner.connectors["okx"]
+    spot.account_uid = None
+    guard = owner.spot_outflow = SpotOutflowGuard(owner, dict(
+        trading_pair="LIFE-USDT", window_seconds=60, max_net_outflow_quote="20", fee_allowance_rate=".001"))
+
+    def persist(**kwargs):
+        kwargs["change"](host.mm_session, 1000)
+        return host.mm_session
+
+    host.store.update_mm_session.side_effect = persist
+    assert not await host.admit_mm_session()
+    assert host.mm_readiness_reason == "spot_outflow_identity_unavailable"
+    spot.account_uid = "fixture"
+    assert not await host.admit_mm_session()
+    assert host.mm_readiness_reason == "spot_outflow_initializing"
+    host.store.update_mm_session.assert_not_called()
+    assert all(not controller.session_admitted for controller in controllers.values())
+
+    # Once bound, a missing BUY projection still permits admission for SELLs.
+    guard.binding = guard.identity()
+    assert not guard.status()["buy_allowed"]
+    assert await host.admit_mm_session()
+    assert all(controller.session_admitted for controller in controllers.values())
 
 
 @pytest.mark.asyncio
