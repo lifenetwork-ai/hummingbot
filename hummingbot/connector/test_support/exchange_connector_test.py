@@ -836,9 +836,21 @@ class AbstractExchangeConnectorTests:
 
             self.assertTrue(self.is_logged("INFO", expected_log))
 
+        async def _cancel_order_and_wait(self, order: InFlightOrder, completed: Callable[[], bool]):
+            async def wait_for_outcome():
+                # Some connectors hand the cancellation off to a background batch worker.
+                while not completed():
+                    await asyncio.sleep(0.01)
+
+            client_order_id = self.exchange.cancel(trading_pair=order.trading_pair, client_order_id=order.client_order_id)
+            self.assertEqual(order.client_order_id, client_order_id)
+            try:
+                await asyncio.wait_for(wait_for_outcome(), timeout=10)
+            except asyncio.TimeoutError:
+                self.fail(f"Cancellation outcome for order {client_order_id} was not observed (state: {order.current_state}).")
+
         @aioresponses()
         async def test_cancel_order_successfully(self, mock_api):
-            request_sent_event = asyncio.Event()
             self.exchange._set_current_timestamp(1640780000)
 
             self.exchange.start_tracking_order(
@@ -854,14 +866,10 @@ class AbstractExchangeConnectorTests:
             self.assertIn(self.client_order_id_prefix + "1", self.exchange.in_flight_orders)
             order: InFlightOrder = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
 
-            url = self.configure_successful_cancelation_response(
-                order=order,
-                mock_api=mock_api,
-                callback=lambda *args, **kwargs: request_sent_event.set())
-
-            self.exchange.cancel(trading_pair=order.trading_pair, client_order_id=order.client_order_id)
-            await asyncio.wait_for(request_sent_event.wait(), timeout=1)
-            await asyncio.sleep(0.1)
+            url = self.configure_successful_cancelation_response(order=order, mock_api=mock_api)
+            expected_state = (OrderState.CANCELED if self.exchange.is_cancel_request_in_exchange_synchronous
+                              else OrderState.PENDING_CANCEL)
+            await self._cancel_order_and_wait(order, lambda: order.current_state == expected_state)
 
             if url != "":
                 cancel_request = self._all_executed_requests(mock_api, url)[0]
@@ -889,7 +897,6 @@ class AbstractExchangeConnectorTests:
 
         @aioresponses()
         async def test_cancel_order_raises_failure_event_when_request_fails(self, mock_api):
-            request_sent_event = asyncio.Event()
             self.exchange._set_current_timestamp(1640780000)
 
             self.exchange.start_tracking_order(
@@ -905,14 +912,11 @@ class AbstractExchangeConnectorTests:
             self.assertIn(self.client_order_id_prefix + "1", self.exchange.in_flight_orders)
             order = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
 
-            url = self.configure_erroneous_cancelation_response(
-                order=order,
-                mock_api=mock_api,
-                callback=lambda *args, **kwargs: request_sent_event.set())
+            def cancellation_failed():
+                return any(log.msg.startswith(f"Failed to cancel order {order.client_order_id}") for log in self.log_records)
 
-            self.exchange.cancel(trading_pair=self.trading_pair, client_order_id=self.client_order_id_prefix + "1")
-            await asyncio.wait_for(request_sent_event.wait(), timeout=1)
-            await asyncio.sleep(0.1)
+            url = self.configure_erroneous_cancelation_response(order=order, mock_api=mock_api)
+            await self._cancel_order_and_wait(order, cancellation_failed)
 
             if url != "":
                 cancel_request = self._all_executed_requests(mock_api, url)[0]
@@ -922,17 +926,10 @@ class AbstractExchangeConnectorTests:
                     request_call=cancel_request)
 
             self.assertEqual(0, len(self.order_cancelled_logger.event_log))
-            self.assertTrue(
-                any(
-                    log.msg.startswith(f"Failed to cancel order {order.client_order_id}")
-                    for log in self.log_records
-                )
-            )
 
         @aioresponses()
         async def test_cancel_order_not_found_in_the_exchange(self, mock_api):
             self.exchange._set_current_timestamp(1640780000)
-            request_sent_event = asyncio.Event()
 
             self.exchange.start_tracking_order(
                 order_id=self.client_order_id_prefix + "1",
@@ -947,12 +944,10 @@ class AbstractExchangeConnectorTests:
             self.assertIn(self.client_order_id_prefix + "1", self.exchange.in_flight_orders)
             order = self.exchange.in_flight_orders[self.client_order_id_prefix + "1"]
 
-            self.configure_order_not_found_error_cancelation_response(
-                order=order, mock_api=mock_api, callback=lambda *args, **kwargs: request_sent_event.set()
+            self.configure_order_not_found_error_cancelation_response(order=order, mock_api=mock_api)
+            await self._cancel_order_and_wait(
+                order, lambda: self.exchange._order_tracker._order_not_found_records.get(order.client_order_id, 0) >= 1
             )
-
-            self.exchange.cancel(trading_pair=self.trading_pair, client_order_id=self.client_order_id_prefix + "1")
-            await asyncio.wait_for(request_sent_event.wait(), timeout=1)
 
             self.assertFalse(order.is_done)
             self.assertFalse(order.is_failure)
