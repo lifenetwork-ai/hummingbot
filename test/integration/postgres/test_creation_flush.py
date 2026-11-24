@@ -9,7 +9,7 @@ from test.integration.postgres.test_performance import queries
 from test.integration.postgres.test_recorder import create
 from test.integration.postgres.test_submission_admission_fairness import native as native_fixture
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 from psycopg2 import OperationalError as DriverOperationalError
@@ -447,6 +447,44 @@ def test_worker_ack_reads_creation_evidence_together_under_both_fences(owned, pr
         assert (attempt.state if attempt is not None else None) == {
             'possibly_sent': 'acknowledged', 'uncertain': 'uncertain', 'terminal': 'terminal',
             'no_attempt': None, 'no_order': None,
+        }[prior]
+
+
+@pytest.mark.parametrize('prior', ['pending_intent', 'fill_placeholder', 'open_uncertain'])
+def test_worker_cancel_reads_order_attempt_and_history_together(owned, prior):
+    intent(owned)
+    if prior == 'open_uncertain':
+        acknowledge(owned)
+    with owned.manager.get_new_session() as db, db.begin():
+        attempt = db.get(SubmissionAttempt, 'order-1')
+        if prior == 'fill_placeholder':
+            db.query(OrderStatus).filter_by(order_id='order-1').delete()
+            db.delete(attempt)
+        elif prior == 'open_uncertain':
+            attempt.state = 'uncertain'
+    cancelled = SimpleNamespace(order_id='order-1', exchange_order_id='exchange-order-1')
+    events = [(MarketEvent.OrderCancelled, cancelled)]
+    with patch.object(type(owned.recorder), 'db_timestamp', new_callable=PropertyMock, return_value=1700000002000):
+        with queries(owned.engine) as statements:
+            owned.loop.run_until_complete(owned.recorder.persist_order_update(owned.market, events, {}))
+        owned.loop.run_until_complete(owned.recorder.persist_order_update(owned.market, events, {}))
+
+    evidence = [sql for sql in statements if sql.startswith('SELECT') and (
+        'FROM orders \nWHERE orders.id =' in sql or 'submission_attempts' in sql or 'order_statuses' in sql)]
+    assert len(evidence) == 1, evidence
+    assert all(table in evidence[0] for table in ('orders', 'submission_attempts', 'order_statuses'))
+    assert all(column not in evidence[0] for column in ('submission_attempts.context', 'submission_attempts.receipt'))
+    fences = [sql for sql in statements if 'pg_locks' in sql]
+    assert len(fences) == 2 and 'FOR SHARE' in fences[0] and 'FOR SHARE' not in fences[1]
+    with owned.manager.get_new_session() as db:
+        order = db.get(Order, 'order-1')
+        assert order.creation_pending is (prior == 'fill_placeholder')
+        assert order.exchange_order_id == (None if prior == 'fill_placeholder' else cancelled.exchange_order_id)
+        assert order.last_status == 'OrderCancelled' and order.amount == Decimal('.1')
+        assert db.query(OrderStatus).filter_by(order_id=order.id, status='OrderCancelled').count() == 1
+        attempt = db.get(SubmissionAttempt, order.id)
+        assert (attempt.state if attempt is not None else None) == {
+            'pending_intent': 'terminal', 'fill_placeholder': None, 'open_uncertain': 'uncertain',
         }[prior]
 
 

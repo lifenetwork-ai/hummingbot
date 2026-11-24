@@ -13,7 +13,7 @@ from shutil import move
 from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy import and_, bindparam, column, func, or_, select, text, true, tuple_, union_all, values
+from sqlalchemy import and_, bindparam, case, column, func, or_, select, text, true, tuple_, union_all, values
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Query, Session, defer, load_only
@@ -1360,7 +1360,7 @@ class MarketsRecorder:
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
 
         if coalesce_snapshot and evidence is None:
-            evidence = self._read_creation_evidence(session, evt.order_id, timestamp, event_type.name)
+            evidence = self._read_order_event_evidence(session, evt.order_id, timestamp, event_type.name)
         order_record = evidence[0] if evidence is not None else session.get(Order, evt.order_id)
         config_file_path, strategy_name = self._event_configuration(session, market, order_record)
         if order_record is not None and (
@@ -1422,14 +1422,19 @@ class MarketsRecorder:
         self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
 
     @staticmethod
-    def _read_creation_evidence(session, identity, timestamp, status):
+    def _read_order_event_evidence(session, identity, timestamp, status, *, include_pending_intent=False):
         from hummingbot.model.runtime_journal import SubmissionAttempt
 
         history_recorded = select(OrderStatus.id).filter_by(order_id=identity, timestamp=timestamp, status=status).exists()
-        return session.execute(select(Order, SubmissionAttempt, history_recorded).options(
+        statement = select(Order, SubmissionAttempt, history_recorded).options(
             load_only(SubmissionAttempt.state)).outerjoin(
             SubmissionAttempt, SubmissionAttempt.order_id == Order.id
-        ).where(Order.id == identity)).one_or_none()
+        ).where(Order.id == identity)
+        if include_pending_intent:
+            intent_recorded = select(OrderStatus.id).where(
+                OrderStatus.order_id == identity, OrderStatus.status.in_(("PendingBuy", "PendingSell"))).exists()
+            statement = statement.add_columns(case((Order.creation_pending, intent_recorded), else_=False))
+        return session.execute(statement).one_or_none()
 
     def _read_creation_evidence_batch(self, session, acknowledgements, *, tracking, market_name):
         from hummingbot.model.runtime_journal import SubmissionAttempt
@@ -1719,24 +1724,33 @@ class MarketsRecorder:
         timestamp: int = self.db_timestamp
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
         order_id: str = evt.order_id
+        exchange_id = getattr(evt, "exchange_order_id", None)
+        has_cancel_identity = event_type == MarketEvent.OrderCancelled and isinstance(exchange_id, str) and bool(exchange_id)
 
-        order_record: Optional[Order] = session.query(Order).filter(Order.id == order_id).one_or_none()
+        evidence = None
+        if self.durable_position_checkpoints:
+            evidence = self._read_order_event_evidence(session, order_id, timestamp, event_type.name,
+                                                       include_pending_intent=has_cancel_identity)
+            order_record = evidence[0] if evidence is not None else None
+        else:
+            order_record = session.query(Order).filter(Order.id == order_id).one_or_none()
 
         if order_record is not None:
             config_file_path, _ = self._event_configuration(session, market, order_record)
             # A private cancel can arrive before the create ACK. Its
             # exchange ID proves admission; a not-found cancel without
             # that identity must remain unresolved.
-            exchange_id = getattr(evt, "exchange_order_id", None)
-            if event_type == MarketEvent.OrderCancelled and isinstance(exchange_id, str) and exchange_id:
+            if has_cancel_identity:
                 if (order_record.market != market.display_name or order_record.config_file_path != config_file_path
                         or (order_record.exchange_order_id and order_record.exchange_order_id != exchange_id)):
                     raise ValueError("Cancel acknowledgment conflicts with the recorded order identity.")
                 # A fill-only placeholder does not yet contain the
                 # original order quantity. Keep it provisional until
                 # Created arrives; managed intents already have it.
-                original_parameters_known = not order_record.creation_pending or session.query(OrderStatus.id).filter(
-                    OrderStatus.order_id == order_id, OrderStatus.status.in_(("PendingBuy", "PendingSell"))).first() is not None
+                original_parameters_known = not order_record.creation_pending
+                if not original_parameters_known:
+                    original_parameters_known = evidence[3] if evidence is not None else session.query(OrderStatus.id).filter(
+                        OrderStatus.order_id == order_id, OrderStatus.status.in_(("PendingBuy", "PendingSell"))).first() is not None
                 if original_parameters_known:
                     order_record.exchange_order_id = exchange_id
                     order_record.creation_pending = False
@@ -1745,8 +1759,13 @@ class MarketsRecorder:
             # Flush their terminal state and history together at the
             # checkpoint read, retaining its fence and the commit fence.
             with session.no_autoflush:
-                self._attempt_observation(session, order_id, 'terminal')
-                self._add_order_status(session, order_record, timestamp, event_type.name)
+                if evidence is None:
+                    self._add_order_status(session, order_record, timestamp, event_type.name)
+                else:
+                    _, attempt, history_recorded = evidence[:3]
+                    self._set_attempt_observation(attempt, 'terminal')
+                    if not history_recorded:
+                        session.add(OrderStatus(order=order_record, timestamp=timestamp, status=event_type.name))
             self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
         elif self._sql_manager.engine.dialect.name == "postgresql" and event_type != MarketEvent.OrderFailure:
             raise RuntimeError("Order status arrived without a persisted order identity; reconciliation is required.")
