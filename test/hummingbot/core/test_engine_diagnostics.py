@@ -1,5 +1,6 @@
 """Bounded observational tracing cannot acquire authority or export raw inputs."""
 import asyncio
+import gc
 import json
 import threading
 import time
@@ -86,6 +87,7 @@ async def test_real_loop_stall_has_stage_and_sanitized_stack_then_tears_down():
     private_value = 'never-copy-this-local-or-exception'
     await tracer.start()
     try:
+        assert tracer._record_full_gc in gc.callbacks
         await asyncio.sleep(.06)
         with tracer.span('owner.read', entity=private_value):
             time.sleep(.4)
@@ -109,6 +111,34 @@ async def test_real_loop_stall_has_stage_and_sanitized_stack_then_tears_down():
     assert not tracer.worker.is_alive()
     assert tracer.heartbeat_task.done()
     assert not tracer.snapshot()['active']
+    assert tracer._record_full_gc not in gc.callbacks
+
+
+def test_late_heartbeat_reports_only_overlapping_full_gc():
+    records = []
+    now = [0]
+    tracer = EngineDiagnostics(emit=records.append, clock=lambda: now[0])
+    tracer.loop_thread_id = threading.get_ident()
+
+    def collect(start, end, generation=2):
+        now[0] = start
+        tracer._record_full_gc('start', {'generation': generation})
+        now[0] = end
+        tracer._record_full_gc('stop', {'generation': generation, 'collected': 7})
+
+    collect(0, 150_000_000)
+    collect(250_000_000, 550_000_000, generation=1)
+    collect(260_000_000, 520_000_000)
+    collect(620_000_000, 745_000_000)
+    assert not records
+    tracer._late_heartbeat_timer = 240_000_000, 550_000_000
+    tracer._publish_missed_heartbeat(now[0])
+    event, = records
+    pause, = event['full_gc_pauses']
+    assert pause['start_ns'] == 260_000_000
+    assert pause['end_ns'] == 520_000_000
+    assert pause['collected'] == 7 and pause['on_loop_thread']
+    assert tracer._loop_recovery_evidence(500_000_000)['full_gc_pauses'] == [pause]
 
 
 @pytest.mark.asyncio

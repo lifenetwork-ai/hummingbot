@@ -1653,6 +1653,9 @@ def serve_role(role):
     configure_service_logging(environ={}, reset=True)
     layout = ProcessLayout(RuntimeSettings.from_environment())
     if role == 'engine':
+        from hummingbot.cli.engine_gc import prepare_engine_gc
+
+        prepare_engine_gc()
         code = asyncio.run(run_service(settings=layout.engine, bind_host='127.0.0.1',
                                        admin_settings=replace(AdminSettings.from_environment(), enabled=False)))
     else:

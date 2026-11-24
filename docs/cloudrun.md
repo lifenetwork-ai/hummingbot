@@ -280,6 +280,10 @@ is limited to once per5s and once per sampled heartbeat; it does not change the
 heartbeat or supervisor deadline. Samples are still observations, not proof of
 one blocking operation or complete coverage of every probe.
 
+Late heartbeat and loop recovery records can include `full_gc_pauses` for
+overlapping generation-two collections lasting at least 100ms. Each record
+includes the elapsed interval and CPU time used by the collector thread.
+
 INFO `order_submission_stages` batches retain completed submission phases in a
 separate64-entry ring, published by the watchdog at most once per2s. SQL churn
 cannot evict these entries. Completion sequence and `dropped_since_previous`

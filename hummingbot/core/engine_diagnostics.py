@@ -5,6 +5,7 @@ are observations, not proof that the sampled frame caused the whole gap.
 """
 import asyncio
 import functools
+import gc
 import hashlib
 import inspect
 import json
@@ -387,6 +388,8 @@ class EngineDiagnostics:
         self._late_heartbeat_timer = None
         self._observed_late_timer_due_ns = None
         self._last_missed_timer_emitted_ns = -5_000_000_000
+        self._full_gc_started = None
+        self._full_gc_pauses = deque(maxlen=4)
         self._loop_native_tid = None
         self._scheduler_samples = deque(maxlen=4)
         self._scheduler_baseline = None
@@ -688,6 +691,28 @@ class EngineDiagnostics:
             if sample:
                 self._scheduler_samples.append(dict(at_ns=now, **sample))
 
+    def _record_full_gc(self, phase, info):
+        if info['generation'] != 2:
+            return
+        if phase == 'start':
+            self._full_gc_started = self.clock(), time.thread_time_ns()
+        elif self._full_gc_started is not None:
+            started, cpu = self._full_gc_started
+            self._full_gc_started = None
+            ended = self.clock()
+            if ended - started >= 100_000_000:
+                # GC may run while the collector owns a diagnostic lock.
+                # Save timing only and let the watchdog do the reporting.
+                self._full_gc_pauses.append(dict(start_ns=started, end_ns=ended,
+                                                 thread_cpu_ms=round((time.thread_time_ns() - cpu) / 1e6, 3),
+                                                 on_loop_thread=threading.get_ident() == self.loop_thread_id,
+                                                 collected=info['collected']))
+
+    def _full_gc_evidence(self, due, callback):
+        pauses = [pause for pause in tuple(self._full_gc_pauses)
+                  if pause['start_ns'] < callback and due < pause['end_ns']]
+        return {'full_gc_pauses': pauses} if pauses else {}
+
     def _loop_recovery_evidence(self, detected_at):
         evidence = {}
         late_timer = self._late_heartbeat_timer
@@ -697,6 +722,7 @@ class EngineDiagnostics:
                 self._observed_late_timer_due_ns = due
                 evidence['heartbeat_timer'] = dict(due_ns=due, callback_ns=callback,
                                                    overdue_ms=round((callback - due) / 1e6, 3))
+                evidence.update(self._full_gc_evidence(due, callback))
         samples = list(self._scheduler_samples)
         if self._scheduler_baseline is not None:
             samples = [self._scheduler_baseline] + [sample for sample in samples[-3:]
@@ -722,7 +748,8 @@ class EngineDiagnostics:
         self._deliver(dict(event='engine_heartbeat_late', at_ns=now, wall_time_ns=time.time_ns(),
                            process_id=os.getpid(), scheduler_samples=list(self._scheduler_samples),
                            heartbeat_timer=dict(due_ns=due, callback_ns=callback,
-                                                overdue_ms=round((callback - due) / 1e6, 3))))
+                                                overdue_ms=round((callback - due) / 1e6, 3)),
+                           **self._full_gc_evidence(due, callback)))
 
     def _capture_loop(self, now, beat, gap_ms, event):
         self._last_stack_sample_ns, self._sampled_heartbeat = now, beat
@@ -829,6 +856,7 @@ class EngineDiagnostics:
         except Exception:
             await self.close()
             return False
+        gc.callbacks.append(self._record_full_gc)
         return True
 
     def attach_engine(self, engine):
@@ -883,6 +911,8 @@ class EngineDiagnostics:
     async def close(self, *, detach=True):
         global _ACTIVE
         self._closed = True
+        if self._record_full_gc in gc.callbacks:
+            gc.callbacks.remove(self._record_full_gc)
         if _ACTIVE is self:
             _ACTIVE = None
         self.stopping.set()
