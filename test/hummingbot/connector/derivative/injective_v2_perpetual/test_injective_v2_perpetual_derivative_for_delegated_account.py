@@ -46,7 +46,7 @@ from hummingbot.core.event.events import (
     OrderFilledEvent,
 )
 from hummingbot.core.network_iterator import NetworkStatus
-from hummingbot.core.utils.async_utils import safe_gather
+from hummingbot.core.utils.async_utils import safe_gather, wait_til
 
 
 class InjectiveV2PerpetualDerivativeTests(AbstractPerpetualDerivativeTests.PerpetualDerivativeTests):
@@ -1443,67 +1443,28 @@ class InjectiveV2PerpetualDerivativeTests(AbstractPerpetualDerivativeTests.Perpe
 
     @aioresponses()
     async def test_create_order_to_close_short_position(self, mock_api):
-        self._simulate_trading_rules_initialized()
-        request_sent_event = asyncio.Event()
-        self.exchange._set_current_timestamp(1640780000)
-
-        transaction_simulation_response = self._msg_exec_simulation_mock_response()
-        self.exchange._data_source._query_executor._simulate_transaction_responses.put_nowait(
-            transaction_simulation_response)
-
-        response = self.order_creation_request_successful_mock_response
-        mock_queue = AsyncMock()
-        mock_queue.get.side_effect = partial(
-            self._callback_wrapper_with_response,
-            callback=lambda args, kwargs: request_sent_event.set(),
-            response=response
-        )
-        self.exchange._data_source._query_executor._send_transaction_responses = mock_queue
-
-        leverage = 4
-        self.exchange._perpetual_trading.set_leverage(self.trading_pair, leverage)
-        order_id = self.place_buy_order(position_action=PositionAction.CLOSE)
-        await asyncio.wait_for(request_sent_event.wait(), timeout=1)
-
-        order = self.exchange.in_flight_orders[order_id]
-
-        for i in range(3):
-            if order.current_state == OrderState.PENDING_CREATE:
-                await asyncio.sleep(0.5)
-
-        self.assertEqual(response["txhash"], order.creation_transaction_hash)
+        await self._assert_position_close_transaction(self.place_buy_order, leverage=4)
 
     @aioresponses()
     async def test_create_order_to_close_long_position(self, mock_api):
+        await self._assert_position_close_transaction(self.place_sell_order, leverage=5)
+
+    async def _assert_position_close_transaction(self, place_order: Callable[..., str], leverage: int):
         self._simulate_trading_rules_initialized()
-        request_sent_event = asyncio.Event()
         self.exchange._set_current_timestamp(1640780000)
 
-        transaction_simulation_response = self._msg_exec_simulation_mock_response()
-        self.exchange._data_source._query_executor._simulate_transaction_responses.put_nowait(
-            transaction_simulation_response)
-
+        query_executor = self.exchange._data_source._query_executor
+        query_executor._simulate_transaction_responses.put_nowait(self._msg_exec_simulation_mock_response())
         response = self.order_creation_request_successful_mock_response
-        mock_queue = AsyncMock()
-        mock_queue.get.side_effect = partial(
-            self._callback_wrapper_with_response,
-            callback=lambda args, kwargs: request_sent_event.set(),
-            response=response
-        )
-        self.exchange._data_source._query_executor._send_transaction_responses = mock_queue
+        query_executor._send_transaction_responses.put_nowait(response)
 
-        leverage = 5
         self.exchange._perpetual_trading.set_leverage(self.trading_pair, leverage)
-        order_id = self.place_sell_order(position_action=PositionAction.CLOSE)
-        await asyncio.wait_for(request_sent_event.wait(), timeout=1)
+        order_id = place_order(position_action=PositionAction.CLOSE)
 
+        await wait_til(lambda: order_id in self.exchange.in_flight_orders)
         order = self.exchange.in_flight_orders[order_id]
-
-        for i in range(3):
-            if order.current_state == OrderState.PENDING_CREATE:
-                await asyncio.sleep(0.5)
-
-        self.assertEqual(response["txhash"], order.creation_transaction_hash)
+        self.assertEqual(PositionAction.CLOSE, order.position)
+        self.assertEqual(response["txhash"], await order.get_creation_transaction_hash())
 
     def test_get_buy_and_sell_collateral_tokens(self):
         self._simulate_trading_rules_initialized()
