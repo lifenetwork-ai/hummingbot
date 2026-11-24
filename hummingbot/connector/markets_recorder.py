@@ -267,8 +267,12 @@ class MarketsRecorder:
             if (active_guard() is not work.owner or work.owner.engine is not self._sql_manager.engine
                     or self.service_recorder_for(work.market) is not self):
                 raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
+            # The HTTP writer updates the receipt field independently. Keep
+            # its next turn, but let this batch include ready private OPEN
+            # events on either side of that single intervening waiter.
             peers = slot.take_work(MAX_OPEN_ACK_BATCH - 1, lambda peer: (
-                isinstance(peer, _QueuedAcknowledgement) and peer.market is work.market and peer.owner is work.owner), final=True)
+                isinstance(peer, _QueuedAcknowledgement) and peer.market is work.market and peer.owner is work.owner),
+                final=True, across_receipt=True)
             results.extend([None] * len(peers))
             prepared = []
             now = asyncio.get_running_loop().time()

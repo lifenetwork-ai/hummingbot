@@ -518,7 +518,7 @@ class BotOwnership:
         recorder = self._order_recorder()
         if recorder is None:
             return nullcontext()
-        return recorder.order_writes.final_send(operation='transport_receipt') if received_evidence else recorder.order_writes
+        return recorder.order_writes.receipt_write() if received_evidence else recorder.order_writes
 
     def notify_position_checkpoint_ready(self):
         # Waiters keep the event they observed before checking readiness.

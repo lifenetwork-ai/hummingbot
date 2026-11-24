@@ -29,10 +29,13 @@ class FIFOAdmission(asyncio.Lock):
     async def acquire(self, *, final=False, work=None, operation=None):
         return await super().acquire()
 
-    def take_work(self, maximum, compatible=None, *, final=False):
+    def take_work(self, maximum, compatible=None, *, final=False, across_receipt=False):
         return []
 
     def final_send(self, *, operation=None):
+        return self
+
+    def receipt_write(self):
         return self
 
     def intent_write(self):
@@ -102,30 +105,33 @@ def test_ready_send_passes_admission_waiting_on_recorder(native, monkeypatch):
     assert not native.store.read()['recovery_state'].get('halt')
 
 
-def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native, monkeypatch):
+@pytest.mark.parametrize('interleave_receipt', [False, True])
+def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native, monkeypatch, interleave_receipt):
     ids = ('first-open', 'second-open')
-    dispatched, both_dispatched = set(), asyncio.Event()
-    release_rest, ack_queued = asyncio.Event(), asyncio.Event()
+    receipt_id = 'http-response'
+    submitted_ids = (*ids, receipt_id) if interleave_receipt else ids
+    dispatched, all_dispatched = set(), asyncio.Event()
+    release_rest, release_receipt, receipt_queued = (asyncio.Event() for _ in range(3))
+    ack_queued = asyncio.Queue()
     ordinary_observations, writes = [], []
     reply = native.transport.call.side_effect
     slot = native.recorder.order_writes
     acquire = slot.acquire
     persist = native.recorder._persist_open_acknowledgements
-    queued = 0
 
     async def venue(request):
-        dispatched.add(json.loads(request.data)['clOrdId'])
-        if dispatched == set(ids):
-            both_dispatched.set()
-        await release_rest.wait()
+        identity = json.loads(request.data)['clOrdId']
+        dispatched.add(identity)
+        if dispatched == set(submitted_ids):
+            all_dispatched.set()
+        await (release_receipt if identity == receipt_id else release_rest).wait()
         return await reply(request)
 
     async def observe_queue(**kwargs):
-        nonlocal queued
-        if kwargs.get('work') is not None:
-            queued += 1
-            if queued == len(ids):
-                ack_queued.set()
+        if kwargs.get('operation') == 'open_ack':
+            ack_queued.put_nowait(None)
+        if kwargs.get('operation') == 'transport_receipt':
+            receipt_queued.set()
         return await acquire(**kwargs)
 
     async def persist_acks(market, prepared):
@@ -140,20 +146,26 @@ def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native
     async def exercise():
         with session_order_scope(native.session.id, native.session.generation):
             submissions = [asyncio.create_task(native.market._create_order(
-                TradeType.BUY, identity, 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
-                for identity in ids]
+                TradeType.BUY, identity, 'LIFE-USDT', Decimal('5'),
+                OrderType.LIMIT_MAKER, Decimal('10'))) for identity in submitted_ids]
         try:
-            await asyncio.wait_for(both_dispatched.wait(), 3)
+            await asyncio.wait_for(all_dispatched.wait(), 3)
             async with slot:
                 prior = asyncio.create_task(ordinary_write())
                 await asyncio.sleep(0)
-                # Private OPEN events can arrive while both REST callers are waiting.
-                acks = [native.market._order_tracker.process_order_update(OrderUpdate(
-                    trading_pair='LIFE-USDT', update_timestamp=time.time(), new_state=OrderState.OPEN,
-                    client_order_id=identity, exchange_order_id='venue-' + identity)) for identity in ids]
-                await asyncio.wait_for(ack_queued.wait(), 3)
+                # Queue a response from a third order between the two private OPEN events.
+                acks = []
+                for index, identity in enumerate(ids):
+                    if index == 1 and interleave_receipt:
+                        release_receipt.set()
+                        await asyncio.wait_for(receipt_queued.wait(), 3)
+                    acks.append(native.market._order_tracker.process_order_update(OrderUpdate(
+                        trading_pair='LIFE-USDT', update_timestamp=time.time(), new_state=OrderState.OPEN,
+                        client_order_id=identity, exchange_order_id='venue-' + identity)))
+                    await asyncio.wait_for(ack_queued.get(), 3)
             await asyncio.gather(prior, *acks)
         finally:
+            release_receipt.set()
             release_rest.set()
             await asyncio.gather(*submissions)
 
@@ -162,11 +174,14 @@ def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native
     monkeypatch.setattr(native.recorder, '_persist_open_acknowledgements', persist_acks)
     native.loop.run_until_complete(asyncio.wait_for(exercise(), 10))
     assert ordinary_observations == [[False, False]]
-    assert writes == [ids] and native.transport.call.await_count == len(ids)
+    assert writes == ([ids, (receipt_id,)] if interleave_receipt else [ids])
+    assert native.transport.call.await_count == len(submitted_ids)
     assert not slot.locked()
     with native.manager.get_new_session() as db:
-        assert {row.order_id: row.state for row in db.query(SubmissionAttempt)} == dict.fromkeys(ids, 'acknowledged')
-        assert db.query(OrderStatus).filter(OrderStatus.status == 'BuyOrderCreated').count() == len(ids)
+        attempts = {row.order_id: row for row in db.query(SubmissionAttempt)}
+        assert {identity: row.state for identity, row in attempts.items()} == dict.fromkeys(submitted_ids, 'acknowledged')
+        assert all(row.receipt['order']['ordId'] == 'venue-' + identity for identity, row in attempts.items())
+        assert db.query(OrderStatus).filter(OrderStatus.status == 'BuyOrderCreated').count() == len(submitted_ids)
     assert not native.store.read()['recovery_state'].get('halt')
 
 

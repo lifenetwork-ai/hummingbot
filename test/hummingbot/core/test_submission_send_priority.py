@@ -112,11 +112,38 @@ async def test_claiming_batch_does_not_skip_an_intervening_recorder_write(final)
     async with gate:
         tasks = [asyncio.create_task(wait_for_slot(index, work)) for index, work in enumerate(queue)]
         await asyncio.sleep(0)
-        (work, future), = gate.take_work(8, lambda item: isinstance(item, QueuedWrite), final=final)
+        (work, future), = gate.take_work(8, lambda item: isinstance(item, QueuedWrite), final=final, across_receipt=final)
         assert work is queue[0] and not queue[2].claimed
         future.set_result(None)
     await asyncio.gather(*tasks)
     assert granted == [1, 2]
+    assert not gate.locked()
+
+
+@pytest.mark.asyncio
+async def test_open_batch_only_crosses_one_receipt_and_keeps_its_next_turn():
+    gate = BotOwnership(None, 'test').submission_admission
+    first_ack, last_ack = QueuedWrite(), QueuedWrite()
+    granted = []
+
+    async def receipt(index):
+        async with gate.receipt_write():
+            granted.append(('receipt', index))
+
+    async def acknowledge(work):
+        if await gate.acquire(final=True, work=work):
+            granted.append(('ack', work is last_ack))
+            gate.release()
+
+    async with gate:
+        tasks = [asyncio.create_task(receipt(1)), asyncio.create_task(acknowledge(first_ack)),
+                 asyncio.create_task(receipt(2)), asyncio.create_task(acknowledge(last_ack))]
+        await asyncio.sleep(0)
+        (work, future), = gate.take_work(8, final=True, across_receipt=True)
+        assert work is first_ack and not last_ack.claimed
+        future.set_result(None)
+    await asyncio.gather(*tasks)
+    assert granted == [('receipt', 1), ('receipt', 2), ('ack', True)]
     assert not gate.locked()
 
 
