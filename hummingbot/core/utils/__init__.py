@@ -1,6 +1,7 @@
 import errno
 import functools
 import socket
+from weakref import ref
 
 import cachetools
 import numpy as np
@@ -14,11 +15,22 @@ def async_ttl_cache(ttl: int = 3600, maxsize: int = 1):
         @functools.wraps(fn)
         async def memoize(*args, **kwargs):
             key = str((args, kwargs))
+            instance = args[0] if args else kwargs.get("self")
+            cached = cache.get(key)
+            if cached is not None:
+                instance_ref, result = cached
+                if instance_ref is None or instance_ref() is instance:
+                    return result
+
+            # A new instance can reuse the address in an old instance's repr.
+            # Keep only a weak reference so cached results do not keep it alive.
             try:
-                return cache[key]
-            except KeyError:
-                cache[key] = await fn(*args, **kwargs)
-                return cache[key]
+                instance_ref = ref(instance)
+            except TypeError:
+                instance_ref = None
+            result = await fn(*args, **kwargs)
+            cache[key] = (instance_ref, result)
+            return result
 
         memoize.cache_clear = lambda: cache.clear()
         return memoize
