@@ -1,6 +1,8 @@
 """Bounded transition history on existing control transactions, not another engine."""
 import hashlib
 import json
+import math
+import re
 
 from sqlalchemy import (
     JSON,
@@ -89,6 +91,23 @@ def record_transition(connection, bot_id, previous, current, version, *, source=
                      source=source, principal=principal, payload=payload, identity=identity)
 
 
+def _guard_diagnostics(guard):
+    evidence = {}
+    detail = guard.get('detail')
+    if isinstance(detail, str) and re.fullmatch(r'[a-z][a-z0-9_]{0,63}', detail):
+        evidence['detail'] = detail
+    for field in ('book_observed_at', 'evaluated_at', 'recovery_started_at'):
+        timestamp = guard.get(field)
+        if type(timestamp) in (int, float) and 0 < timestamp and math.isfinite(timestamp):
+            evidence[field] = timestamp  # Unix seconds, from the same observation.
+    if 'book_observed_at' in evidence and 'evaluated_at' in evidence:
+        evidence['book_age_seconds'] = round(evidence['evaluated_at'] - evidence['book_observed_at'], 3)
+    samples = guard.get('recovery_valid_samples')
+    if type(samples) is int and 0 <= samples <= 2:
+        evidence['recovery_valid_samples'] = samples
+    return evidence
+
+
 def record_guards(connection, bot_id, session, previous, status, version):
     """Only confirmed changes are events; no per-tick book snapshots are stored."""
     old = previous.get("mm_guard_observation") or {}
@@ -97,6 +116,7 @@ def record_guards(connection, bot_id, session, previous, status, version):
     if not session or (observed.get("id"), observed.get("generation")) != (session["id"], session["generation"]):
         return
     signature = {}
+    observations = {}
     if status.get("phase") is not None:
         signature["all"] = dict(phase=status["phase"],
                                 runtime_reason=(status.get("availability") or {}).get("reason_code"),
@@ -107,6 +127,7 @@ def record_guards(connection, bot_id, session, previous, status, version):
         if name not in ("spot", "perpetual") or type(market.get("ready")) is not bool:
             continue
         guard = market.get("quote_guard") or {}
+        observations[name] = guard
         signature[name] = dict(ready=market["ready"], reason=market.get("reason"),
                                guard_reason=guard.get("reason_code"), state=(guard.get("bootstrap") or {}).get("state"),
                                runtime_reason=(status.get("availability") or {}).get("reason_code"),
@@ -127,8 +148,13 @@ def record_guards(connection, bot_id, session, previous, status, version):
     with connection.begin_nested():
         for market, value in signature.items():
             if prior.get(market) != value:
+                payload = dict(market=market, previous=prior.get(market), current=value)
+                # Evidence can vary with every book update. Keep it out of the
+                # signature and history cursor so only transitions write rows.
+                if market in observations and (evidence := _guard_diagnostics(observations[market])):
+                    payload['diagnostics'] = evidence
                 append_event(connection, bot_id=bot_id, session=session, event_type="guard_changed", version=version,
-                             source="observer", payload=dict(market=market, previous=prior.get(market), current=value),
+                             source="observer", payload=payload,
                              identity=[session["generation"], sequence, market])
     status["mm_guard_observation"] = dict(identity=key, sequence=sequence, markets=signature)
 

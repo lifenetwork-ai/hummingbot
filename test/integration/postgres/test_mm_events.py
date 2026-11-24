@@ -133,6 +133,50 @@ def test_guard_transitions_publish_atomically_and_do_not_generate_tick_events(hi
         owner.release()
 
 
+def test_guard_transition_keeps_book_and_recovery_evidence_without_tick_events(history):
+    import json
+    from decimal import Decimal
+
+    from hummingbot.strategy_v2.utils.quote_guard import MarketObservation, QuoteGuard, QuoteGuardConfig
+
+    store, _, _ = history
+    receipt, _, _ = start(history)
+    owner = BotOwnership(store.engine, store.bot_id)
+    assert owner.try_acquire()
+    guard = QuoteGuard(QuoteGuardConfig(enabled=True, max_deviation_bps='200', resume_deviation_bps='100',
+                                        recovery_delay_seconds='5'))
+    session_scope = dict(id=receipt['session_id'], generation=0)
+    args = dict(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1, save_balances=False)
+
+    def publish(now, book_at, *, valid=True):
+        observation = MarketObservation(Decimal('100') if valid else None, book_at, now, (book_at,),
+                                        detail=None if valid else 'stale_book')
+        state = guard.evaluate(observation, Decimal('100'), now, sample=True)
+        snapshot = dict(mm_session=session_scope, mm_markets=[dict(market='spot', ready=state['ready'],
+                                                                   reason=state['reason_code'], quote_guard=state)])
+        assert store.publish(**args, status=json.loads(json.dumps(snapshot, default=str)))
+
+    try:
+        publish(1002.25, 990, valid=False)
+        publish(1003, 991, valid=False)
+        publish(1004, 1003.5)
+        publish(1006.5, 1006)
+        publish(1009, 1008.75)
+        publish(1010, 1009.75)
+        rows = session_events(store, receipt['session_id'], event_type='guard_changed')['items']
+        lost, recovering, ready = [row['payload'] for row in reversed(rows)]
+        assert lost['diagnostics'] == dict(detail='stale_book', book_observed_at=990, evaluated_at=1002.25,
+                                           book_age_seconds=12.25, recovery_valid_samples=0)
+        assert recovering['current']['guard_reason'] == 'guard_recovering'
+        assert recovering['diagnostics'] == dict(book_observed_at=1003.5, evaluated_at=1004, book_age_seconds=.5,
+                                                 recovery_started_at=1004, recovery_valid_samples=1)
+        assert ready['current']['ready'] and ready['diagnostics'] == dict(
+            book_observed_at=1008.75, evaluated_at=1009, book_age_seconds=.25, recovery_valid_samples=2)
+        assert 'diagnostics' not in store.read()['status']['mm_guard_observation']['markets']['spot']
+    finally:
+        owner.release()
+
+
 def test_event_insert_failure_rolls_back_owner_transition_and_migration_replay_keeps_history(history):
     store, _, _ = history
     receipt, _, _ = start(history)
@@ -173,6 +217,21 @@ async def test_history_and_liquidity_http_are_authenticated_bounded_and_use_only
         response = await client.get(path, headers=auth)
         body = await response.json()
         assert response.status == 200 and body['items'][0]['created_at'].endswith('Z')
+        owner = BotOwnership(store.engine, store.bot_id)
+        assert owner.try_acquire()
+        try:
+            market = dict(market='spot', ready=False, reason='market_price_unavailable', quote_guard=dict(
+                reason_code='market_price_unavailable', detail='inconsistent_own_depth', book_observed_at=1000,
+                evaluated_at=1000.25))
+            status = dict(mm_session=dict(id=receipt['session_id'], generation=0), mm_markets=[market])
+            assert store.publish(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1,
+                                 status=status, save_balances=False)
+            response = await client.get(path + '?event_type=guard_changed', headers=auth)
+            event_payload, = [row['payload'] for row in (await response.json())['items']]
+            assert response.status == 200 and event_payload['diagnostics'] == dict(
+                detail='inconsistent_own_depth', book_observed_at=1000, evaluated_at=1000.25, book_age_seconds=.25)
+        finally:
+            owner.release()
         assert (await client.get(path + '?limit=501', headers=auth)).status == 422
         response = await client.get(ADMIN_PREFIX + '/statistics/liquidity', headers=auth)
         assert response.status == 200 and (await response.json())['state'] == 'unavailable'
