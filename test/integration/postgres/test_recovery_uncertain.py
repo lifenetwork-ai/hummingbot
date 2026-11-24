@@ -59,7 +59,7 @@ def seed_uncertain(store, *, existing_binding=False, api_key='offline', count=1,
 
 def seed_failed_replacement(store, identity, *, fault=None):
     with store.engine.begin() as db:
-        row = db.execute(select(BotState.mm_session, BotState.recovery_state, BotState.control_version, BotState.status)).one()
+        row = db.execute(select(BotState.mm_session, BotState.recovery_state, BotState.control_version)).one()
         created = db.scalar(select(Order.creation_timestamp).where(Order.id == identity)) / 1000
         original = {**row.mm_session, 'started_at': created - 2, 'step_expires_at': created + 25}
         running = {**original, 'status': 'running'}
@@ -86,8 +86,7 @@ def seed_failed_replacement(store, identity, *, fault=None):
         if fault == 'ambiguous_receipt':
             receipt['order']['sCode'] = '50013'
         db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == identity).values(receipt=receipt))
-        status = {**(row.status or {}), 'phase': 'halted', 'running': False}
-        db.execute(update(BotState).values(mm_session=current, recovery_state=incident, status=status))
+        db.execute(update(BotState).values(mm_session=current, recovery_state=incident))
 
 
 @pytest.mark.parametrize('fault', [None, 'missing_stop', 'different_predecessor', 'replacement_activated', 'ambiguous_receipt'])
@@ -97,6 +96,9 @@ def test_failed_replacement_only_reviews_the_previous_stopped_sessions_rejected_
     store, _ = recovering
     identity = seed_uncertain(store, sell_last=True)
     seed_failed_replacement(store, identity, fault=fault)
+    # This store-only test has no service observer to publish HALT.
+    with store.engine.begin() as db:
+        db.execute(update(BotState).values(status={'phase': 'halted', 'running': False}))
     payload = {'uncertain_order_id': identity}
     if fault:
         with pytest.raises(RecoveryBlocked, match='recovery_uncertain_order_scope'):

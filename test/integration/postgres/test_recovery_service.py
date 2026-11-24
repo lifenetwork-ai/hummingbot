@@ -109,7 +109,16 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             scope_key = 'uncertain_order_ids' if batch else 'uncertain_order_id'
             path = '/recovery?' + scope_key + '=' + ','.join(reversed(reviewed_ids))
             if halted_review:
-                eventually(lambda: state.read()['status'].get('phase') == 'halted')
+                def observed_stopped_halt():
+                    row = state.read()
+                    status = row.get('status') or {}
+                    observed = status.get('mm_session') or {}
+                    session = row['mm_session']
+                    return (status.get('phase') == 'halted' and status.get('running') is False
+                            and observed.get('status') == 'stopped'
+                            and (observed.get('id'), observed.get('generation')) == (session['id'], session['generation']))
+
+                eventually(observed_stopped_halt)
             assert call(port, '/recovery')[1]['check_available'] is halted_review
             assert call(port, path)[1]['check_available']
             if batch:
