@@ -13,7 +13,7 @@ from decimal import Decimal
 from urllib.parse import urlparse
 
 from psycopg2 import Error as PostgreSQLError
-from sqlalchemy import Text, column, func, select, text, update, values
+from sqlalchemy import Text, case, column, func, select, text, update, values
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import DBAPIError, OperationalError, SQLAlchemyError
 
@@ -1047,7 +1047,7 @@ class BotOwnership:
         self._read_owner(identity_only=True)
         self.lock_owner_row(session, nowait=nowait)
 
-    def fence_recorder_session(self, session, *, nowait=False):
+    def fence_recorder_session(self, session, *, nowait=False, intent_ids=None):
         # The recorder holds this row until it commits. Check the original
         # owner's advisory lock from the same PostgreSQL transaction, without
         # accessing the dedicated owner connection from the worker thread.
@@ -1062,7 +1062,7 @@ class BotOwnership:
             publication = self.store.publication_fence
             held = publication.acquire(timeout=.1)
             try:
-                self.lock_owner_row(session, nowait=True, verify_advisory=True)
+                self.lock_owner_row(session, nowait=True, verify_advisory=True, intent_ids=intent_ids)
             finally:
                 if held:
                     publication.release()
@@ -1082,7 +1082,7 @@ class BotOwnership:
             )
         """).bindparams(pid=self.backend_pid, namespace=OWNER_NAMESPACE, key=OWNER_KEY)
 
-    def lock_owner_row(self, session, *, nowait=False, verify_advisory=False):
+    def lock_owner_row(self, session, *, nowait=False, verify_advisory=False, intent_ids=None):
         transaction = session.get_transaction()
         if transaction is not None and session.info.get("ownership_fenced_transaction") is transaction:
             return
@@ -1091,9 +1091,22 @@ class BotOwnership:
             BotState.owner_generation == self.generation)
         if verify_advisory:
             statement = statement.where(self._advisory_lock_exists())
+        locked_owner = statement.with_for_update(read=True, nowait=nowait)
         with submission_timing('ownership_row_check_ms') if nowait else nullcontext():
-            row = session.connection().execute(statement.with_for_update(read=True, nowait=nowait)).first()
-        if not row:
+            connection = session.connection()
+            if intent_ids is None:
+                generation = connection.execute(locked_owner).scalar_one_or_none()
+            else:
+                # Evaluate the duplicate proof once, before attempting the row
+                # lock. A duplicate must stay fatal even under NOWAIT contention.
+                found = select(Order.id).where(Order.id.in_(intent_ids)).exists()
+                existing = select(found.label('found')).cte('existing_intent').prefix_with('MATERIALIZED', dialect='postgresql')
+                duplicate, generation = connection.execute(select(
+                    existing.c.found, case((existing.c.found, None), else_=locked_owner.scalar_subquery())
+                )).one()
+                if duplicate:
+                    raise RuntimeError('Client order identity already exists; reconcile instead of resubmitting.')
+        if generation is None:
             raise OwnershipLost("A stale process cannot write trading/recovery state.",
                                 reason_code='ownership_identity_mismatch')
         session.info["ownership_fenced_transaction"] = session.get_transaction()

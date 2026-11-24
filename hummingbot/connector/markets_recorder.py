@@ -13,7 +13,7 @@ from shutil import move
 from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy import and_, bindparam, column, func, or_, select, text, tuple_, union_all, values
+from sqlalchemy import and_, bindparam, column, func, or_, select, text, true, tuple_, union_all, values
 from sqlalchemy.engine import Row
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Query, Session, defer, load_only
@@ -318,16 +318,16 @@ class MarketsRecorder:
 
         def stage(session):
             with session.no_autoflush:
-                evidence = self._read_creation_evidence_batch(session, [
+                evidence, tracking_basis = self._read_creation_evidence_batch(session, [
                     (plan.event.order_id, int(plan.event.creation_timestamp * 1e3), plan.tag.name)
                     for _, _, plan in prepared
-                ]) if len(prepared) > 1 else {}
+                ], tracking=tracking if fresh_order is not None else None, market_name=market.display_name)
                 orders = [context.run(self._stage_order_creation, session, plan.tag.value, market, plan.event,
                                       coalesce_snapshot=True, defer_snapshot=True,
                                       evidence=evidence.get(plan.event.order_id))
                           for _, context, plan in prepared]
                 self.save_market_states(self._config_file_path, market, session, new_order_id=fresh_order,
-                                        tracking_states=tracking, staged_orders=orders)
+                                        tracking_states=tracking, staged_orders=orders, tracking_basis=tracking_basis)
 
         _, cancelled = await self._run_native_write(stage, defer_contention=OrderAcknowledgementBusy)
         return cancelled
@@ -1020,12 +1020,14 @@ class MarketsRecorder:
                 return query.limit(number_of_rows).all()
 
     def save_market_states(self, config_file_path: str, market: ConnectorBase, session: Session,
-                           *, new_order_id: Optional[str] = None, tracking_states=None, staged_orders=()):
+                           *, new_order_id: Optional[str] = None, tracking_states=None, staged_orders=(),
+                           tracking_basis=None):
         saved_state = dict(market.tracking_states if tracking_states is None else tracking_states)
         self._save_market_state_snapshot(session, config_file_path, market.display_name, saved_state, new_order_id,
-                                         staged_orders=staged_orders)
+                                         staged_orders=staged_orders, tracking_basis=tracking_basis)
 
-    def _save_market_state_snapshot(self, session, config_file_path, market_name, saved_state, new_order_id=None, *, staged_orders=()):
+    def _save_market_state_snapshot(self, session, config_file_path, market_name, saved_state, new_order_id=None,
+                                    *, staged_orders=(), tracking_basis=None):
         # A native intent or create ACK already supplies an updated snapshot.
         # Decode the old JSON only when unresolved identities need merging.
         # Ordinary checkpoints retain full reads and unchanged-JSON dirty checking.
@@ -1035,8 +1037,11 @@ class MarketsRecorder:
             # Tracking begins before queued creates pass the durable send gate.
             # A sibling intent must not checkpoint those never-admitted creates:
             # a later switch would restore them as nonexistent exchange orders.
-            market_states, admitted_ids, pending_ids = self._read_tracking_basis(
-                session, config_file_path, market_name, saved_state, include_saved_state=new_order_id not in saved_state)
+            if tracking_basis is None:
+                tracking_basis = self._read_tracking_basis(
+                    session, config_file_path, market_name, saved_state,
+                    include_saved_state=new_order_id not in saved_state)
+            market_states, admitted_ids, pending_ids = tracking_basis
             # Tracker identities staged in this transaction can commit with
             # their intents, even before they are visible to the SELECT.
             admitted_ids = set(admitted_ids or ()) | {order.id for order in staged_orders}
@@ -1072,18 +1077,22 @@ class MarketsRecorder:
 
     @staticmethod
     def _read_tracking_basis(session, config_file_path, market_name, tracking_states, *, include_saved_state):
-        # The aggregate yields one row even for a new market with no orders.
-        # Read the checkpoint and its scoped order proof from one DB snapshot.
-        pending = Order.creation_pending.is_(True)
-        orders = select(func.array_agg(Order.id).label('admitted_ids'),
-                        func.array_agg(Order.id).filter(pending).label('pending_ids')).where(
-            Order.config_file_path == config_file_path, Order.market == market_name,
-            or_(Order.id.in_(tracking_states), pending)).subquery()
+        orders = MarketsRecorder._tracking_order_ids(config_file_path, market_name, tracking_states)
         statement = select(MarketState, orders.c.admitted_ids, orders.c.pending_ids).select_from(orders).outerjoin(
             MarketState, and_(MarketState.config_file_path == config_file_path, MarketState.market == market_name))
         if not include_saved_state:
             statement = statement.options(defer(MarketState.saved_state))
         return session.execute(statement).one()
+
+    @staticmethod
+    def _tracking_order_ids(config_file_path, market_name, tracking_states):
+        # The aggregate yields one row even for a new market with no orders.
+        # Read the checkpoint and its scoped order proof from one DB snapshot.
+        pending = Order.creation_pending.is_(True)
+        return select(func.array_agg(Order.id).label('admitted_ids'),
+                      func.array_agg(Order.id).filter(pending).label('pending_ids')).where(
+            Order.config_file_path == config_file_path, Order.market == market_name,
+            or_(Order.id.in_(tracking_states), pending)).subquery()
 
     @trace_runtime('order.intent', order_parameter='order')
     def record_order_intent(self, market: ConnectorBase, order) -> None:
@@ -1413,8 +1422,7 @@ class MarketsRecorder:
             SubmissionAttempt, SubmissionAttempt.order_id == Order.id
         ).where(Order.id == identity)).one_or_none()
 
-    @staticmethod
-    def _read_creation_evidence_batch(session, acknowledgements):
+    def _read_creation_evidence_batch(self, session, acknowledgements, *, tracking, market_name):
         from hummingbot.model.runtime_journal import SubmissionAttempt
 
         requested = values(column('order_id', Order.id.type), column('timestamp', OrderStatus.timestamp.type),
@@ -1423,9 +1431,19 @@ class MarketsRecorder:
             OrderStatus.order_id == Order.id, OrderStatus.timestamp == requested.c.timestamp,
             OrderStatus.status == requested.c.status).exists()
         statement = (select(Order, SubmissionAttempt, history_recorded).options(load_only(SubmissionAttempt.state))
-                     .select_from(requested).join(Order, Order.id == requested.c.order_id)
+                     .select_from(requested).outerjoin(Order, Order.id == requested.c.order_id)
                      .outerjoin(SubmissionAttempt, SubmissionAttempt.order_id == Order.id))
-        return {row[0].id: row for row in session.execute(statement)}
+        if tracking is not None:
+            # Every ACK shares one checkpoint basis. Defer the previous JSON
+            # so only a missing unresolved order needs to load it.
+            orders = self._tracking_order_ids(self._config_file_path, market_name, tracking)
+            statement = (statement.add_columns(MarketState, orders.c.admitted_ids, orders.c.pending_ids)
+                         .join(orders, true()).outerjoin(MarketState, and_(
+                             MarketState.config_file_path == self._config_file_path, MarketState.market == market_name))
+                         .options(defer(MarketState.saved_state)))
+        rows = session.execute(statement).all()
+        tracking_basis = rows[0][3:] if tracking is not None else None
+        return {row[0].id: row[:3] for row in rows if row[0] is not None}, tracking_basis
 
     def finish_recorded_order_creation(self, market, evt):
         if evt.exchange_order_id and self._uses_reconstruction_history(market):

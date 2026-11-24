@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pandas as pd
 
+from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core.data_type.common import PriceType
 from hummingbot.core.data_type.funding_info import FundingInfo
@@ -77,6 +78,39 @@ class TestMarketDataProvider(IsolatedAsyncioWrapperTestCase):
             await self.provider.release_reference_books_for(new_strategy)
             unsubscribe.assert_awaited_once_with(name, "BTC-USDT")
             await self.provider.release_reference_books_for(other)
+
+    async def test_public_okx_reference_start_uses_snapshot_and_subscription_events(self):
+        pair = "BTC-USDT"
+        for snapshot_first in (True, False):
+            with self.subTest(snapshot_first=snapshot_first):
+                provider = MarketDataProvider({})
+                connector = OkxExchange("offline", "offline", "offline", trading_pairs=[], trading_required=False)
+                tracker = connector.order_book_tracker
+                network_started = asyncio.Event()
+
+                async def start():
+                    tracker._order_book_stream_listener_task = MagicMock()
+                    network_started.set()
+
+                connector.start_network = AsyncMock(side_effect=start)
+                events = [tracker._order_books_initialized, tracker.data_source._subscriptions_ready]
+                if not snapshot_first:
+                    events.reverse()
+                tracker.order_books[pair] = MagicMock(snapshot=([object()], [object()]))
+                with patch.object(provider, "get_non_trading_connector", return_value=connector):
+                    task = asyncio.create_task(provider.initialize_order_book("okx", pair))
+                    try:
+                        await asyncio.wait_for(network_started.wait(), timeout=1)
+                        events[0].set()
+                        await asyncio.sleep(0)
+                        self.assertFalse(task.done())
+                        events[1].set()
+                        self.assertTrue(await asyncio.wait_for(task, timeout=1))
+                    finally:
+                        task.cancel()
+                        await asyncio.gather(task, return_exceptions=True)
+                connector.start_network.assert_awaited_once()
+                self.assertEqual(connector.trading_pairs, [pair])
 
     async def test_okx_reference_books_load_in_parallel_and_share_each_subscription(self):
         name = "okx"

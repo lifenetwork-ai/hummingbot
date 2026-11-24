@@ -999,7 +999,25 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert standby['control_version'] == before_handoff['control_version']
         assert standby['desired_state'] == 'running'
         assert standby['mm_session']['id'] == continuous['id']
-        assert not standby['recovery_state'].get('halt')
+
+        def ready_for_handoff():
+            # The first engine can roll over while the standby container boots.
+            # Let that shutdown fence clear under the same owner before arming
+            # the visibility fault, so it targets the revision handoff's cancels.
+            row = self.state()
+            assert row['owner_uuid'] == standby['owner_uuid'] and row['owner_generation'] == standby['owner_generation']
+            assert row['control_version'] == standby['control_version'] and row['mm_session']['id'] == continuous['id']
+            recovery = row['recovery_state']
+            if recovery.get('halt'):
+                assert (recovery.get('halt_kind') == 'shutdown_pending'
+                        and not recovery.get('reason')), recovery_summary()
+                return False
+            step = row['mm_session']
+            return (step['status'] == 'running' and step['step_expires_at'] > time.time() + 3
+                    and sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8
+                    and self.sql('SELECT count(*) FROM orders WHERE creation_pending') == '0')
+
+        poll(ready_for_handoff, timeout=35, description='same owner has eight admitted quotes after standby boots')
         restart_evidence = dict(before_shutdown=recovery_summary(), overlap_standby=True,
                                 previous_owner_generation=before_handoff['owner_generation'],
                                 control_version=before_handoff['control_version'])
@@ -1008,9 +1026,6 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         # successor must prove zero-fill cancellations and wait for disappearance,
         # rather than manufacture an unresolved-effect HALT or ignore the list.
         self.control(cancel_pending_visibility_reads=2)
-        poll(lambda: sum(order['state'] == 'live' for order in self.ledger()['orders']) == 8
-             and self.sql('SELECT count(*) FROM orders WHERE creation_pending') == '0',
-             description='eight admitted quotes after arming cancellation visibility fault')
         self.terminate(first)
         restart_evidence['after_shutdown'] = recovery_summary()
         (self.report / 'until-stopped-restart.json').write_text(json.dumps(restart_evidence, indent=2))

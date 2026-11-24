@@ -404,13 +404,20 @@ class MarketDataProvider:
 
             # Start the network - this will initialize order book tracker with the trading pair
             await connector.start_network()
+            tracker = connector.order_book_tracker
+            max_wait = 30
+            use_ready_events = connector_name == "okx"
+            if use_ready_events:
+                async with asyncio.timeout(max_wait):
+                    await tracker.wait_ready()
+                    await tracker.data_source.wait_for_subscriptions()
             self._non_trading_connectors_started[connector_name] = True
             self.logger().info(f"Started non-trading connector: {connector_name} with initial pair {trading_pair}")
+            if use_ready_events:
+                return True
 
             # Wait for order book tracker to be ready
-            max_wait = 30
             waited = 0
-            tracker = connector.order_book_tracker
             while waited < max_wait:
                 if tracker._order_book_stream_listener_task is not None:
                     # Give WebSocket time to establish connection

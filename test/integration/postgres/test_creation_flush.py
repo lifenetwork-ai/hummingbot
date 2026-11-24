@@ -46,6 +46,7 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
     identities = {f'burst-ack-{i}' for i in range(6)}
     existing_history = min(identities)
     flushes, published, ack_connections = [], [], []
+    ack_reads = []
     publish = native.recorder.publish_recorded_order_event
     acquire = native.recorder.order_writes.acquire
     queued = asyncio.Event()
@@ -72,6 +73,11 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
             flushes.append(created)
             if reply_lost:
                 ack_connections.append(session.connection().connection.driver_connection)
+
+    def inspect_read(connection, cursor, statement, parameters, context, executemany):
+        if track_waiters and statement.startswith('SELECT') and (
+                'JOIN submission_attempts' in statement or 'array_agg(orders.id)' in statement):
+            ack_reads.append(statement)
 
     if reply_lost:
         driver_class = type(native.owner.connection.connection.driver_connection)
@@ -129,15 +135,19 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
     monkeypatch.setattr(native.recorder, 'publish_recorded_order_event', observe_publication)
     monkeypatch.setattr(native.recorder.order_writes, 'acquire', observe_acquire)
     event.listen(native.manager._session_cls, 'before_flush', inspect_flush)
+    event.listen(native.engine, 'before_cursor_execute', inspect_read)
     try:
         with queries(native.engine) as statements:
             orders, outcomes = native.loop.run_until_complete(exercise())
     finally:
         event.remove(native.manager._session_cls, 'before_flush', inspect_flush)
+        event.remove(native.engine, 'before_cursor_execute', inspect_read)
     assert flushes == [identities - {existing_history}]
     evidence_reads = [statement for statement in statements if statement.startswith('SELECT')
                       and 'JOIN submission_attempts' in statement and 'FROM order_status' in statement]
     assert len(evidence_reads) == 1
+    assert len(ack_reads) == 1
+    assert 'JOIN submission_attempts' in ack_reads[0] and 'array_agg(orders.id)' in ack_reads[0]
     with native.manager.get_new_session() as db:
         history = db.scalars(select(OrderStatus.order_id).where(OrderStatus.status == 'BuyOrderCreated')).all()
         assert sorted(history) == ([existing_history] if reject_commit else sorted(identities))

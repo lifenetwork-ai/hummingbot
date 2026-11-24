@@ -207,6 +207,10 @@ class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 message_timeout=CONSTANTS.SECONDS_TO_WAIT_TO_RECEIVE_MESSAGE)
         return ws
 
+    async def wait_for_subscriptions(self):
+        while not self._subscriptions_ready.is_set():
+            await self._subscriptions_ready.wait()
+
     async def subscribe_to_trading_pair(self, trading_pair: str) -> bool:
         """
         Subscribes to order book and trade channels for a single trading pair
@@ -217,8 +221,7 @@ class OkxAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         try:
             async with asyncio.timeout(self._DYNAMIC_SUBSCRIPTION_READY_TIMEOUT):
-                while not self._subscriptions_ready.is_set():
-                    await self._subscriptions_ready.wait()
+                await self.wait_for_subscriptions()
         except asyncio.TimeoutError:
             self.logger().warning(
                 f"Cannot subscribe to {trading_pair}: WebSocket not connected"

@@ -3,7 +3,7 @@ import logging
 import math
 import time
 import uuid
-from contextlib import closing
+from contextlib import closing, suppress
 from copy import deepcopy
 from dataclasses import dataclass
 from decimal import Decimal
@@ -745,19 +745,35 @@ class ExecutorOrchestrator:
             hard_cap = max(0.0, shutdown_timeout)
         elapsed = stalled = 0.0
         last_signature = None
-        while not self._all_executors_done():
-            if stalled >= stall_budget or elapsed >= hard_cap:
-                break
-            if last_signature is None:
-                last_signature = self._executors_shutdown_signature()
-            await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
-            signature = self._executors_shutdown_signature()
-            if signature != last_signature:
-                stalled = 0.0
-                last_signature = signature
-            else:
-                stalled += poll_interval
+        termination = None
+        try:
+            while not self._all_executors_done():
+                if stalled >= stall_budget or elapsed >= hard_cap:
+                    break
+                if termination is None:
+                    last_signature = self._executors_shutdown_signature()
+                    termination = asyncio.gather(*(executor.terminated.wait()
+                                                   for executors in self.active_executors.values()
+                                                   for executor in executors if not executor.executor_info.is_done))
+                interval = min(poll_interval, stall_budget - stalled, hard_cap - elapsed)
+                # Keep polling progress for the stall budget, but go straight
+                # to storing positions when the last executor signals stop.
+                await asyncio.wait((termination,), timeout=interval)
+                if termination.done():
+                    termination.result()
+                    break
+                elapsed += interval
+                signature = self._executors_shutdown_signature()
+                if signature != last_signature:
+                    stalled = 0.0
+                    last_signature = signature
+                else:
+                    stalled += interval
+        finally:
+            if termination is not None and not termination.done():
+                termination.cancel()
+                with suppress(asyncio.CancelledError):
+                    await termination
 
         unfinished_executors = [
             (controller_id, executor)

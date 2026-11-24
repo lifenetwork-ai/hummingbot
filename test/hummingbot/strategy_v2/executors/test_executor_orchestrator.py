@@ -424,6 +424,7 @@ class TestExecutorOrchestrator(unittest.TestCase):
     @staticmethod
     def _make_unfinished_executor(executor_id: str = "unfinished", status: RunnableStatus = RunnableStatus.RUNNING):
         executor = MagicMock()
+        executor.terminated = asyncio.Event()
         executor.is_closed = False
         executor.status = status
         executor.close_type = None
@@ -475,6 +476,26 @@ class TestExecutorOrchestrator(unittest.TestCase):
 
     @patch.object(ExecutorOrchestrator, "store_all_positions")
     @patch.object(ExecutorOrchestrator, "store_all_executors")
+    def test_stop_resumes_when_last_executor_terminates(self, store_all_executors, store_all_positions):
+        async def exercise():
+            executor = self._make_unfinished_executor(status=RunnableStatus.SHUTTING_DOWN)
+            self.orchestrator.active_executors["test"] = [executor]
+
+            def finish():
+                executor.executor_info.is_done = True
+                executor.terminated.set()
+
+            asyncio.get_running_loop().call_later(.01, finish)
+            await asyncio.wait_for(self.orchestrator.stop(), .25)
+
+            executor.force_stop_with_position_hold.assert_not_called()
+            store_all_positions.assert_called_once()
+            store_all_executors.assert_called_once()
+
+        asyncio.run(exercise())
+
+    @patch.object(ExecutorOrchestrator, "store_all_positions")
+    @patch.object(ExecutorOrchestrator, "store_all_executors")
     def test_stop_extends_wait_while_executor_makes_progress(self, store_all_executors, store_all_positions):
         """The stall budget resets on observable progress, so a multi-tick unwind that
         outlives the base budget still finishes without being force-stopped."""
@@ -484,14 +505,14 @@ class TestExecutorOrchestrator(unittest.TestCase):
             # stall budget (one attempt = 2 polls) would allow without progress.
             states = iter(["CLOSING", "CLOSING_CONFIRMING", "SWAPPING", "SWAPPING_CONFIRMING", "COMPLETE"])
 
-            async def advance(_delay):
+            async def advance(_tasks, *, timeout):
                 state = next(states, "COMPLETE")
                 executor.executor_info.custom_info = {"state": state}
                 if state == "COMPLETE":
                     executor.executor_info.is_done = True
 
             self.orchestrator.active_executors["test"] = [executor]
-            with patch("hummingbot.strategy_v2.executors.executor_orchestrator.asyncio.sleep", side_effect=advance):
+            with patch("hummingbot.strategy_v2.executors.executor_orchestrator.asyncio.wait", side_effect=advance):
                 await self.orchestrator.stop(max_executors_close_attempts=1)
 
             executor.force_stop_with_position_hold.assert_not_called()
@@ -505,11 +526,11 @@ class TestExecutorOrchestrator(unittest.TestCase):
         async def test_async():
             executor = self._make_unfinished_executor("hung", RunnableStatus.SHUTTING_DOWN)
 
-            async def no_progress(_delay):
+            async def no_progress(_tasks, *, timeout):
                 pass
 
             self.orchestrator.active_executors["test"] = [executor]
-            with patch("hummingbot.strategy_v2.executors.executor_orchestrator.asyncio.sleep", side_effect=no_progress):
+            with patch("hummingbot.strategy_v2.executors.executor_orchestrator.asyncio.wait", side_effect=no_progress):
                 await self.orchestrator.stop(max_executors_close_attempts=1)
 
             executor.force_stop_with_position_hold.assert_called_once()
