@@ -7,6 +7,7 @@ from test.integration.postgres.test_recovery_store import ADMIN, recovering as _
 
 import pytest
 from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import OperationalError
 
 from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.recovery import RecoveryBlocked
@@ -14,6 +15,7 @@ from hummingbot.core.segmented_recovery import verify_segment
 from hummingbot.model.admin_command import AdminCommand
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import ControlConflict
+from hummingbot.model.db_migration.postgres.io_deadline import DatabaseIOTimeout
 from hummingbot.model.recovery_proof import RecoveryProofFill
 
 recovering = _recovering
@@ -46,6 +48,19 @@ async def segment(store, owner, row, data, venue, *, budget=100, interrupt=None)
             interrupt(before, after, entries)
 
     return await verify_segment(data, {'okx': venue}, lookup, progress, save, page_budget=budget)
+
+
+async def complete_proof(store, owner, row, data, venue):
+    try:
+        proof = await segment(store, owner, row, data, venue)
+    except OperationalError as error:
+        if not isinstance(error.orig, DatabaseIOTimeout):
+            raise
+        # This fixture drives the store directly. Resume from the durable
+        # cursor as the service would after an ambiguous page COMMIT.
+        proof = await segment(store, owner, row, data, venue)
+    assert proof and proof['verified']
+    return proof
 
 
 def evidence_count(store):
@@ -205,14 +220,29 @@ async def test_final_reset_rechecks_review_expiry_and_completed_proof(recovering
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
     store, owner = recovering
     row, data, venue = begin(store, owner)
-    proof = await segment(store, owner, row, data, venue)
+    proof = await complete_proof(store, owner, row, data, venue)
     store.finish_check(owner, row, data, [], proof, blockers=[])
     check = store.get(row['id'])
     store.request('recovery_reset', 'reset', dict(expected_version=0, check_id=row['id'],
                   confirmation_token=check['result']['confirmation_token']), ADMIN, 'reset')
     row = store.claim(owner)
     data = store.snapshot()
-    proof = await segment(store, owner, row, data, venue)
+    timed_out = False
+    if fault == 'confirmation_expired':
+        persist = store.save_proof_progress
+
+        def lose_page_reply(owner, row, data, before, after, entries):
+            nonlocal timed_out
+            saved = persist(owner, row, data, before, after, entries)
+            if entries and not timed_out:
+                timed_out = True
+                raise OperationalError(None, None, DatabaseIOTimeout('Test page COMMIT reply lost.'),
+                                       connection_invalidated=True)
+            return saved
+
+        monkeypatch.setattr(store, 'save_proof_progress', lose_page_reply)
+    proof = await complete_proof(store, owner, row, data, venue)
+    assert timed_out is (fault == 'confirmation_expired')
     target = check if fault == 'confirmation_expired' else store.get(row['id'])
     report = deepcopy(target['result'])
     if fault == 'confirmation_expired':

@@ -209,9 +209,15 @@ def test_stopped_service_bootstrap_standby_handover_and_durable_control(pg_engin
     try:
         first, port, log = start_service(tmp_path / "revision-one")
         processes.append((first, log))
-        eventually(lambda: health(port, "/startup")[0] == 200)
+        wait_for_startup(first, port, log)
         store = BotStateStore(pg_engine, "hummingbot")
-        owner = eventually(lambda: (row if (row := store.read()) and row["owner_uuid"] else None))
+
+        def published_owner():
+            row = store.read()
+            if row and row["owner_uuid"] and row["status"] is not None:
+                return row
+
+        owner = eventually(published_owner)
         assert owner["desired_state"] == "stopped" and not owner["status"]["running"]
         assert health(port, "/live")[0] == 200 and health(port, "/ready")[0] == 503
         second, second_port, second_log = start_service(tmp_path / "revision-two", auto_migrate=False)
