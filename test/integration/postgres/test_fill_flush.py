@@ -99,26 +99,33 @@ def test_terminal_status_failure_rolls_back_order_attempt_history_and_tracking(o
 
 
 def test_terminal_status_paired_roundtrip_measurement(owned):
-    """Replay the old flush boundaries with identical fencing and durable writes."""
+    """Compare separate and combined evidence reads through the same durable writes."""
     import time
     from statistics import median
     from test.integration.postgres.test_performance import report
     from types import SimpleNamespace
 
+    from sqlalchemy.orm import load_only
+
     from hummingbot.connector.markets_recorder import MarketsRecorder
     from hummingbot.model.runtime_journal import SubmissionAttempt
-    attempt, history = MarketsRecorder._attempt_observation, MarketsRecorder._add_order_status
+    combined_evidence = MarketsRecorder._read_order_event_evidence
     serial = 0
 
-    def old_attempt(recorder, session, *args):
-        session.flush()
-        return attempt(recorder, session, *args)
+    def separate_evidence(session, identity, timestamp, status, *, include_pending_intent=False):
+        order = session.get(Order, identity)
+        if order is None:
+            return None
+        attempt = session.get(SubmissionAttempt, identity, options=(load_only(SubmissionAttempt.state),))
+        history = select(OrderStatus.id).filter_by(order_id=identity, timestamp=timestamp, status=status).exists()
+        evidence = (order, attempt, session.scalar(select(history)))
+        if include_pending_intent:
+            intent_recorded = select(OrderStatus.id).where(
+                OrderStatus.order_id == identity, OrderStatus.status.in_(('PendingBuy', 'PendingSell'))).exists()
+            return (*evidence, order.creation_pending and session.scalar(select(intent_recorded)))
+        return evidence
 
-    def old_history(session, *args):
-        session.flush()
-        return history(session, *args)
-
-    def run(legacy, delay):
+    def run(separate_reads, delay):
         nonlocal serial
         serial += 1
         identity = 'terminal-paired-' + str(serial)
@@ -130,8 +137,8 @@ def test_terminal_status_paired_roundtrip_measurement(owned):
         if delay:
             event.listen(owned.engine, 'after_cursor_execute', network_wait)
         try:
-            with patch.object(MarketsRecorder, '_attempt_observation', old_attempt if legacy else attempt), \
-                    patch.object(MarketsRecorder, '_add_order_status', staticmethod(old_history if legacy else history)), \
+            reader = separate_evidence if separate_reads else combined_evidence
+            with patch.object(MarketsRecorder, '_read_order_event_evidence', staticmethod(reader)), \
                     queries(owned.engine) as statements, \
                     patch.object(owned.owner, '_read_owner', wraps=owned.owner._read_owner) as checks:
                 started = time.perf_counter()
@@ -142,9 +149,12 @@ def test_terminal_status_paired_roundtrip_measurement(owned):
             if delay:
                 event.remove(owned.engine, 'after_cursor_execute', network_wait)
         with owned.manager.get_new_session() as session:
-            assert session.get(Order, identity).last_status == 'OrderCancelled'
+            order = session.get(Order, identity)
+            assert order.last_status == 'OrderCancelled' and not order.creation_pending
+            assert order.exchange_order_id == 'venue-' + identity and order.amount == Decimal('.1')
             assert session.get(SubmissionAttempt, identity).state == 'terminal'
             assert session.query(OrderStatus).filter_by(order_id=identity, status='OrderCancelled').count() == 1
+            assert session.query(MarketState).one().saved_state == owned.market.tracking_states
         return dict(sql=len(statements), owner_reads=checks.call_count, elapsed_ms=elapsed)
 
     values = {}
@@ -158,14 +168,14 @@ def test_terminal_status_paired_roundtrip_measurement(owned):
             pairs.append((old, new))
         # No wall-clock performance assertions: deterministic DB work is the contract.
         for old, new in pairs:
-            assert old['owner_reads'] == 4 and new['owner_reads'] == 2
-            assert old['sql'] - new['sql'] == 2
+            assert old['owner_reads'] == new['owner_reads'] == 2
+            assert old['sql'] - new['sql'] == 3
         values[str(delay)] = dict(
             before_sql=pairs[0][0]['sql'], after_sql=pairs[0][1]['sql'],
             before_p50_ms=median(old['elapsed_ms'] for old, _ in pairs),
             after_p50_ms=median(new['elapsed_ms'] for _, new in pairs),
             injected_delay_per_statement_seconds=delay)
-    report('terminal_status_coalescing', values)
+    report('terminal_status_evidence_coalescing', values)
 
 
 def seed(context, known):
