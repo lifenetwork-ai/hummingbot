@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import select, update
 
 from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
+from hummingbot.core.data_type.common import TradeType
 from hummingbot.model.order import Order
 from hummingbot.model.runtime_journal import SubmissionAttempt
 
@@ -23,7 +24,7 @@ def receipt(identity='auto-order', code='50037'):
     return dict(http_status=200, code='1', order=dict(clOrdId=identity, ordId='', sCode=code))
 
 
-@pytest.mark.parametrize('code', ['50036', '50037', '51006'])
+@pytest.mark.parametrize('code', ['50036', '50037', '51006', '51138'])
 def test_cold_recovery_consumes_only_correlated_rejection_receipt_atomically(managed_native, code):
     context, exchange, recorder, transport = managed_native
     proof = receipt(code=code)
@@ -213,11 +214,17 @@ def test_native_transport_expiry_never_enters_unknown_outcome_recovery(owned, co
         fixture.close()
 
 
-def test_native_perpetual_price_rejection_settles_without_pausing_trading(owned):
+@pytest.mark.parametrize('perpetual,code,side', [
+    (True, '51006', TradeType.BUY),
+    (False, '51006', TradeType.SELL),
+    (False, '51137', TradeType.BUY),
+    (False, '51138', TradeType.SELL),
+])
+def test_native_price_rejection_settles_without_pausing_trading(owned, perpetual, code, side):
     from hummingbot.model.admin_access import AdminAuditEvent
     from hummingbot.model.trade_fill import TradeFill
 
-    fixture = managed_native_fixture.__wrapped__(owned, expiry_code='51006', perpetual=True)
+    fixture = managed_native_fixture.__wrapped__(owned, expiry_code=code, perpetual=perpetual, side=side)
     context, exchange, _, transport = next(fixture)
     try:
         assert context.owner.allow_new_orders
@@ -227,10 +234,10 @@ def test_native_perpetual_price_rejection_settles_without_pausing_trading(owned)
         assert 'auto-order' not in context.owner.sent_intents
         with context.manager.get_new_session() as db:
             order = db.get(Order, 'auto-order')
-            assert order.market == 'okx_perpetual' and order.last_status == 'OrderFailure'
+            assert order.market == exchange.name and order.last_status == 'OrderFailure'
             assert not order.creation_pending and order.exchange_order_id is None
             saved = db.get(SubmissionAttempt, 'auto-order')
-            assert saved.state == 'terminal' and saved.receipt == receipt(code='51006')
+            assert saved.state == 'terminal' and saved.receipt == receipt(code=code)
             assert db.query(TradeFill).count() == 0
             audit = db.query(AdminAuditEvent).filter_by(action='automatic_recovery_order_rejected').one()
             assert audit.reason_code == 'exchange_price_limit'

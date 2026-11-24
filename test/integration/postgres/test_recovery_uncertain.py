@@ -75,6 +75,36 @@ def test_uncertain_batch_requires_complete_exact_set(recovering, monkeypatch):
         store.operation_snapshot({'uncertain_order_ids': identities})
 
 
+@pytest.mark.parametrize('fault', [None, 'wrong_client_id', 'venue_id', 'http_error', 'missing_venue_id', 'unknown_code'])
+def test_scoped_sell_review_requires_exact_price_rejection_receipt(recovering, monkeypatch, fault):
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    monkeypatch.setenv('OKX_SITE', 'www')
+    store, _ = recovering
+    identity = seed_uncertain(store, sell_last=True)
+    receipt = dict(http_status=200, code='1', order=dict(clOrdId=identity, ordId='', sCode='51138'))
+    if fault == 'wrong_client_id':
+        receipt['order']['clOrdId'] = 'different'
+    elif fault == 'venue_id':
+        receipt['order']['ordId'] = 'existing-venue-order'
+    elif fault == 'http_error':
+        receipt['http_status'] = 503
+    elif fault == 'missing_venue_id':
+        del receipt['order']['ordId']
+    elif fault == 'unknown_code':
+        receipt['order']['sCode'] = '50004'
+    with store.engine.begin() as db:
+        db.execute(update(SubmissionAttempt).values(receipt=receipt))
+    if fault:
+        with pytest.raises(RecoveryBlocked, match='recovery_uncertain_order_scope'):
+            store.operation_snapshot({'uncertain_order_id': identity})
+    else:
+        snapshot = store.operation_snapshot({'uncertain_order_id': identity})
+        assert snapshot['uncertain_order']['id'] == identity
+        assert snapshot['uncertain_order']['side'] == 'SELL'
+    with store.engine.connect() as db:
+        assert db.scalar(select(Order.creation_pending).where(Order.id == identity))
+
+
 @pytest.mark.parametrize('fault', [None, 'current_step', 'different_session', 'future_generation', 'expired_step', 'missing_step', 'fixed_sell'])
 def test_uncertain_batch_from_earlier_random_step_requires_its_original_send_window(recovering, monkeypatch, fault):
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo')

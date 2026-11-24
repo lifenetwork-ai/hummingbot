@@ -1,6 +1,10 @@
 """Shared OKX order-status decoding for the existing lost-order lifecycle."""
 import json
 
+_EXPIRED_ORDER_CODES = frozenset({"50036", "50037"})
+_PRICE_LIMIT_ORDER_CODES = frozenset({"51006", "51137", "51138"})
+REVIEWED_ORDER_REJECTION_CODES = _EXPIRED_ORDER_CODES | _PRICE_LIMIT_ORDER_CODES
+
 
 class OKXOrderNotFoundError(IOError):
     """An explicit 51603 response, not a transport failure or missing payload."""
@@ -28,8 +32,8 @@ class OKXPriceLimitOrderRejection(OKXOrderRejection):
 
     reason_code = "exchange_price_limit"
 
-    def __init__(self, client_order_id):
-        super().__init__(client_order_id, "OKX rejected the order price (51006).")
+    def __init__(self, client_order_id, code="51006"):
+        super().__init__(client_order_id, f"OKX rejected the order price ({code}).")
 
 
 def check_order_submission(response, client_order_id):
@@ -40,10 +44,10 @@ def check_order_submission(response, client_order_id):
             row = rows[0]
             if row.get("clOrdId") == client_order_id and row.get("ordId") == "":
                 code = str(row.get("sCode"))
-                if code in ("50036", "50037"):
+                if code in _EXPIRED_ORDER_CODES:
                     raise OKXExpiredOrderRejection(client_order_id, code)
-                if code == "51006":
-                    raise OKXPriceLimitOrderRejection(client_order_id)
+                if code in _PRICE_LIMIT_ORDER_CODES:
+                    raise OKXPriceLimitOrderRejection(client_order_id, code)
     raise IOError("OKX order submission failed or returned an ambiguous response.")
 
 

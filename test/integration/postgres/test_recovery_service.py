@@ -6,19 +6,23 @@ from test.integration.postgres.test_managed_service import call
 from test.integration.postgres.test_service import eventually, start_service, terminate, wait_for_startup
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import text, update
 
 from hummingbot.model.bot_state_store import BotStateStore
+from hummingbot.model.runtime_journal import SubmissionAttempt
 
 
-@pytest.mark.parametrize('checkpoint_history,terminal_metadata,uncertain_count,pending_fills,sell_last,rollover_halt', [
-    (False, False, 0, False, False, False), (True, False, 0, False, False, False), (True, True, 0, False, False, False),
-    (True, False, 1, False, False, False), (True, True, 0, True, False, False), (True, False, 2, False, False, False),
-    (True, False, 1, False, True, False), (True, False, 2, False, True, False),
-    pytest.param(True, False, 1, False, True, True, id='halted-spot-sell-rollover')])
+@pytest.mark.parametrize('checkpoint_history,terminal_metadata,uncertain_count,pending_fills,sell_last,rollover_halt,price_rejected', [
+    (False, False, 0, False, False, False, False), (True, False, 0, False, False, False, False),
+    (True, True, 0, False, False, False, False), (True, False, 1, False, False, False, False),
+    (True, True, 0, True, False, False, False), (True, False, 2, False, False, False, False),
+    (True, False, 1, False, True, False, False), (True, False, 2, False, True, False, False),
+    pytest.param(True, False, 1, False, True, True, False, id='halted-spot-sell-rollover'),
+    pytest.param(True, False, 1, False, True, False, True, id='spot-sell-price-limit'),
+])
 def test_supervised_review_confirm_retry_and_restart_stay_stopped(
         pg_engine, tmp_path, monkeypatch, checkpoint_history, terminal_metadata, uncertain_count, pending_fills, sell_last,
-        rollover_halt):
+        rollover_halt, price_rejected):
     uncertain = bool(uncertain_count)
     batch = uncertain_count > 1
     monkeypatch.setenv('EXCHANGE_CREDENTIALS_SOURCE', 'postgres_kms')
@@ -63,6 +67,10 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
                 seeded = seed_uncertain(RecoveryStore(state), existing_binding=True, api_key='RECOVERY-CANARY-API',
                                         count=uncertain_count, sell_last=sell_last, lost_receipt=sell_last and not batch)
                 reviewed_ids = seeded if batch else [seeded]
+                if price_rejected:
+                    with pg_engine.begin() as db:
+                        db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == seeded).values(
+                            receipt=dict(http_status=200, code='1', order=dict(clOrdId=seeded, ordId='', sCode='51138'))))
                 if rollover_halt:
                     incident = dict(halt=True, halt_kind='manual', runtime_active=True, shutdown_incomplete=True,
                                     reason='Strategy initialization/reconciliation failed; inspect sanitized logs.',

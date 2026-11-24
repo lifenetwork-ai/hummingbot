@@ -1,6 +1,7 @@
 """Local proof and atomic retirement of reviewed, expired OKX Spot orders."""
 from sqlalchemy import select, update
 
+from hummingbot.connector.okx_order_status import OKXPriceLimitOrderRejection, order_rejection_reason
 from hummingbot.core.automatic_recovery import eligible
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.recovery import RecoveryBlocked, decimal, supports_halted_order_review
@@ -92,10 +93,11 @@ def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, r
     _require(side in PENDING_STATUS and order['last_status'] == PENDING_STATUS[side] and order['exchange_order_id'] is None
              and order['order_type'] == 'LIMIT_MAKER' and order['position'] == 'NIL'
              and not order['position_applied'] and not order['cleanup_operation_id'])
+    price_rejected = order_rejection_reason(receipt, identity) == OKXPriceLimitOrderRejection.reason_code
     if supports_halted_order_review(state, (identity,)):
         _require(side == 'SELL' and receipt is None)
     statuses = (200, 429, 500, 503) if side == 'SELL' else (429, 500, 503)
-    _require((side == 'SELL' and receipt is None) or (isinstance(receipt, dict)
+    _require(price_rejected or (side == 'SELL' and receipt is None) or (isinstance(receipt, dict)
              and receipt.get('code') == '50013' and receipt.get('http_status') in statuses and not receipt.get('order')))
     created, deadline = order['creation_timestamp'], attempt['deadline_ms']
     now = int(state['database_now'].timestamp() * 1000)

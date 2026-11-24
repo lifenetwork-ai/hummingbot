@@ -17,7 +17,12 @@ from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_user_stream_dat
     OkxPerpetualUserStreamDataSource,
 )
 from hummingbot.connector.derivative.position import Position
-from hummingbot.connector.okx_order_status import OKXOrderNotFoundError, check_order_submission, order_status_data
+from hummingbot.connector.okx_order_status import (
+    REVIEWED_ORDER_REJECTION_CODES,
+    OKXOrderNotFoundError,
+    check_order_submission,
+    order_status_data,
+)
 from hummingbot.connector.perpetual_derivative_py_base import PerpetualDerivativePyBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import combine_to_hb_trading_pair
@@ -312,7 +317,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         data = exchange_order_id["data"][0]
         if data["sCode"] != "0":
-            if str(data["sCode"]) in ("50036", "50037", "51006"):
+            if str(data["sCode"]) in REVIEWED_ORDER_REJECTION_CODES:
                 check_order_submission(exchange_order_id, order_id)
             raise IOError(f"Error submitting order {order_id}: {data['sMsg']}")
         return str(data["ordId"]), self.current_timestamp
