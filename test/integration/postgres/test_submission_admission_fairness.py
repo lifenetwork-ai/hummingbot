@@ -840,9 +840,10 @@ def test_native_intent_contention_waits_on_same_identity_and_rechecks_authority(
     assert native.manager.persistence_healthy and not native.store.read()['recovery_state'].get('halt')
 
 
-@pytest.mark.parametrize('hold_seconds', [.065, 1.35], ids=['short-lock', 'sustained-lock'])
+@pytest.mark.parametrize(('hold_seconds', 'required_cooldowns'), [(.065, 1), (1.35, 2)], ids=['short-lock', 'sustained-lock'])
 @pytest.mark.parametrize('fixed', [True, False], ids=['fixed', 'adaptive'])
-def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends(native, hold_seconds, fixed, monkeypatch):
+def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends(
+        native, hold_seconds, required_cooldowns, fixed, monkeypatch):
     from test.integration.postgres.test_performance import report
 
     from hummingbot.core.event.event_forwarder import EventForwarder
@@ -855,6 +856,10 @@ def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends
     monkeypatch.setattr(engine_diagnostics, '_ACTIVE', diagnostics)
     failures, attempts, accepted = EventLogger(), [], {}
     first_attempt = asyncio.Event()
+    cooldown_released = asyncio.Event()
+    released_deadlines = set()
+    admission = native.owner.submission_admission
+    release_admission = admission.release
     buy_created = EventForwarder(lambda update: accepted.setdefault(update.order_id, time.monotonic()))
     native.market.add_listener(MarketEvent.OrderFailure, failures)
     native.market.add_listener(MarketEvent.BuyOrderCreated, buy_created)
@@ -862,9 +867,19 @@ def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends
 
     def fence(connection, cursor, statement, *args):
         if blocked[0] and 'FOR SHARE' in statement and 'NOWAIT' in statement:
-            attempts.append(time.monotonic())
+            attempts.append((time.monotonic(), native.owner._intent_admission_retry_at))
             if len(attempts) == 1:
                 native.loop.call_soon_threadsafe(first_attempt.set)
+
+    def release_slot():
+        release_admission()
+        deadline = native.owner._intent_admission_retry_at
+        if blocked[0] and deadline and not admission.locked():
+            released_deadlines.add(deadline)
+            if len(released_deadlines) >= required_cooldowns:
+                cooldown_released.set()
+
+    monkeypatch.setattr(admission, 'release', release_slot)
 
     async def run():
         with session_order_scope(native.session.id, native.session.generation):
@@ -885,13 +900,15 @@ def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends
             try:
                 await asyncio.wait_for(first_attempt.wait(), 2)
                 await asyncio.sleep(hold_seconds)
+                # A retry may hold the slot when the hold timer wakes. Check
+                # completed cooldown transitions while the real row is locked.
+                await asyncio.wait_for(cooldown_released.wait(), 5)
+                blocked_attempts = tuple(attempts)
                 assert all(not t.done() for t in tasks)
-                assert not native.owner.submission_admission.locked()
                 assert native.transport.call.await_count == 1 and not accepted and not failures.event_log
-                if hold_seconds > 1:
-                    assert 2 <= len(attempts) <= 6, 'Waiters must not each poll the DB during shared cooldown'
-                else:
-                    assert 1 <= len(attempts) <= (1 if fixed else 2)
+                deadlines = [deadline for _, deadline in blocked_attempts]
+                assert len(set(deadlines)) == len(deadlines), 'Waiters must share one attempt per cooldown'
+                assert all(attempted >= deadline for attempted, deadline in blocked_attempts)
             except BaseException:
                 for task in tasks:
                     task.cancel()
@@ -905,11 +922,11 @@ def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
         assert native.market.in_flight_orders['resting-sell'].current_state is OrderState.OPEN
-        return started
+        return started, len(blocked_attempts)
 
     event.listen(native.engine, 'before_cursor_execute', fence)
     try:
-        started = native.loop.run_until_complete(run())
+        started, blocked_attempt_count = native.loop.run_until_complete(run())
     finally:
         event.remove(native.engine, 'before_cursor_execute', fence)
         native.market.remove_listener(MarketEvent.OrderFailure, failures)
@@ -927,7 +944,7 @@ def test_eight_native_waiters_share_cooldown_without_failures_or_duplicate_sends
     assert len(admissions) == len(order_ids)
     # With eight orders the nearest-rank p95 is the largest observation.
     report(f'admission_backoff_{hold_seconds}_{"fixed" if fixed else "adaptive"}', dict(
-        samples=len(admissions), blocked_attempts=len(attempts),
+        samples=len(admissions), blocked_attempts=blocked_attempt_count,
         admission_p95_ms=max(row['duration_ms'] for row in admissions),
         buy_quote_gap_ms=(min(accepted.values()) - started) * 1000,
         scope='Real PostgreSQL, native connector, simulated venue acknowledgement'))
