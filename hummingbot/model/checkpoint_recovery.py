@@ -130,8 +130,13 @@ def snapshot(connection, state, positions, bindings, *, uncertain_ids=()):
         pending = pending_candidates(connection, state, positions, bindings, checkpoint, anchor)
         if pending is None or uncertain and pending[0]:
             return None
-        unjournaled = connection.scalar(select(func.count()).select_from(TradeFill).where(
-            ~exists(select(RuntimeJournal.id).where(fill_identity()))))
+        # Native fill identities are unique by the trade_fills primary key. A set
+        # difference reads the two identity sets once and collapses duplicate journal
+        # entries, avoiding repeated probes of the JSON journal on large ledgers.
+        unjournaled_keys = select(TradeFill.order_id, TradeFill.market, TradeFill.exchange_trade_id).except_(
+            select(RuntimeJournal.order_id, RuntimeJournal.payload['market'].as_string(),
+                   RuntimeJournal.payload['exchange_trade_id'].as_string()).where(RuntimeJournal.kind == 'fill'))
+        unjournaled = connection.scalar(select(func.count()).select_from(unjournaled_keys.subquery()))
         if unjournaled != anchor['prefix_unjournaled_fills']:
             return None
         work = and_(RuntimeJournal.kind == 'fill', RuntimeJournal.id > anchor['journal_watermark'])

@@ -79,6 +79,36 @@ def test_verified_checkpoint_avoids_lifetime_order_and_fill_caps(recovering, mon
     assert owner.check_owner()['recovery_state']['halt']
 
 
+def test_checkpoint_counts_unjournaled_history_in_one_set_pass(recovering, monkeypatch):
+    from test.integration.postgres.test_admin_load_plans import nodes
+
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    monkeypatch.setenv('OKX_SITE', 'www')
+    store, _ = recovering
+    seed_checkpoint(store, orders=10001, fills=10001)
+    statements = []
+
+    def capture(_connection, _cursor, statement, parameters, _context, _executemany):
+        if statement.startswith('SELECT count(') and 'trade_fills' in statement and 'runtime_journal' in statement:
+            statements.append((statement, parameters))
+
+    event.listen(store.engine, 'before_cursor_execute', capture)
+    try:
+        snapshot = store.snapshot()
+    finally:
+        event.remove(store.engine, 'before_cursor_execute', capture)
+    assert snapshot['checkpoint']['prefix_unjournaled_fills'] == 1
+    assert snapshot['checkpoint']['expected_fills'] == 10000
+
+    # The baseline count should scan the two identity sets once. A correlated
+    # anti-join can instead probe the JSON journal repeatedly on larger ledgers.
+    statement, parameters = statements[0]
+    with store.engine.connect() as db:
+        plan = db.exec_driver_sql('EXPLAIN (ANALYZE, FORMAT JSON) ' + statement, parameters).scalar_one()[0]['Plan']
+    assert any(node.get('Command') == 'Except' for node in nodes(plan)), plan
+    assert all(node['Actual Loops'] <= 1 for node in nodes(plan)), plan
+
+
 @pytest.mark.parametrize('mutation', ['missing_audit', 'unauthorized_audit', 'financial', 'unjournaled', 'unapplied', 'binding'])
 def test_unproven_or_changed_checkpoint_cannot_skip_complete_history(recovering, monkeypatch, mutation):
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo'); monkeypatch.setenv('OKX_SITE', 'www')
