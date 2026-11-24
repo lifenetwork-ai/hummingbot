@@ -772,6 +772,15 @@ class ExchangePyBase(ExchangeBase, ABC):
         await self.stop_network()
         self.order_book_tracker.start()
         if self.is_trading_required:
+            from hummingbot.core.order_submission_guard import SUPPORTED_CONNECTORS, postgres_requested
+
+            timestamp = self.current_timestamp
+            if (not self._account_balances and math.isfinite(timestamp)
+                    and self.name in SUPPORTED_CONNECTORS and postgres_requested()):
+                # Managed startup requires a fresh balance. Wake the existing
+                # poll now and preserve its interval across the first clock tick.
+                self._last_timestamp = timestamp
+                self._poll_notifier.set()
             self._trading_rules_polling_task = safe_ensure_future(self._trading_rules_polling_loop())
             self._trading_fees_polling_task = safe_ensure_future(self._trading_fees_polling_loop())
             self._status_polling_task = safe_ensure_future(self._status_polling_loop())
