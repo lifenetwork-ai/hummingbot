@@ -824,12 +824,15 @@ class PositionExecutor(ExecutorBase):
         """
         self._notify_shutdown_order_change(event.order_id)
         if self._open_order and event.order_id == self._open_order.order_id:
+            from hummingbot.core.order_submission_guard import proved_zero_fill_rejection
+
             observe_spot_sell_executor(self.config, 'rejected', event.order_id, reason=event.error_type)
             session_closed = (event.error_type == 'SessionSubmissionBlocked'
                               and getattr(self.config, 'mm_session_id', None) is not None
                               and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
-            self._retain_managed_terminal_order(self._open_order)
-            self._failed_orders.append(self._open_order)
+            rejected = self._open_order
+            self._retain_managed_terminal_order(rejected)
+            self._failed_orders.append(rejected)
             self._open_order = None
             # A configured entry cannot fix a fresh spread rejection by retrying
             # its immutable price. Reuse normal shutdown/held-fill bookkeeping;
@@ -840,7 +843,13 @@ class PositionExecutor(ExecutorBase):
             outflow_wait = (event.error_type in ("SpotOutflowBlocked", "SpotOutflowPending") and self.config.mm_session_id is not None
                             and self.config.connector_name == 'okx' and self.config.side == TradeType.BUY
                             and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
-            if reprice or (outflow_wait or session_closed or checkpoint_wait) and self.status == RunnableStatus.RUNNING:
+            if (reprice and self._is_managed_maker_entry and len(self._failed_orders) == 1
+                    and self._close_order is None and self._take_profit_limit_order is None
+                    and self._restored_pending_entry is None and not self._held_position_orders
+                    and proved_zero_fill_rejection(rejected.order)):
+                self.close_type = CloseType.EARLY_STOP
+                self.stop(immediate_report=True)
+            elif reprice or (outflow_wait or session_closed or checkpoint_wait) and self.status == RunnableStatus.RUNNING:
                 # An unchanged cap or retired session cannot be repaired with a
                 # new local identity. Drain/hold native effects normally; only
                 # fresh controller/session admission can authorize a replacement.

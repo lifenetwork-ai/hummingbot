@@ -157,6 +157,17 @@ def unresolved_submission(client_order_id):
     return postgres_requested() and _guard is not None and client_order_id in _guard.sent_intents
 
 
+def proved_zero_fill_rejection(order):
+    """Require an exact native rejection with no remaining send or ledger obligation."""
+    owner = _guard
+    if owner is None or owner.lost or order is None or not postgres_requested():
+        return False
+    identity = order.client_order_id
+    return (order.is_failure and not order.exchange_order_id and not order.executed_amount_base and not order.order_fills
+            and identity not in owner.sent_intents and identity not in owner.active_intents
+            and (owner.unsent_rejections.get(identity) is order or owner.exchange_rejections.get(identity) is order))
+
+
 def managed_terminal_order(order):
     return postgres_requested() and _guard is not None and getattr(order, '_managed_recovery_order', False) is True
 

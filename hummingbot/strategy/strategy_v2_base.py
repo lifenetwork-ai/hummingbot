@@ -795,10 +795,10 @@ class StrategyV2Base(StrategyPyBase):
             except Exception as e:
                 self.logger().error(f"Error executing action: {e}", exc_info=True)
 
-    def notify_executor_terminated(self, executor):
+    def notify_executor_terminated(self, executor, *, immediate=False):
         """Coalesce native managed completion; never publish inside an event callback."""
         if executor.is_closed:
-            self._queue_managed_executor_report(executor)
+            self._queue_managed_executor_report(executor, immediate=immediate)
 
     def notify_executor_entry_filled(self, executor):
         """Expose a proven full entry promptly; the controller still owns handoff."""
@@ -852,7 +852,7 @@ class StrategyV2Base(StrategyPyBase):
             # without adding a report on every subsequent account update.
             reported = covered_entries
 
-    def _queue_managed_executor_report(self, executor):
+    def _queue_managed_executor_report(self, executor, *, immediate=False):
         config = executor.config
         controller = self.controllers.get(config.controller_id)
         scope = (getattr(config, 'mm_session_id', None), getattr(config, 'mm_generation', None))
@@ -869,6 +869,13 @@ class StrategyV2Base(StrategyPyBase):
         if config.controller_id not in self._managed_report_pending and len(self._managed_report_pending) >= 64:
             return  # Bounded notifications; the regular clock remains the fallback.
         self._managed_report_pending[config.controller_id] = scope
+        if immediate:
+            # A proved zero-fill rejection can be repriced on the next turn.
+            # Publish the usual report after the recorder callback has returned.
+            if self._managed_report_handle is not None:
+                self._managed_report_handle.cancel()
+            self._managed_report_handle = loop.call_soon(self._publish_managed_terminal_reports, context=Context())
+            return
         if self._managed_report_handle is None:
             # A one-shot window also batches ACKs arriving on adjacent loop turns;
             # it does not add another periodic reporter or accelerate the clock.

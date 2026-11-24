@@ -170,7 +170,7 @@ class ExecutorBase(RunnableBase):
         self.register_events()
 
     @trace_runtime('executor.terminal')
-    def stop(self):
+    def stop(self, *, immediate_report=False):
         """
         Stops the executor and unregisters the events.
         """
@@ -182,7 +182,10 @@ class ExecutorBase(RunnableBase):
                 and isinstance(getattr(self.config, 'mm_generation', None), int)):
             notify = getattr(self._strategy, 'notify_executor_terminated', None)
             if callable(notify):
-                notify(self)
+                if immediate_report:
+                    notify(self, immediate=True)
+                else:
+                    notify(self)
 
     async def on_start(self):
         """

@@ -62,6 +62,7 @@ from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 _QUOTE_FEE_NOT_CALCULATED = object()
 _ORDER_FENCE_RETRY_SECONDS = 4.0
 _ORDER_FENCE_RETRY_INTERVAL = 0.1
+_ORDER_FENCE_FIRST_WRITE_RETRY = 0.0125
 _ACK_RETRY_EXPIRED = object()
 MAX_OPEN_ACK_BATCH = 8
 
@@ -362,6 +363,7 @@ class MarketsRecorder:
         loop = asyncio.get_running_loop()
         started = loop.time()
         deadline = started + _ORDER_FENCE_RETRY_SECONDS
+        retry_interval = _ORDER_FENCE_FIRST_WRITE_RETRY
         cancelled = None
         try:
             while True:
@@ -384,11 +386,14 @@ class MarketsRecorder:
                 if remaining <= 0:
                     raise lock_error
                 try:
-                    await asyncio.sleep(min(remaining, _ORDER_FENCE_RETRY_INTERVAL))
+                    # Keep received fills ahead of new risk. A short initial
+                    # retry avoids parking the shared slot after a brief row lock.
+                    await asyncio.sleep(min(remaining, retry_interval))
                 except asyncio.CancelledError as error:
                     # Drain the received venue fact under the same finite
                     # budget before shutdown can release its ownership.
                     cancelled = error
+                retry_interval = min(_ORDER_FENCE_RETRY_INTERVAL, retry_interval * 2)
                 if loop.time() >= deadline:
                     raise lock_error
         except (ExecutorArchiveBusy, PositionCheckpointBusy, OrderAcknowledgementBusy):

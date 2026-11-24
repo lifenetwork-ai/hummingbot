@@ -11,10 +11,14 @@ import pytest_asyncio
 
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.connector.test_support.mock_paper_exchange import MockPaperExchange
-from hummingbot.core.data_type.common import TradeType
+from hummingbot.core import order_submission_guard
+from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
+from hummingbot.core.event.events import MarketOrderFailureEvent
 from hummingbot.core.order_submission_guard import current_executor_scope, current_session_scope, session_order_scope
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
+from hummingbot.strategy_v2.models.base import RunnableStatus
+from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.utils.perpetual_reduction import HedgeCostBasis
 
 
@@ -58,6 +62,41 @@ async def native_publication(monkeypatch):
             handle.cancel()
         strategy.listen_to_executor_actions_task.cancel()
         await asyncio.gather(strategy.listen_to_executor_actions_task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('proof', ['unsent', 'venue_rejected', 'unproven', 'pending_intent', 'sent_intent', 'partial_fill'])
+async def test_managed_reprice_without_exposure_publishes_on_next_loop_turn(native_publication, monkeypatch, proof):
+    strategy, orchestrator, executor, order, recorder, controller = native_publication(TradeType.SELL, entry=True)
+    order.current_state = OrderState.FAILED
+    order.exchange_order_id = None
+    if proof == 'partial_fill':
+        fill(order, 'partial', '.2')
+    # Executors share connector events. A fill on a peer does not belong to
+    # this executor and must not defer the proven rejection's report.
+    executor.process_order_completed_event(None, None, SimpleNamespace(order_id='peer', base_asset_amount=Decimal('1')))
+    owner = SimpleNamespace(
+        unsent_rejections={} if proof in ('unproven', 'venue_rejected') else {order.client_order_id: order},
+        exchange_rejections={order.client_order_id: order} if proof == 'venue_rejected' else {},
+        active_intents={order.client_order_id} if proof == 'pending_intent' else set(),
+        sent_intents={order.client_order_id} if proof == 'sent_intent' else set(), lost=False)
+    monkeypatch.setattr(order_submission_guard, '_guard', owner)
+    monkeypatch.setattr(order_submission_guard, 'postgres_requested', lambda: True)
+    strategy.MANAGED_REPORT_COALESCE_SECONDS = 60  # A pending periodic publication cannot hide the fast path.
+    with session_order_scope('obsolete-order-scope', 1, executor=executor):
+        strategy._queue_managed_executor_report(executor)
+        executor.process_order_failed_event(None, None, MarketOrderFailureEvent(
+            100, order.client_order_id, OrderType.LIMIT_MAKER, 'spread_policy_quote_rejected', 'QuoteRefreshRequired'))
+    assert not controller.executors_update_event.is_set()
+    await asyncio.sleep(0)
+    if proof in ('unsent', 'venue_rejected'):
+        assert controller.executors_update_event.is_set()
+        assert executor.is_closed and executor.close_type == CloseType.EARLY_STOP
+        assert controller.executors_info[0].is_done and not orchestrator.positions_held['maker']
+        recorder.checkpoint_held_positions.assert_not_called()
+    else:
+        assert not controller.executors_update_event.is_set()
+        assert executor.status == RunnableStatus.SHUTTING_DOWN and executor.close_type == CloseType.POSITION_HOLD
 
 
 @pytest.mark.asyncio

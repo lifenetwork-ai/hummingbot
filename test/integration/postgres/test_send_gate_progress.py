@@ -11,19 +11,21 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from psycopg2 import OperationalError
-from sqlalchemy import event, insert, select, update
+from sqlalchemy import event, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 
 from hummingbot.core.bot_ownership import ORDER_PATH, OwnershipLost
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
+from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book import OrderBook
 from hummingbot.core.data_type.order_book_row import OrderBookRow
+from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.order_submission_guard import SubmissionBlocked, session_order_scope
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.order import Order
 from hummingbot.model.runtime_journal import SubmissionAttempt, digest
+from hummingbot.model.trade_fill import TradeFill
 from hummingbot.strategy_v2.utils.quote_guard import observe_market
 
 owned = owned_fixture
@@ -35,6 +37,66 @@ async def send(rest, identity):
         url='https://offline.invalid' + ORDER_PATH, method=RESTMethod.POST,
         throttler_limit_id='order', is_auth_required=True,
         data=dict(clOrdId=identity, instId='BTC-USDT', side='buy', sz='0.1'))
+
+
+@pytest.mark.parametrize('blocked_attempts', [1, 5])
+def test_fill_prewrite_contention_retries_quickly_without_releasing_the_send_fence(native, monkeypatch, blocked_attempts):
+    ready, proceed, last_backoff, retry = (asyncio.Event() for _ in range(4))
+    authorize, reply = native.owner.authorize_rest, native.transport.call.side_effect
+    sleep = asyncio.sleep
+    delays = []
+
+    async def queue_peer(request):
+        if json.loads(request.data)['clOrdId'] == 'peer':
+            ready.set()
+            await proceed.wait()
+        return await authorize(request)
+
+    async def observe_backoff(delay, result=None):
+        if asyncio.current_task().get_name() == 'fill-write' and delay > 0:
+            assert native.recorder.order_writes.locked()
+            delays.append(delay)
+            if len(delays) == blocked_attempts:
+                last_backoff.set()
+                await retry.wait()
+            return result
+        return await sleep(delay, result)
+
+    async def venue(request):
+        if json.loads(request.data)['clOrdId'] == 'peer':
+            with native.manager.get_new_session() as db:
+                assert db.query(TradeFill).count() == 1
+        return await reply(request)
+
+    async def submit(identity):
+        with session_order_scope(native.session.id, native.session.generation):
+            await native.market._create_order(TradeType.BUY, identity, 'LIFE-USDT', Decimal('5'),
+                                              OrderType.LIMIT_MAKER, Decimal('10'))
+
+    async def exercise():
+        await submit('existing')
+        peer = asyncio.create_task(submit('peer'))
+        await asyncio.wait_for(ready.wait(), 2)
+        update = TradeUpdate('trade', 'existing', 'venue-existing', 'LIFE-USDT', native.market.current_timestamp,
+                             Decimal('10'), Decimal('1'), Decimal('10'), AddedToCostTradeFee())
+        with native.engine.begin() as blocker:
+            blocker.execute(text('SELECT bot_id FROM bot_state FOR UPDATE'))
+            writer = asyncio.create_task(native.market._order_tracker.apply_trade_update(update), name='fill-write')
+            await asyncio.wait_for(last_backoff.wait(), 3)
+            proceed.set()
+            await sleep(0)
+            assert not peer.done() and native.transport.call.await_count == 1
+        retry.set()
+        await asyncio.gather(writer, peer)
+
+    monkeypatch.setattr(native.owner, 'authorize_rest', queue_peer)
+    monkeypatch.setattr(asyncio, 'sleep', observe_backoff)
+    native.transport.call.side_effect = venue
+    native.loop.run_until_complete(asyncio.wait_for(exercise(), 6))
+    assert delays == [.0125, .025, .05, .1, .1][:blocked_attempts]
+    assert native.transport.call.await_count == 2
+    assert not native.owner.terminal_tasks and not native.recorder.order_writes.locked()
+    assert not native.store.read()['recovery_state'].get('halt')
 
 
 def test_intent_and_send_read_pending_orders_with_fresh_owner_authority(owned):
