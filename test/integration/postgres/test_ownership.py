@@ -20,6 +20,7 @@ from hummingbot.core.bot_ownership import (
     BotOwnership,
     OwnershipLost,
 )
+from hummingbot.core.control_errors import ControlConflict
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.order_submission_guard import SubmissionBlocked, install_guard, session_order_scope
@@ -83,6 +84,20 @@ def intent(context, order_id="order-1"):
     context.market.tracking_states[order_id] = order.to_json()
     context.owner.before_order(context.market, order)
     return order
+
+
+def test_prepare_uses_one_owner_read_and_rejects_a_superseded_start(owned):
+    owner = owned.owner
+    with patch.object(owner, 'check_owner', wraps=owner.check_owner) as check:
+        owner.prepare(1, 'test.yml')
+        check.assert_called_once_with()
+    assert owner.reconciling and not owner.allow_new_orders
+
+    owner.reconciling = False
+    owned.store.control(expected_version=1, desired_state='stopped')
+    with pytest.raises(ControlConflict):
+        owner.prepare(1, 'test.yml')
+    assert not owner.reconciling and not owner.allow_new_orders
 
 
 class Throttler:
@@ -625,13 +640,14 @@ def test_observer_durable_halt_drains_orders_and_preserves_recovery(owned, monke
     assert not successor.try_acquire()
 
 
-def test_observer_halt_probe_rejects_a_lost_advisory_lock(owned):
+@pytest.mark.parametrize('read', ['observe_state', 'observe_halt'])
+def test_observer_rejects_a_lost_advisory_lock(owned, read):
     with owned.owner.connection.begin():
         unlocked = owned.owner.connection.scalar(text('SELECT pg_advisory_unlock(:namespace, :key)'),
                                                  {'namespace': OWNER_NAMESPACE, 'key': OWNER_KEY})
         assert unlocked
     with pytest.raises(OwnershipLost) as error:
-        owned.loop.run_until_complete(owned.owner.observe_halt())
+        owned.loop.run_until_complete(getattr(owned.owner, read)())
     assert error.value.reason_code == 'ownership_identity_mismatch'
     assert owned.owner.lost and not owned.owner.allow_new_orders
 
@@ -640,6 +656,8 @@ def test_observer_halt_probe_uses_dedicated_owner_check_when_pool_unavailable(ow
     owned.owner.require_recovery('test halted owner')
     with patch.object(owned.engine, 'connect', side_effect=PoolTimeout):
         assert owned.loop.run_until_complete(owned.owner.observe_halt())
+        row = owned.loop.run_until_complete(owned.owner.observe_state())
+        assert row['control_version'] == 1 and row['recovery_state']['halt']
     assert not owned.owner.lost
 
 

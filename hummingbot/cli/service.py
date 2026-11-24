@@ -882,14 +882,13 @@ class ServiceHost:
             self.migrations_pending = False
             self.store.checkpoint_schema_pending = False
 
-        # Existing owners are checked immediately below. try_acquire also checks
-        # them, so calling both repeats the same synchronous DB round trip.
+        # Only try the dedicated session acquisition when we do not have it.
         if self.owner.connection is None and not self.owner.try_acquire():
             self.phase = "standby"
             return
         install_guard(self.owner)
         self.owner.runtime_ready_check = self.runtime_healthy
-        row = self.owner.check_owner()
+        row = await self.owner.observe_state()
         if self.profile_switch is not None or (row['recovery_state'] or {}).get('mm_profile_switch'):
             row = await self.observe_profile_switch(row)
         if await self.observe_recovery_operation(row):
@@ -912,7 +911,7 @@ class ServiceHost:
             from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
             if isinstance(guard, SpotOutflowGuard):
                 if await guard.advance(int(row["database_now"] * 1000)):
-                    row = self.owner.check_owner()  # Stop/version may change between catch-up batches.
+                    row = await self.owner.observe_state()  # Stop/version may change between catch-up batches.
         from hummingbot.core.mm_drawdown import checkpoint_drawdown_status
         if getattr(self.hb.trading_core, "strategy", None) is None:
             if not self.observations.capture_checkpoint(
@@ -962,7 +961,7 @@ class ServiceHost:
                         and self.mm_session.step_index == preparation.session.step_index
                         and self.mm_session.profile_id == preparation.session.profile_id):
                     preparation.promoted = True
-                row = self.owner.check_owner()
+                row = await self.owner.observe_state()
         else:
             self.mm_session = None
         mm_identity = (self.mm_session.id, self.mm_session.generation) if self.mm_session else None
@@ -982,7 +981,7 @@ class ServiceHost:
             stopped = await self.stop_core(keep_market_data=True) if keep_market_data else await self.stop_core()
             if not stopped:
                 raise RuntimeError("Service cleanup did not complete; process exit is required.")
-            latest = self.owner.check_owner()
+            latest = await self.owner.observe_state()
             if latest["control_version"] != version or latest.get("mm_session") != row.get("mm_session"):
                 return
             row = latest
@@ -1023,7 +1022,7 @@ class ServiceHost:
                 self.availability.clear("configuration")
                 # Cleanup and configuration loading can both yield to a newer
                 # stop/switch. Never prepare an engine from the old intent.
-                latest = self.owner.check_owner()
+                latest = await self.owner.observe_state()
                 if latest["control_version"] != version or latest.get("mm_session") != row.get("mm_session"):
                     return
                 if not selection_validated and not (latest["recovery_state"] or {}).get("halt"):
@@ -1043,7 +1042,11 @@ class ServiceHost:
                     self.log.warning("Trading bootstrap withheld: durable HALT requires operator recovery.",
                                      extra={"event": "trading_bootstrap_blocked", "reason_code": "recovery_required"})
                 elif row["desired_state"] == "running":
-                    self.owner.prepare(version, row["config_file_path"])
+                    try:
+                        self.owner.prepare(version, row["config_file_path"])
+                    except ControlConflict:
+                        self.applied_version = None
+                        return
                     self.hb.trading_core.before_strategy_start = (self._reconcile_mm_startup if mm_identity is not None
                                                                   else self.owner.reconcile)
                     self.phase = "starting"

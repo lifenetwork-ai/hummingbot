@@ -24,6 +24,7 @@ def running_host(monkeypatch):
     item.owner = MagicMock()
     item.owner.try_acquire.return_value = True
     item.owner.check_owner.return_value = row
+    item.owner.observe_state = AsyncMock(side_effect=item.owner.check_owner)
     item.owner.observe_halt = AsyncMock(side_effect=lambda: bool(row['recovery_state'].get('halt')))
     item.owner.allow_new_orders = True
     item.owner.shutdown_requested = False

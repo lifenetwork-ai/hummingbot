@@ -17,6 +17,7 @@ from sqlalchemy import Text, column, func, select, text, update, values
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import DBAPIError, OperationalError, SQLAlchemyError
 
+from hummingbot.core.control_errors import ControlConflict
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.engine_diagnostics import (
     active_shutdown_stages,
@@ -238,14 +239,14 @@ class BotOwnership:
                     connection.close()
 
     def prepare(self, version, config_file_path):
-        self.check_owner()
+        self.allow_new_orders = False
+        if not self._mutate_recovery(lambda state: state.update(runtime_active=True), expected_version=version):
+            raise ControlConflict("Trading start was superseded before its recovery fence was written.")
         self.unsent_rejections.clear()
         self._unresolved_intent_batch.clear()
-        self.allow_new_orders = False
         self.reconciling = True
         self.version = version
         self.config_file_path = config_file_path
-        self._mutate_recovery(lambda state: state.update(runtime_active=True))
 
     def require_owner_connection(self):
         connection = self.connection
@@ -330,16 +331,22 @@ class BotOwnership:
         return self._lose_ownership("The bot ownership session failed; submissions are closed.", code, **diagnostic)
 
     @trace_runtime('owner.read')
-    async def observe_halt(self):
-        """Refresh the observer's HALT flag without borrowing the owner's connection."""
+    async def observe_state(self, *, halt_only=False):
+        """Read current control state off-loop while proving the owner's physical lock."""
         physical = self.require_owner_connection()
-        statement = select(BotState.recovery_state['halt']).where(
+        columns = (BotState.recovery_state['halt'].label('halt'),) if halt_only else (
+            BotState.bot_id, BotState.config_file_path, BotState.config_type, BotState.desired_state,
+            BotState.control_version, BotState.acknowledged_version, BotState.owner_uuid, BotState.owner_generation,
+            BotState.heartbeat, BotState.revision, BotState.recovery_state, BotState.mm_session,
+            text('EXTRACT(EPOCH FROM clock_timestamp()) AS database_now'),
+        )
+        statement = select(*columns).where(
             BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
             BotState.owner_generation == self.generation, self._advisory_lock_exists())
 
         def read():
             with self.engine.connect() as connection, _ownership_read(connection):
-                row = connection.execute(statement).first()
+                row = connection.execute(statement).mappings().first()
                 connection.commit()
                 return row
 
@@ -347,10 +354,14 @@ class BotOwnership:
             row = await asyncio.to_thread(read)
         except SQLAlchemyError:
             # A pool error alone does not prove that the dedicated owner was lost.
-            return bool((self.check_owner()['recovery_state'] or {}).get('halt'))
+            row = self.check_owner()
+            return {'halt': (row['recovery_state'] or {}).get('halt')} if halt_only else row
         if self.require_owner_connection() is not physical or row is None:
             raise self._lose_ownership("The bot ownership lock/generation no longer matches.", 'ownership_identity_mismatch')
-        return bool(row[0])
+        return dict(row)
+
+    async def observe_halt(self):
+        return bool((await self.observe_state(halt_only=True))['halt'])
 
     def check_owner(self, *, new_risk=False, allow_setup=False, include_pending=False, order_authority=False):
         if new_risk:

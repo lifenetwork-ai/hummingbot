@@ -205,8 +205,9 @@ def test_delayed_status_query_does_not_timeout_private_health(publication):
         install_guard(None)
 
 
-def test_observer_reuses_no_authority_and_avoids_duplicate_acquired_owner_query(publication, monkeypatch):
+def test_observer_reads_leave_the_physical_owner_and_event_loop_free(publication, monkeypatch):
     import asyncio
+    import threading
     from types import SimpleNamespace
     from unittest.mock import AsyncMock, MagicMock
 
@@ -217,11 +218,16 @@ def test_observer_reuses_no_authority_and_avoids_duplicate_acquired_owner_query(
     from hummingbot.core.order_submission_guard import SessionSubmissionBlocked, install_guard
 
     store, owner, status = publication
+    loop_thread = threading.get_ident()
+    entered, release = threading.Event(), threading.Event()
     queries = []
 
     def record(connection, cursor, statement, params, context, many):
         if statement.lstrip().startswith('SELECT') and 'pg_locks' in statement:
-            queries.append((connection is owner.connection, params))
+            queries.append((connection is owner.connection, params, threading.get_ident()))
+            if len(queries) == 1:
+                entered.set()
+                release.wait(2)
 
     event.listen(store.engine, 'before_cursor_execute', record)
     monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda host: None)
@@ -235,16 +241,24 @@ def test_observer_reuses_no_authority_and_avoids_duplicate_acquired_owner_query(
         host.poll_reconciliation = AsyncMock()
         host.poll_funding = host.poll_outflow = MagicMock()
         host.publish_status = AsyncMock()
-        await host.observe_once()
-        assert [dedicated for dedicated, _ in queries] == [True, False]
-        assert queries[1][1]['pid'] == owner.backend_pid
+        observation = asyncio.create_task(host.observe_once())
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            assert not release.is_set() and not observation.done()
+            assert queries[0][2] != loop_thread
+            assert (await host.health(SimpleNamespace(path='/live'))).status == 200
+        finally:
+            release.set()
+            await observation
+        assert [dedicated for dedicated, _, _ in queries] == [False, False]
+        assert [params['pid'] for _, params, _ in queries] == [owner.backend_pid] * 2
         store.control(expected_version=1, desired_state='stopped')
         owner.version, owner.config_file_path = 1, None
         owner.allow_new_orders = True
         with pytest.raises(SessionSubmissionBlocked):
             owner.check_owner(new_risk=True)
         assert not owner.lost
-        assert [dedicated for dedicated, _ in queries] == [True, False, True]
+        assert [dedicated for dedicated, _, _ in queries] == [False, False, True]
 
     try:
         asyncio.run(exercise())
@@ -273,9 +287,9 @@ def test_observer_ownership_round_trips_fit_private_probe_deadline(publication, 
     entered, client_ready = threading.Event(), threading.Event()
 
     def delay_checks(connection, cursor, statement, params, context, many):
-        if statement.strip().startswith('SELECT b.bot_id') and 'pg_locks' in statement:
+        if statement.strip().startswith('SELECT') and 'pg_locks' in statement:
             entered.set()
-            connection.exec_driver_sql('SELECT pg_sleep(0.12)')
+            connection.exec_driver_sql('SELECT pg_sleep(0.4)')
 
     event.listen(store.engine, 'before_cursor_execute', delay_checks)
     monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda host: None)

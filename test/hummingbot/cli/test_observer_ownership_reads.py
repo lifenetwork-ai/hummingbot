@@ -13,10 +13,12 @@ async def test_existing_owner_checks_fresh_state_once_on_entry_and_once_before_p
     item = host(monkeypatch)
     item.owner.try_acquire.side_effect = MethodType(BotOwnership.try_acquire, item.owner)
     item.owner.connection = MagicMock(closed=False, invalidated=False)
+    item.owner.observe_state = AsyncMock(return_value=item.owner.check_owner.return_value)
     item.publish_status = AsyncMock()
     monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda value: None)
     await item.observe_once()
-    item.owner.check_owner.assert_called_once_with()
+    item.owner.observe_state.assert_awaited_once_with()
+    item.owner.check_owner.assert_not_called()
     item.owner.observe_halt.assert_awaited_once_with()
     item.publish_status.assert_awaited_once_with(0)
 
@@ -25,6 +27,7 @@ async def test_existing_owner_checks_fresh_state_once_on_entry_and_once_before_p
 async def test_first_acquisition_still_checks_state_after_generation_is_acquired(monkeypatch):
     item = host(monkeypatch)
     item.owner.connection = None
+    item.owner.observe_state = AsyncMock(return_value=item.owner.check_owner.return_value)
     item.publish_status = AsyncMock()
 
     def acquired():
@@ -34,7 +37,8 @@ async def test_first_acquisition_still_checks_state_after_generation_is_acquired
     monkeypatch.setattr('hummingbot.core.mm_liquidity.capture_liquidity', lambda value: None)
     await item.observe_once()
     item.owner.try_acquire.assert_called_once()
-    item.owner.check_owner.assert_called_once_with()
+    item.owner.observe_state.assert_awaited_once_with()
+    item.owner.check_owner.assert_not_called()
     item.owner.observe_halt.assert_awaited_once_with()
     item.publish_status.assert_awaited_once_with(0)
 
@@ -49,6 +53,7 @@ async def test_existing_unusable_owner_cannot_observe_or_publish(monkeypatch, st
     item.owner._ownership_failure = None
     item.owner.require_owner_connection.side_effect = MethodType(BotOwnership.require_owner_connection, item.owner)
     item.owner._lose_ownership.side_effect = MethodType(BotOwnership._lose_ownership, item.owner)
+    item.owner.observe_state.side_effect = MethodType(BotOwnership.observe_state, item.owner)
     item.owner._read_owner.side_effect = MethodType(BotOwnership._read_owner, item.owner)
     item.owner.check_owner.side_effect = MethodType(BotOwnership.check_owner, item.owner)
     item.owner.try_acquire.side_effect = MethodType(BotOwnership.try_acquire, item.owner)

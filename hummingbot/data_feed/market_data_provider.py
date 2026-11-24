@@ -534,12 +534,17 @@ class MarketDataProvider:
             for tp, result in zip(trading_pairs, results)
         }
 
+    def _reference_book_lock(self, connector_name, pair):
+        # The active OKX Spot connector can request distinct snapshots in
+        # parallel. Fallback connectors still serialize their first start.
+        scope = pair if connector_name == "okx" and connector_name in self.connectors else None
+        return self._reference_book_locks.setdefault((connector_name, scope), asyncio.Lock())
+
     async def acquire_order_books(self, connector_name: str, trading_pairs: List[str], consumer: object):
         """Acquire reference books through the existing subscription path."""
         async def acquire(pair):
             key = (connector_name, pair)
-            # Serialize a connector's first network start as well as pair subscriptions.
-            async with self._reference_book_locks.setdefault(connector_name, asyncio.Lock()):
+            async with self._reference_book_lock(connector_name, pair):
                 users = self._reference_book_users.setdefault(key, set())
                 if not users:
                     connector = self.get_connector_with_fallback(connector_name)
@@ -558,7 +563,7 @@ class MarketDataProvider:
         """Release reference books owned by the given controller."""
         async def release(pair):
             key = (connector_name, pair)
-            async with self._reference_book_locks.setdefault(connector_name, asyncio.Lock()):
+            async with self._reference_book_lock(connector_name, pair):
                 users = self._reference_book_users.get(key, set())
                 users.discard(consumer)
                 if not users and key in self._reference_book_owned:

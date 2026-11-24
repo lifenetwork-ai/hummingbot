@@ -187,14 +187,17 @@ def test_cancel_during_intent_fence_does_not_retry_a_confirmed_rollback(native):
     assert native.manager.persistence_healthy and not native.store.read()['recovery_state'].get('halt')
 
 
-def test_slow_intent_rolls_back_if_original_owner_lock_disappears(native):
+@pytest.mark.parametrize('stage', ['checkpoint', 'insert'])
+def test_slow_intent_rolls_back_if_original_owner_lock_disappears(native, stage):
     reading, release = threading.Event(), threading.Event()
     order = InFlightOrder('lost-lock', 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
                           Decimal('5'), time.time(), Decimal('10'))
     native.market._order_tracker.start_tracking_order(order)
 
-    def hold_checkpoint(connection, cursor, statement, parameters, context, executemany):
-        if ('FROM market_states' in statement or 'JOIN market_states' in statement) and not reading.is_set():
+    def hold_worker(connection, cursor, statement, parameters, context, executemany):
+        matches = ('FROM market_states' in statement or 'JOIN market_states' in statement
+                   if stage == 'checkpoint' else statement.startswith('INSERT INTO orders'))
+        if matches and not reading.is_set():
             reading.set()
             release.wait(1.5)
 
@@ -210,11 +213,11 @@ def test_slow_intent_rolls_back_if_original_owner_lock_disappears(native):
         with pytest.raises(OwnershipLost):
             await admitting
 
-    event.listen(native.engine, 'before_cursor_execute', hold_checkpoint)
+    event.listen(native.engine, 'before_cursor_execute', hold_worker)
     try:
         native.loop.run_until_complete(exercise())
     finally:
-        event.remove(native.engine, 'before_cursor_execute', hold_checkpoint)
+        event.remove(native.engine, 'before_cursor_execute', hold_worker)
     assert native.owner.lost and not native.manager.persistence_healthy
     native.transport.call.assert_not_awaited()
     with native.manager.get_new_session() as db:
@@ -254,7 +257,7 @@ def test_native_eight_quote_burst_allows_health_callback_between_admissions(nati
     assert not native.store.read()['recovery_state'].get('halt')
 
 
-def test_worker_intent_verifies_owner_and_locks_row_in_one_statement(native):
+def test_worker_intent_checks_ownership_at_row_lock_and_before_commit(native):
     worker_fences = []
 
     def observe_fence(connection, cursor, statement, parameters, context, executemany):
@@ -275,9 +278,10 @@ def test_worker_intent_verifies_owner_and_locks_row_in_one_statement(native):
     finally:
         event.remove(native.engine, 'before_cursor_execute', observe_fence)
 
-    assert 'FOR SHARE NOWAIT' in worker_fences[0]
-    assert 'SELECT 1 FROM pg_locks' in worker_fences[0]
-    assert 'SELECT 1 FROM pg_locks' in worker_fences[-1] and 'FOR SHARE' not in worker_fences[-1]
+    assert len(worker_fences) == 2, worker_fences
+    first, last = worker_fences
+    assert 'FOR SHARE NOWAIT' in first and 'SELECT 1 FROM pg_locks' in first
+    assert 'SELECT 1 FROM pg_locks' in last and 'FOR SHARE' not in last
     with native.manager.get_new_session() as db:
         assert db.get(Order, 'intent-round-trips').creation_pending
         assert db.get(SubmissionAttempt, 'intent-round-trips').state == 'prepared'

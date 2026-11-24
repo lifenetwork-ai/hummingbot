@@ -56,6 +56,7 @@ async def test_superseded_start_during_cleanup_or_validation_never_initializes_o
     host.owner = MagicMock()
     host.owner.try_acquire.return_value = True
     host.owner.check_owner.side_effect = lambda: dict(current)
+    host.owner.observe_state = AsyncMock(side_effect=host.owner.check_owner)
     host.hb = SimpleNamespace(trading_core=SimpleNamespace())
     host.snapshot = MagicMock(return_value={})
     host.poll_reconciliation = AsyncMock()

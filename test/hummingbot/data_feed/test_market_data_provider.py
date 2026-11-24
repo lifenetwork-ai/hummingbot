@@ -78,6 +78,35 @@ class TestMarketDataProvider(IsolatedAsyncioWrapperTestCase):
             unsubscribe.assert_awaited_once_with(name, "BTC-USDT")
             await self.provider.release_reference_books_for(other)
 
+    async def test_okx_reference_books_load_in_parallel_and_share_each_subscription(self):
+        name = "okx"
+        btc, eth = "BTC-USDT", "ETH-USDT"
+        provider = MarketDataProvider({name: self.mock_connector})
+        self.mock_connector.trading_pairs = []
+        first, second = object(), object()
+        entered = set()
+        both_started = asyncio.Event()
+
+        async def subscribe(connector, pair):
+            entered.add(pair)
+            if entered == {btc, eth}:
+                both_started.set()
+            await both_started.wait()
+            return True
+
+        with patch.object(provider, "initialize_order_book", side_effect=subscribe) as initialize, \
+                patch.object(provider, "remove_order_book", return_value=True) as remove:
+            results = await asyncio.wait_for(asyncio.gather(
+                provider.acquire_order_books(name, [btc, eth], first),
+                provider.acquire_order_books(name, [btc], second),
+            ), timeout=2)
+            self.assertEqual(results, [{btc: True, eth: True}, {btc: True}])
+            self.assertEqual(initialize.await_count, 2)
+            await provider.release_reference_books_for(first)
+            remove.assert_awaited_once_with(name, eth)
+            await provider.release_reference_books_for(second)
+            self.assertEqual(remove.await_count, 2)
+
     def test_get_price_by_type(self):
         self.mock_connector.get_price_by_type.return_value = 10000
         price = self.provider.get_price_by_type("mock_connector", "BTC-USDT", PriceType.MidPrice)

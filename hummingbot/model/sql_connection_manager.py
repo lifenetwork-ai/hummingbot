@@ -179,16 +179,15 @@ class SQLConnectionManager(TransactionBase):
         recorder_owner = session.info.get("worker_order_owner")
         if recorder_owner is None:
             fence_session(session)
-        else:
+        elif session.info.get("ownership_fenced_transaction") is not session.get_transaction():
             from hummingbot.model.intent_admission import capture_prewrite_lock_failure
 
             # The first flush or bulk write is still before any SQL mutation.
             # Acquire the row and verify the physical owner in one statement.
-            if session.info.get("ownership_fenced_transaction") is not session.get_transaction():
-                with capture_prewrite_lock_failure(session):
-                    recorder_owner.fence_recorder_session(session, nowait=True)
-            else:
-                recorder_owner.fence_recorder_session(session)
+            # The worker holds that row until commit and verifies the physical
+            # owner again after the final flush, before committing.
+            with capture_prewrite_lock_failure(session):
+                recorder_owner.fence_recorder_session(session, nowait=True)
 
     def _fence_bulk_write(self, execute_state):
         if execute_state.is_update or execute_state.is_delete or getattr(execute_state, "is_insert", False):

@@ -31,6 +31,7 @@ def observing(monkeypatch, recovery):
     row = dict(control_version=0, config_type='controller', config_file_path='test.yml',
                desired_state='stopped', recovery_state=recovery, mm_session=None)
     item.owner.check_owner.return_value = row
+    item.owner.observe_state = AsyncMock(side_effect=item.owner.check_owner)
     item.owner.observe_halt = AsyncMock(side_effect=lambda: bool(row['recovery_state'].get('halt')))
     item.owner.store.publish.return_value = True
     item.stop_core = AsyncMock(return_value=True)
