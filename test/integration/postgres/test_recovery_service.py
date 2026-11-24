@@ -12,19 +12,21 @@ from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.runtime_journal import SubmissionAttempt
 
 
-@pytest.mark.parametrize('checkpoint_history,terminal_metadata,uncertain_count,pending_fills,sell_last,rollover_halt,price_rejected', [
-    (False, False, 0, False, False, False, False), (True, False, 0, False, False, False, False),
-    (True, True, 0, False, False, False, False), (True, False, 1, False, False, False, False),
-    (True, True, 0, True, False, False, False), (True, False, 2, False, False, False, False),
-    (True, False, 1, False, True, False, False), (True, False, 2, False, True, False, False),
-    pytest.param(True, False, 1, False, True, True, False, id='halted-spot-sell-rollover'),
-    pytest.param(True, False, 1, False, True, False, True, id='spot-sell-price-limit'),
+@pytest.mark.parametrize('checkpoint_history,terminal_metadata,uncertain_count,pending_fills,sell_last,rollover_halt,price_rejected,failed_start', [
+    (False, False, 0, False, False, False, False, False), (True, False, 0, False, False, False, False, False),
+    (True, True, 0, False, False, False, False, False), (True, False, 1, False, False, False, False, False),
+    (True, True, 0, True, False, False, False, False), (True, False, 2, False, False, False, False, False),
+    (True, False, 1, False, True, False, False, False), (True, False, 2, False, True, False, False, False),
+    pytest.param(True, False, 1, False, True, True, False, False, id='halted-spot-sell-rollover'),
+    pytest.param(True, False, 1, False, True, False, True, False, id='spot-sell-price-limit'),
+    pytest.param(True, False, 1, False, True, False, True, True, id='halted-price-limit-after-failed-start'),
 ])
 def test_supervised_review_confirm_retry_and_restart_stay_stopped(
         pg_engine, tmp_path, monkeypatch, checkpoint_history, terminal_metadata, uncertain_count, pending_fills, sell_last,
-        rollover_halt, price_rejected):
+        rollover_halt, price_rejected, failed_start):
     uncertain = bool(uncertain_count)
     batch = uncertain_count > 1
+    halted_review = rollover_halt or failed_start
     monkeypatch.setenv('EXCHANGE_CREDENTIALS_SOURCE', 'postgres_kms')
     monkeypatch.setenv('KMS_PROVIDER', 'local')
     monkeypatch.setenv('KMS_LOCAL_SECRET_KEY', base64.b64encode(b'K' * 32).decode())
@@ -63,11 +65,13 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
 
             from hummingbot.model.recovery_store import RecoveryStore
             if uncertain:
-                from test.integration.postgres.test_recovery_uncertain import seed_uncertain
+                from test.integration.postgres.test_recovery_uncertain import seed_failed_replacement, seed_uncertain
                 seeded = seed_uncertain(RecoveryStore(state), existing_binding=True, api_key='RECOVERY-CANARY-API',
                                         count=uncertain_count, sell_last=sell_last, lost_receipt=sell_last and not batch)
                 reviewed_ids = seeded if batch else [seeded]
-                if price_rejected:
+                if failed_start:
+                    seed_failed_replacement(RecoveryStore(state), seeded)
+                elif price_rejected:
                     with pg_engine.begin() as db:
                         db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == seeded).values(
                             receipt=dict(http_status=200, code='1', order=dict(clOrdId=seeded, ordId='', sCode='51138'))))
@@ -104,9 +108,9 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
         if uncertain:
             scope_key = 'uncertain_order_ids' if batch else 'uncertain_order_id'
             path = '/recovery?' + scope_key + '=' + ','.join(reversed(reviewed_ids))
-            if rollover_halt:
+            if halted_review:
                 eventually(lambda: state.read()['status'].get('phase') == 'halted')
-            assert call(port, '/recovery')[1]['check_available'] is rollover_halt
+            assert call(port, '/recovery')[1]['check_available'] is halted_review
             assert call(port, path)[1]['check_available']
             if batch:
                 assert not call(port, '/recovery?uncertain_order_id=' + reviewed_ids[0])[1]['check_available']
@@ -128,7 +132,7 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             assert len(check['verification']['pending_fill_ids']) == 2
             assert {item['id'] for item in check['verification']['pending_fill_orders']} == set(identities[1:])
             assert check['proposed_changes'][0]['after']['amount'] == '1'
-        assert bool(state.read()['recovery_state'].get('halt')) is (rollover_halt or not uncertain)
+        assert bool(state.read()['recovery_state'].get('halt')) is (halted_review or not uncertain)
         if uncertain:
             preview = check['proposed_uncertain_orders'] if batch else [check['proposed_uncertain_order']]
             assert [item['id'] for item in preview] == reviewed_ids
@@ -158,7 +162,7 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             late = eventually(lambda: (item if (item := call(port, '/recovery/operations/' + late['id'])[1]).get('status') == 'failed' else None))
             assert late['blockers'][0]['code'] == 'recovery_uncertain_order_found'
             assert all(call(port, '/orders/' + identity)[1]['order']['creation_pending'] for identity in reviewed_ids)
-            if rollover_halt:
+            if halted_review:
                 assert state.read()['recovery_state']['halt']
             orders_path.write_text('{}')
             if sell_last:
@@ -221,6 +225,8 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
                 assert repairs[0]['reason_code'] == 'operator_reviewed_transport_absence'
                 assert any(event['action'] == 'recovery_reset_completed'
                            and event['reason_code'] == 'exchange_reconciliation_incomplete' for event in audit['items'])
+            if failed_start:
+                assert repairs[0]['reason_code'] == 'operator_reviewed_price_rejection'
         eventually(lambda: state.read()['acknowledged_version'] == 2)
         assert state.read()['desired_state'] == 'stopped' and not state.read()['status']['running']
         assert not state.read()['recovery_state'].get('halt')

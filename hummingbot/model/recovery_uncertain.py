@@ -4,7 +4,12 @@ from sqlalchemy import select, update
 from hummingbot.connector.okx_order_status import OKXPriceLimitOrderRejection, order_rejection_reason
 from hummingbot.core.automatic_recovery import eligible
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
-from hummingbot.core.recovery import RecoveryBlocked, decimal, supports_halted_order_review
+from hummingbot.core.recovery import (
+    RecoveryBlocked,
+    decimal,
+    supports_failed_start_order_review,
+    supports_halted_order_review,
+)
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.mm_event import MMEvent
 from hummingbot.model.order import Order
@@ -22,9 +27,9 @@ def _require(condition):
         raise RecoveryBlocked('recovery_uncertain_order_scope')
 
 
-def _matches_stopped_session(db, state, original, created, deadline):
+def _matches_stopped_session(db, state, original, created, deadline, *, scope=None):
     session_id, generation = original
-    scope = state['mm_session'] or {}
+    scope = (state['mm_session'] or {}) if scope is None else scope
     current = scope.get('generation')
     if (scope.get('status') != 'stopped' or scope.get('id') != session_id or not session_id
             or type(generation) is not int or type(current) is not int or not 0 <= generation <= current):
@@ -57,6 +62,26 @@ def _matches_stopped_session(db, state, original, created, deadline):
             and deadline <= min(decimal(ended_at) * 1000, start_ms + (index + 1) * step_ms))
 
 
+def _previous_stopped_session(db, state, original, deadline):
+    session_id, generation = original
+    current_id = state['mm_session']['id']
+    _require(session_id != current_id and type(generation) is int)
+
+    def event(session, kind):
+        return db.execute(select(MMEvent.id, MMEvent.generation, MMEvent.payload, MMEvent.created_at).where(
+            MMEvent.bot_id == state['bot_id'], MMEvent.session_id == session, MMEvent.event_type == kind
+        ).order_by(MMEvent.id.desc()).limit(1)).one_or_none()
+
+    replacement = event(current_id, 'session_created')
+    _require(replacement is not None and replacement.payload.get('previous_session_id') == session_id
+             and event(current_id, 'step_started') is None)
+    created, stopped = event(session_id, 'session_created'), event(session_id, 'session_stopped')
+    _require(created is not None and stopped is not None and created.id < stopped.id < replacement.id
+             and 0 <= generation < stopped.generation and deadline <= int(stopped.created_at.timestamp() * 1000))
+    return {**stopped.payload, 'id': session_id, 'generation': stopped.generation,
+            'request': created.payload['configuration']['request']}
+
+
 def candidates(db, state, bindings, checkpoint, anchor, identities):
     try:
         pending = db.execute(select(Order.id).where(Order.creation_pending.is_(True)).limit(len(identities) + 1)).scalars().all()
@@ -69,13 +94,14 @@ def candidates(db, state, bindings, checkpoint, anchor, identities):
         trackers = {key: (row, raw) for row, key, raw in live}
         for identity in identities:
             _require(sum(identity in row['saved_state'] for row in tracker_rows) == 1)
-        return [_candidate(db, state, bindings, checkpoint, anchor, identity, *trackers[identity])
+        failed_start = supports_failed_start_order_review(state, identities)
+        return [_candidate(db, state, bindings, checkpoint, anchor, identity, *trackers[identity], failed_start=failed_start)
                 for identity in identities]
     except (KeyError, ValueError, TypeError, ArithmeticError, AttributeError):
         raise RecoveryBlocked('recovery_uncertain_order_scope') from None
 
 
-def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, raw):
+def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, raw, *, failed_start):
     order = db.execute(select(Order).where(Order.id == identity)).mappings().one_or_none()
     attempt = db.execute(select(SubmissionAttempt).where(SubmissionAttempt.order_id == identity)).mappings().one_or_none()
     _require(order is not None and attempt is not None and attempt['state'] == 'uncertain')
@@ -106,7 +132,11 @@ def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, r
     _require(type(deadline) is int and anchor['verified_at_ms'] < created <= deadline
              and created <= order['last_update_timestamp'] <= now
              and deadline - created <= 60_000)
-    _require(_matches_stopped_session(db, state, context['session'], created, deadline))
+    session = None
+    if failed_start:
+        _require(side == 'SELL' and price_rejected)
+        session = _previous_stopped_session(db, state, context['session'], deadline)
+    _require(_matches_stopped_session(db, state, context['session'], created, deadline, scope=session))
     if now - deadline < SETTLEMENT_GRACE_MS:
         raise RecoveryBlocked('recovery_uncertain_order_wait')
     if now - created >= ORDER_HISTORY_AGE_MS:

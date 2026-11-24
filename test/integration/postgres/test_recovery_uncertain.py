@@ -57,6 +57,57 @@ def seed_uncertain(store, *, existing_binding=False, api_key='offline', count=1,
     return identities[0] if count == 1 else identities
 
 
+def seed_failed_replacement(store, identity, *, fault=None):
+    with store.engine.begin() as db:
+        row = db.execute(select(BotState.mm_session, BotState.recovery_state, BotState.control_version, BotState.status)).one()
+        created = db.scalar(select(Order.creation_timestamp).where(Order.id == identity)) / 1000
+        original = {**row.mm_session, 'started_at': created - 2, 'step_expires_at': created + 25}
+        running = {**original, 'status': 'running'}
+        record_transition(db, store.bot_id, None, original, 0, source='admin_api')
+        record_transition(db, store.bot_id, {**running, 'status': 'preparing'}, running, 0)
+        stopped = {**original, 'status': 'stopped', 'generation': 1}
+        if fault != 'missing_stop':
+            record_transition(db, store.bot_id, running, stopped, row.control_version)
+        replacement = {**original, 'id': 'failed-replacement', 'status': 'preparing',
+                       'started_at': None, 'step_expires_at': None, 'anchors': {}}
+        previous = stopped if fault != 'different_predecessor' else {**stopped, 'id': 'another-session'}
+        record_transition(db, store.bot_id, previous, replacement, row.control_version, source='admin_api')
+        if fault == 'replacement_activated':
+            record_transition(db, store.bot_id, replacement, {**replacement, 'status': 'running', 'started_at': created + 30},
+                              row.control_version)
+        current = {**replacement, 'status': 'stopped', 'generation': 1}
+        record_transition(db, store.bot_id, replacement, current, row.control_version)
+        incident = {**row.recovery_state, 'halt': True, 'halt_kind': 'manual', 'shutdown_incomplete': True,
+                    'runtime_active': True, 'reason': 'Strategy initialization/reconciliation failed; inspect sanitized logs.',
+                    'halt_diagnostic': {'reason_code': 'strategy_reconciliation_failed'},
+                    'automatic_recovery': dict(phase='bootstrapping_recovery', reason_code='owner_handover',
+                                               cold_recovery_supported=True, order_id=None)}
+        receipt = dict(http_status=200, code='1', order=dict(clOrdId=identity, ordId='', sCode='51138'))
+        if fault == 'ambiguous_receipt':
+            receipt['order']['sCode'] = '50013'
+        db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == identity).values(receipt=receipt))
+        status = {**(row.status or {}), 'phase': 'halted', 'running': False}
+        db.execute(update(BotState).values(mm_session=current, recovery_state=incident, status=status))
+
+
+@pytest.mark.parametrize('fault', [None, 'missing_stop', 'different_predecessor', 'replacement_activated', 'ambiguous_receipt'])
+def test_failed_replacement_only_reviews_the_previous_stopped_sessions_rejected_sell(recovering, monkeypatch, fault):
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    monkeypatch.setenv('OKX_SITE', 'www')
+    store, _ = recovering
+    identity = seed_uncertain(store, sell_last=True)
+    seed_failed_replacement(store, identity, fault=fault)
+    payload = {'uncertain_order_id': identity}
+    if fault:
+        with pytest.raises(RecoveryBlocked, match='recovery_uncertain_order_scope'):
+            store.operation_snapshot(payload)
+    else:
+        snapshot = store.operation_snapshot(payload)
+        assert snapshot['uncertain_order']['id'] == identity
+        assert snapshot['state']['mm_session']['id'] == 'failed-replacement'
+        assert snapshot['state']['recovery_state']['halt']
+
+
 def test_uncertain_batch_requires_complete_exact_set(recovering, monkeypatch):
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
     monkeypatch.setenv('OKX_SITE', 'www')

@@ -905,6 +905,8 @@ class MarketsRecorder:
             return
         with self._sql_manager.get_new_session() as session:
             if compact:
+                from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
+
                 # Keep both branches in one snapshot. Count-only rows do not
                 # need an ordinal. Keep non-finite held rows for validation.
                 # OFFSET 0 keeps the contribution filter above the original
@@ -935,9 +937,14 @@ class MarketsRecorder:
                     ) AS history
                     ORDER BY ordinal
                 """).bindparams(bindparam('controller_ids', expanding=True))
-                # Fetch projected rows in bounded batches to reduce cursor round trips.
-                yield from session.execute(statement, {'controller_ids': controller_ids, 'held': CloseType.POSITION_HOLD.value},
-                                           execution_options={'yield_per': 4000})
+                # Startup reads already run on a dedicated worker. Give this
+                # history-only cursor a bounded budget independent of order I/O.
+                connection = session.connection()
+                with bootstrap_io_budget(connection, time.monotonic() + 20):
+                    connection.exec_driver_sql("SET LOCAL statement_timeout = '12s'")
+                    parameters = {'controller_ids': controller_ids, 'held': CloseType.POSITION_HOLD.value}
+                    with connection.execute(statement, parameters, execution_options={'yield_per': 4000}) as rows:
+                        yield from rows
                 return
             yield from (session.query(Executors.id, Executors.close_type, Executors.net_pnl_quote,
                                       Executors.filled_amount_quote, Executors.controller_id)

@@ -81,6 +81,27 @@ def supports_halted_order_review(state, identities):
             and cause['current_reason_code'] in ('exchange_reconciliation_incomplete', 'strategy_reconciliation_failed'))
 
 
+def supports_failed_start_order_review(state, identities):
+    """Permit a proof attempt after an unstarted replacement hit a technical HALT."""
+    recovery = state.get('recovery_state') or {}
+    session = state.get('mm_session') or {}
+    status = state.get('status') or {}
+    if not all(isinstance(value, dict) for value in (recovery, session, status)):
+        return False
+    automatic = recovery.get('automatic_recovery') or {}
+    if (not isinstance(automatic, dict) or len(identities) != 1 or state.get('config_type') != 'mm-session'
+            or state.get('desired_state') != 'stopped' or session.get('status') != 'stopped'
+            or session.get('started_at') is not None or session.get('step_index') != 0
+            or status.get('running') is not False or status.get('phase') not in ('halted', 'recovery_checking', 'recovering')
+            or recovery.get('halt') is not True or recovery.get('halt_kind') != 'manual'
+            or automatic.get('phase') != 'bootstrapping_recovery' or automatic.get('reason_code') != 'owner_handover'
+            or automatic.get('cold_recovery_supported') is not True or automatic.get('order_id') is not None):
+        return False
+    cause = halt_cause(recovery)
+    return (cause['evidence_source'] == 'persisted'
+            and cause['reason_code'] == cause['current_reason_code'] == 'strategy_reconciliation_failed')
+
+
 def recovery_blockers(state, *, uncertain_order=False, uncertain_ids=()):
     reasons = []
     if state.get('desired_state') != 'stopped':
@@ -92,10 +113,11 @@ def recovery_blockers(state, *, uncertain_order=False, uncertain_ids=()):
         return reasons + ['recovery_checkpoint_invalid']
     uncertain_order = uncertain_order or bool(uncertain_ids)
     if uncertain_order:
-        stopped_rollover = supports_halted_order_review(state, uncertain_ids)
-        if not stopped_rollover and (recovery.get('halt') or recovery.get('reason') or recovery.get('shutdown_incomplete')):
+        technical_review = (supports_halted_order_review(state, uncertain_ids)
+                            or supports_failed_start_order_review(state, uncertain_ids))
+        if not technical_review and (recovery.get('halt') or recovery.get('reason') or recovery.get('shutdown_incomplete')):
             reasons.append('recovery_uncertain_order_scope')
-        if not stopped_rollover and recovery.get('runtime_active'):
+        if not technical_review and recovery.get('runtime_active'):
             reasons.append('recovery_stop_incomplete')
     elif recovery.get('halt') is not True:
         reasons.append('recovery_not_halted')

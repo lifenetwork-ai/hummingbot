@@ -131,7 +131,8 @@ def test_managed_startup_counts_inactive_history_without_streaming_each_row(reco
     statements = []
 
     def capture(connection, cursor, statement, parameters, *args):
-        statements.append((statement, parameters))
+        if 'FROM executors' in statement:
+            statements.append((statement, parameters))
 
     measured = {}
     for label, read in [
@@ -164,6 +165,25 @@ def test_managed_startup_counts_inactive_history_without_streaming_each_row(reco
         plan = connection.exec_driver_sql(explain, parameters).scalar_one()[0]['Plan']
     numbered_rows = sum(node['Actual Rows'] * node['Actual Loops'] for node in nodes(plan) if node['Node Type'] == 'WindowAgg')
     assert numbered_rows <= measured['managed']['rows'], 'Only individual contributions need a scan ordinal'
+
+
+def test_managed_history_uses_a_separate_bounded_budget_from_runtime_queries(recording, pg_engine):
+    recorder = recording[0]
+    seed_executors(pg_engine)
+
+    def delayed_history(connection, cursor, statement, parameters, _context, _executemany):
+        if 'WITH scoped AS NOT MATERIALIZED' in statement:
+            statement = 'SELECT history.* FROM (SELECT pg_sleep(2.1)) AS delay CROSS JOIN (' + statement + ') AS history'
+        return statement, parameters
+
+    event.listen(pg_engine, 'before_cursor_execute', delayed_history, retval=True)
+    try:
+        assert list(recorder.iter_executor_performance(['selected-0'], compact=True))
+    finally:
+        event.remove(pg_engine, 'before_cursor_execute', delayed_history)
+    with pg_engine.connect() as connection:
+        assert connection.exec_driver_sql('SHOW statement_timeout').scalar_one() == '2s'
+    assert pg_engine.pool.checkedout() == 0
 
 
 @pytest.mark.parametrize('invalid', [

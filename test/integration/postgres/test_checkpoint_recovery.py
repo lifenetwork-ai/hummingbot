@@ -109,6 +109,50 @@ def test_checkpoint_counts_unjournaled_history_in_one_set_pass(recovering, monke
     assert all(node['Actual Loops'] <= 1 for node in nodes(plan)), plan
 
 
+def test_recovery_ledger_stream_projects_fixed_size_hashes_and_detects_edits(recovering):
+    from hummingbot.model.checkpoint_recovery import LEDGER_MODELS, ledger_hash
+
+    store, _ = recovering
+    seed_checkpoint(store, orders=12, fills=3)
+    statements = []
+
+    def capture(_connection, _cursor, statement, _parameters, _context, _executemany):
+        if 'SELECT sha256(' in statement:
+            statements.append(statement)
+
+    with store.engine.begin() as db:
+        event.listen(db, 'before_cursor_execute', capture)
+        try:
+            before = ledger_hash(db)
+        finally:
+            event.remove(db, 'before_cursor_execute', capture)
+        assert len(statements) == len(LEDGER_MODELS)
+        assert all('SELECT sha256(' in statement for statement in statements)
+        assert ledger_hash(db) == before
+        db.execute(update(Order).where(Order.id == 'o00000').values(price=101))
+        assert ledger_hash(db) != before
+
+
+def test_recovery_ledger_fetch_uses_a_bounded_budget_and_restores_the_runtime_timeout(recovering):
+    from hummingbot.model.checkpoint_recovery import ledger_hash
+
+    store, _ = recovering
+    seed_checkpoint(store, orders=12, fills=3)
+
+    def slow_fetch(_connection, _cursor, statement, parameters, _context, _executemany):
+        if 'SELECT sha256(' in statement and 'FROM trade_fills' in statement:
+            statement = 'SELECT proof.* FROM (SELECT pg_sleep(2.1)) AS delay CROSS JOIN (' + statement + ') AS proof'
+        return statement, parameters
+
+    with store.engine.begin() as db:
+        event.listen(db, 'before_cursor_execute', slow_fetch, retval=True)
+        try:
+            assert len(ledger_hash(db)) == 64
+        finally:
+            event.remove(db, 'before_cursor_execute', slow_fetch)
+        assert db.exec_driver_sql('SHOW statement_timeout').scalar_one() == '2s'
+
+
 @pytest.mark.parametrize('mutation', ['missing_audit', 'unauthorized_audit', 'financial', 'unjournaled', 'unapplied', 'binding'])
 def test_unproven_or_changed_checkpoint_cannot_skip_complete_history(recovering, monkeypatch, mutation):
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo'); monkeypatch.setenv('OKX_SITE', 'www')

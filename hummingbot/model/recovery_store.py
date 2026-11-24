@@ -21,6 +21,7 @@ from hummingbot.core.recovery import (
     decimal,
     fingerprint,
     recovery_blockers,
+    supports_failed_start_order_review,
     supports_halted_order_review,
     uncertain_order_ids,
 )
@@ -547,13 +548,20 @@ class RecoveryStore:
             _conflict('recovery_state_changed')
         timestamp = int(state['database_now'].timestamp() * 1000)
         environment = next(r['environment'] for r in snapshot['bindings'] if r['connector'] == 'okx' and r['state'] == 'active')
-        halted_order = supports_halted_order_review(state, uncertain_order_ids(row['payload']))
+        identities = uncertain_order_ids(row['payload'])
+        halted_order = supports_halted_order_review(state, identities)
+        failed_start = supports_failed_start_order_review(state, identities)
+        reason = 'operator_reviewed_busy_absence'
+        if failed_start:
+            reason = 'operator_reviewed_price_rejection'
+        elif halted_order:
+            reason = 'operator_reviewed_transport_absence'
         for candidate, change in zip(candidates, changes):
             apply_change(connection, candidate, timestamp)
             self.access.audit(connection, actor=actor, action='recovery_order_repaired', outcome='succeeded',
                               operation_id=row['id'], request_id=row['result']['_private']['request_id'],
                               target_id=change['id'], connector='okx', exchange='okx', environment=environment,
-                              reason_code='operator_reviewed_transport_absence' if halted_order else 'operator_reviewed_busy_absence',
+                              reason_code=reason,
                               details=dict(order_id=change['id'], pair=change['pair'], amount=change['amount'],
                                            stage='uncertain_submission_retired'))
         recovery = deepcopy(state['recovery_state'])
@@ -561,7 +569,7 @@ class RecoveryStore:
         result = dict(stage='recovered', can_recover=False, blockers=[],
                       **({'repaired_uncertain_order': changes[0]} if len(changes) == 1 else {'repaired_uncertain_orders': changes}),
                       verification=verification, trading_state='stopped', _private=row['result']['_private'])
-        if halted_order:
+        if halted_order or failed_start:
             result['halt_cause'] = halt_cause(state['recovery_state'])
             for key in ('halt', 'halt_kind', 'halt_diagnostic', 'reason', 'shutdown_incomplete'):
                 recovery.pop(key, None)

@@ -4,14 +4,15 @@ No repair is inferred from a matching quantity alone. Unsettled or unanchored
 ledgers retain the existing complete-history recovery path.
 """
 import hashlib
-import json
 import re
+import time
 
-from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy import Text, and_, cast, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from hummingbot.model.admin_access import AdminAuditEvent
 from hummingbot.model.admin_command import AdminCommand
+from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.order import Order
 from hummingbot.model.order_status import OrderStatus
@@ -25,7 +26,7 @@ from hummingbot.model.runtime_journal import (
 )
 from hummingbot.model.trade_fill import TradeFill
 
-BATCH_SIZE = 500
+BATCH_SIZE = 4000
 MODE = 'verified_checkpoint'
 LEDGER_MODELS = (Order, OrderStatus, TradeFill, RuntimeJournal, SubmissionAttempt, MarketState)
 
@@ -37,15 +38,23 @@ def fill_identity():
 
 
 def ledger_hash(connection):
-    """Bound memory; retain detection of edits/deletes in the reviewed prefix."""
+    """Stream fixed-size hashes of the complete, primary-key-ordered ledger."""
     result = hashlib.sha256()
-    for model in LEDGER_MODELS:
-        result.update(model.__tablename__.encode() + b'\n')
-        statement = select(model).order_by(*model.__table__.primary_key.columns).execution_options(yield_per=BATCH_SIZE)
-        with connection.execute(statement) as rows:
-            for partition in rows.mappings().partitions(BATCH_SIZE):
-                for row in partition:
-                    result.update(json.dumps(dict(row), sort_keys=True, separators=(',', ':'), default=str).encode() + b'\n')
+    # Only recovery's read-only stream gets this budget. A failed FETCH rolls
+    # back to the savepoint with the original setting and the caller's locks.
+    with bootstrap_io_budget(connection, time.monotonic() + 50), connection.begin_nested():
+        timeout = connection.exec_driver_sql('SHOW statement_timeout').scalar_one()
+        connection.exec_driver_sql("SET LOCAL statement_timeout = '6s'")
+        for model in LEDGER_MODELS:
+            table = model.__table__
+            result.update(table.name.encode() + b'\n')
+            # Hash every column without sending whole JSON payloads to Python.
+            row_hash = func.sha256(func.convert_to(cast(func.to_jsonb(table.table_valued()), Text), 'UTF8'))
+            statement = select(row_hash).select_from(table).order_by(*table.primary_key.columns).execution_options(yield_per=BATCH_SIZE)
+            with connection.execute(statement) as rows:
+                for value in rows.scalars():
+                    result.update(value)
+        connection.execute(select(func.set_config('statement_timeout', timeout, True)))
     return result.hexdigest()
 
 
