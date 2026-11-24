@@ -7,6 +7,8 @@ from hummingbot.core.engine_diagnostics import trace_runtime
 from hummingbot.model.db_migration.postgres.io_deadline import DeadlineConnection, install_io_deadline
 from hummingbot.model.ownership_lock_observation import observe_ownership_locks
 
+IDLE_SESSION_TIMEOUT_SECONDS = 30
+
 
 def create_postgres_engine(settings: RuntimeSettings) -> Engine:
     install_io_deadline()
@@ -28,9 +30,10 @@ def create_postgres_engine(settings: RuntimeSettings) -> Engine:
             # A dropped client socket is not proof that a proxy discarded its
             # upstream session. Bound idle (not active SQL) sessions on the
             # server too, so an orphan cannot retain ownership indefinitely.
-            # Normal owner reads are frequent; pooled readers use pre_ping.
+            # The lock-owning session gets periodic physical reads; pooled readers use pre_ping.
             "options": ("-c search_path=public -c timezone=UTC -c statement_timeout=2000 -c lock_timeout=1000 "
-                        "-c idle_in_transaction_session_timeout=5000 -c idle_session_timeout=30000"),
+                        "-c idle_in_transaction_session_timeout=5000 "
+                        f"-c idle_session_timeout={IDLE_SESSION_TIMEOUT_SECONDS * 1000}"),
         },
     )
     # Pool pre-ping executes through DBAPI before the SQL cursor hooks. Observe

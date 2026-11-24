@@ -38,6 +38,7 @@ from hummingbot.core.startup_order_reconciliation import UntrackedOpenOrders, re
 from hummingbot.core.submission_admission import QueuedIntent, SubmissionAdmission
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
+from hummingbot.model.db_migration.postgres.connection import IDLE_SESSION_TIMEOUT_SECONDS
 from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
 from hummingbot.model.order import Order
 
@@ -52,6 +53,7 @@ MAX_ORDER_RECEIPT_BATCH = 4
 POSITION_CHECKPOINT_ORDER_WAIT_SECONDS = 1.0
 POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS = .1
 SHUTDOWN_ORDER_PROOF_CONCURRENCY = 6
+OWNER_SESSION_REFRESH_SECONDS = IDLE_SESSION_TIMEOUT_SECONDS / 3
 
 
 @contextmanager
@@ -108,6 +110,7 @@ class BotOwnership:
         self.generation = None
         self.connection = None
         self.backend_pid = None
+        self._owner_last_read_at = 0.
         self.lost = False
         self._ownership_failure = None
         self.allow_new_orders = False
@@ -225,6 +228,7 @@ class BotOwnership:
             self.backend_pid = connection.execute(text("SELECT pg_backend_pid()")).scalar()
             connection.commit()
             self.connection = connection
+            self._owner_last_read_at = time.monotonic()
             self.automatic_recovery.status = dict(recovery.get('automatic_recovery') or self.automatic_recovery.status)
             return True
         finally:
@@ -309,6 +313,7 @@ class BotOwnership:
             raise self._lose_ownership(str(error), error.reason_code) from None
         except Exception as error:
             raise self._owner_error(error) from None
+        self._owner_last_read_at = time.monotonic()
         return dict(row)
 
     def _lose_ownership(self, message, code, **diagnostic):
@@ -334,6 +339,10 @@ class BotOwnership:
     async def observe_state(self, *, halt_only=False):
         """Read current control state off-loop while proving the owner's physical lock."""
         physical = self.require_owner_connection()
+        # A pooled read can see the advisory lock but does not reset the owning
+        # backend's idle timer. Native authority reads already reset that timer.
+        if time.monotonic() - self._owner_last_read_at >= OWNER_SESSION_REFRESH_SECONDS:
+            self._read_owner(identity_only=True)
         columns = (BotState.recovery_state['halt'].label('halt'),) if halt_only else (
             BotState.bot_id, BotState.config_file_path, BotState.config_type, BotState.desired_state,
             BotState.control_version, BotState.acknowledged_version, BotState.owner_uuid, BotState.owner_generation,

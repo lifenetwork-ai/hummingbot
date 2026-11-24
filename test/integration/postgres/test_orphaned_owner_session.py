@@ -82,3 +82,26 @@ async def test_active_owner_survives_idle_budget_while_expired_warm_reader_is_re
         assert not owner.lost
     finally:
         owner.release()
+
+
+@pytest.mark.asyncio
+async def test_pooled_observation_keeps_the_physical_owner_past_its_idle_timeout(pg_engine, monkeypatch):
+    bootstrap_postgres(pg_engine, auto_migrate=True)
+    BotStateStore(pg_engine, 'hummingbot').ensure()
+    owner = BotOwnership(pg_engine, 'hummingbot')
+    assert owner.try_acquire()
+    try:
+        with owner.connection.begin():
+            owner.connection.execute(text("SET idle_session_timeout = '2s'"))
+        monkeypatch.setattr('hummingbot.core.bot_ownership.OWNER_SESSION_REFRESH_SECONDS', .25)
+        original_pid = owner.backend_pid
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            row = await owner.observe_state()
+            assert row['owner_generation'] == 1 and row['owner_uuid'] == owner.owner_uuid
+            assert not await owner.observe_halt()
+            await asyncio.sleep(.1)
+        assert owner.check_owner()['backend_pid'] == original_pid
+        assert not owner.lost
+    finally:
+        owner.release()

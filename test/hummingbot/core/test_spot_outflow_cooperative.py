@@ -46,7 +46,8 @@ async def test_service_bulk_expiry_yields_before_finishing_and_never_authorizes_
     projection = populated(count)
     reference = copy.deepcopy(projection)
     reference.advance(30000)
-    guard, _ = guarded(projection)
+    guard, row = guarded(projection)
+    guard.owner.observe_state = AsyncMock(side_effect=lambda: dict(row))
     host = ServiceHost(RuntimeSettings.from_environment({'DATABASE_URL': 'postgresql://unused/test'}),
                        asyncio.Event(), MagicMock())
     host.owner = guard.owner
