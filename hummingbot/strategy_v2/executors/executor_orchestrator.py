@@ -1047,7 +1047,7 @@ class ExecutorOrchestrator:
             _, candidates = self._held_checkpoint_work(reports)
             prefetched = {info.id for info in candidates}
             applied = await asyncio.to_thread(recorder.applied_position_executors, list(prefetched)) if prefetched else set()
-            async with recorder.order_writes:
+            async with recorder.order_writes.write('position_checkpoint'):
                 if active_guard() is not owner:
                     raise SubmissionBlocked('Trading owner changed before the position checkpoint.')
                 reports = self.get_executors_report() if executor_reports is None else executor_reports

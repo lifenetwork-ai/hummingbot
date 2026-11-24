@@ -518,7 +518,7 @@ class BotOwnership:
         recorder = self._order_recorder()
         if recorder is None:
             return nullcontext()
-        return recorder.order_writes.final_send() if received_evidence else recorder.order_writes
+        return recorder.order_writes.final_send(operation='transport_receipt') if received_evidence else recorder.order_writes
 
     def notify_position_checkpoint_ready(self):
         # Waiters keep the event they observed before checking readiness.
@@ -1129,7 +1129,8 @@ class BotOwnership:
                 checkpoint_ready = self.position_checkpoint_ready
                 try:
                     recorder = self._order_recorder()
-                    slot = recorder.order_writes if recorder is not None else self.submission_admission.final_send()
+                    slot = (recorder.order_writes.write('final_authority', observe_wait=True) if recorder is not None
+                            else self.submission_admission.final_send())
                     async with timed_submission_lock(slot, 'final_slot_wait_ms'):
                         await asyncio.sleep(0)
                         if active_guard() is not self:

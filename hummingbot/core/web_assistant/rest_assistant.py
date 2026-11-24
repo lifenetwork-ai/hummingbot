@@ -112,8 +112,11 @@ class RESTAssistant:
         from hummingbot.core.order_submission_guard import after_rest, before_rest, completed_rest, failed_rest
         trace_order = (request.is_auth_required and request.method is RESTMethod.POST
                        and urlsplit(request.url).path == '/api/v5/trade/order')
-        with submission_timing('final_authority_ms') if trace_order else nullcontext():
-            context = await before_rest(request)
+        with submission_timing('ready_to_dispatch_ms', finish_on_exit=False) if trace_order else nullcontext() as dispatched:
+            with submission_timing('final_authority_ms') if trace_order else nullcontext():
+                context = await before_rest(request)
+            if dispatched is not None:
+                dispatched()
         try:
             if context is not None:
                 timeout = min(timeout, 5) if timeout is not None else 5

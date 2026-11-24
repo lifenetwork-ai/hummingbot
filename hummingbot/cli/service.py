@@ -474,7 +474,7 @@ class ServiceHost:
         from hummingbot.connector.markets_recorder import MarketsRecorder
         recorder = MarketsRecorder._shared_instance
         matches = recorder is not None and recorder.sql_manager.engine is self.engine
-        async with recorder.order_writes if matches else nullcontext():
+        async with recorder.order_writes.write('session_update') if matches else nullcontext():
             return self.store.update_mm_session(**fields)
 
     def configure_logging(self):

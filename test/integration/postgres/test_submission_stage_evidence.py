@@ -1,5 +1,6 @@
 """Opt-in stage evidence preserves native durable admission and acknowledgements."""
 import asyncio
+import time
 from decimal import Decimal
 from test.integration.postgres.test_submission_admission_fairness import (
     native as native_fixture,
@@ -16,6 +17,91 @@ from hummingbot.model.runtime_journal import SubmissionAttempt
 
 native = native_fixture
 owned = owned_fixture
+
+
+def test_ready_to_dispatch_p95_includes_a_quote_burst_waiting_behind_an_ack(native, monkeypatch):
+    offset = 0
+    tracer = EngineDiagnostics(clock=lambda: time.monotonic_ns() + offset)
+    native.loop.run_until_complete(tracer.start())
+
+    async def submit():
+        nonlocal offset
+        first_reply, allow_reply, ack_entered, allow_ack = (asyncio.Event() for _ in range(4))
+        prepared, enter_final = asyncio.Event(), asyncio.Event()
+        prepared_count = 0
+        venue = native.transport.call.side_effect
+        persist_ack = native.recorder._persist_open_acknowledgements
+        authorize = native.owner.authorize_rest
+
+        async def reply(request):
+            if '"burst-0"' in request.data:
+                first_reply.set()
+                await allow_reply.wait()
+            return await venue(request)
+
+        async def hold_ack(*args):
+            if not ack_entered.is_set():
+                ack_entered.set()
+                await allow_ack.wait()
+            return await persist_ack(*args)
+
+        async def final_authority(request):
+            nonlocal prepared_count
+            if '"burst-0"' not in request.data:
+                prepared_count += 1
+                if prepared_count == 7:
+                    prepared.set()
+                await enter_final.wait()
+            return await authorize(request)
+
+        async def quote(index):
+            with session_order_scope(native.session.id, native.session.generation):
+                await native.market._create_order(TradeType.BUY, f'burst-{index}', 'LIFE-USDT', Decimal('1'),
+                                                  OrderType.LIMIT_MAKER, Decimal('10'))
+
+        monkeypatch.setattr(native.transport.call, 'side_effect', reply)
+        monkeypatch.setattr(native.recorder, '_persist_open_acknowledgements', hold_ack)
+        monkeypatch.setattr(native.owner, 'authorize_rest', final_authority)
+        tasks = [asyncio.create_task(quote(0))]
+        try:
+            async with asyncio.timeout(5):
+                await first_reply.wait()
+                tasks.extend(asyncio.create_task(quote(index)) for index in range(1, 8))
+                await prepared.wait()
+                allow_reply.set()
+                await ack_entered.wait()
+                enter_final.set()
+                while len(native.recorder.order_writes._admissions) < 7:
+                    await asyncio.sleep(0)
+                assert native.transport.call.await_count == 1
+                offset += 300_000_000
+        finally:
+            allow_reply.set()
+            enter_final.set()
+            allow_ack.set()
+            await asyncio.gather(*tasks)
+
+    try:
+        native.loop.run_until_complete(submit())
+        snapshot = tracer.snapshot()
+        placed = [span for span in snapshot['submission_recent'] if span['operation'] == 'order.place']
+        assert len(placed) == 8
+        slow = [span for span in placed if span['final_slot_wait_ms'] >= 300]
+        assert len(slow) == 7
+        for span in slow:
+            wait = span['final_slot_wait_evidence']
+            assert wait['writers']['open_ack']['turns'] >= 1
+            assert wait['writers']['open_ack']['max_overlap_ms'] >= 300
+            assert not wait['truncated']
+        assert snapshot['order_dispatch']['samples'] == 8
+        assert snapshot['order_dispatch']['p95_ms'] == max(span['ready_to_dispatch_ms'] for span in placed)
+        assert snapshot['order_dispatch']['p95_ms'] >= 300
+        assert native.transport.call.await_count == 8 and not native.recorder.order_writes.locked()
+        with native.manager.get_new_session() as db:
+            assert db.query(Order).filter(Order.creation_pending.is_(False)).count() == 8
+            assert db.query(SubmissionAttempt).filter_by(state='acknowledged').count() == 8
+    finally:
+        native.loop.run_until_complete(tracer.close())
 
 
 @pytest.mark.parametrize('broken_sink', [False, True])

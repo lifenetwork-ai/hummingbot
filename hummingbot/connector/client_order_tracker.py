@@ -248,7 +248,8 @@ class ClientOrderTracker:
             self.process_trade_update(update)
             return
         with recorder.native_order_activity() as owner:
-            async with self._order_event_lock(update.client_order_id), recorder.native_order_lock(self._connector, owner):
+            async with (self._order_event_lock(update.client_order_id),
+                        recorder.native_order_lock(self._connector, owner, operation='fill')):
                 await self._apply_recorded_trade_update(recorder, update)
 
     def _order_event_lock(self, identity):

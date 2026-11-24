@@ -8,8 +8,42 @@ import pytest
 
 from hummingbot.core import bot_ownership, order_submission_guard as gates
 from hummingbot.core.bot_ownership import BotOwnership
+from hummingbot.core.engine_diagnostics import EngineDiagnostics
 from hummingbot.core.submission_admission import SubmissionAdmission
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+
+
+@pytest.mark.asyncio
+async def test_recorder_wait_identifies_one_long_hold_and_multiple_short_turns(monkeypatch):
+    from hummingbot.core import engine_diagnostics
+
+    now = [0]
+    tracer = EngineDiagnostics(clock=lambda: now[0] * 1_000_000)
+    monkeypatch.setattr(engine_diagnostics, '_ACTIVE', tracer)
+    recorder = SubmissionAdmission(track_writes=True)
+
+    async def write(operation, duration_ms):
+        async with recorder.write(operation):
+            now[0] += duration_ms
+
+    async def send():
+        with tracer.span('order.place', order='offline-order'):
+            async with recorder.write('final_authority', observe_wait=True):
+                now[0] += 10
+
+    async with recorder.write('open_ack'):
+        now[0] += 40  # This part of the ACK predates the final send's wait.
+        ahead = [asyncio.create_task(write('position_checkpoint', 20)) for _ in range(2)]
+        waiting = asyncio.create_task(send())
+        await asyncio.sleep(0)
+        now[0] += 280
+    await asyncio.gather(*ahead, waiting)
+    span, = tracer.snapshot()['submission_recent']
+    assert span['final_slot_wait_evidence'] == dict(
+        wait_ms=320,
+        writers={'open_ack': dict(turns=1, total_ms=280, max_overlap_ms=280, max_hold_ms=320),
+                 'position_checkpoint': dict(turns=2, total_ms=40, max_overlap_ms=20, max_hold_ms=20)},
+        unattributed_ms=0, truncated=False)
 
 
 @pytest.fixture

@@ -58,12 +58,17 @@ _SUBMISSION_TIMING_OPERATIONS = {
     'final_slot_wait_ms': 'order.place',
     'final_owner_read_ms': 'order.place',
     'final_journal_ms': 'order.place',
+    'ready_to_dispatch_ms': 'order.place',
     'wire_headers_ms': 'order.place',
     'transport_receipt_ms': 'order.place',
     'receipt_persistence_ms': 'order.place',
     'tracker_ack_ms': 'order.place',
     'tracker_recorder_wait_ms': 'order.place',
 }
+_DISPATCH_SAMPLE_LIMIT = 256
+_RECORDER_WAIT_SLOW_NS = 250_000_000
+_RECORDER_WRITE_TYPES = frozenset({'intent', 'final_authority', 'transport_receipt', 'open_ack', 'tracker_update',
+                                   'fill', 'position_checkpoint', 'session_update', 'other_write'})
 _QUOTE_LIMIT = 64
 _QUOTE_LINK_TTL_NS = 120_000_000_000
 _QUOTE_SLOW_NS = 1_000_000_000
@@ -117,12 +122,12 @@ def _finish(tracer, token, error):
 
 
 @contextmanager
-def submission_timing(field):
+def submission_timing(field, *, finish_on_exit=True):
     """Accumulate a fixed phase on its existing span without adding ring entries."""
     tracer = _ACTIVE
     parent = _PARENT.get() if tracer is not None else None
     started = None
-    if parent is not None:
+    if parent is not None or (tracer is not None and field == 'ready_to_dispatch_ms'):
         try:
             started = tracer.clock()
         except Exception:
@@ -135,6 +140,8 @@ def submission_timing(field):
         try:
             elapsed_ms = (tracer.clock() - started) / 1e6
             with tracer.lock:
+                if field == 'ready_to_dispatch_ms':
+                    tracer._order_dispatch_samples.append(round(elapsed_ms, 3))
                 row = tracer.active.get(parent)
                 if row is not None and row['operation'] == _SUBMISSION_TIMING_OPERATIONS[field]:
                     row[field] = round(row.get(field, 0) + elapsed_ms, 3)
@@ -146,7 +153,8 @@ def submission_timing(field):
     try:
         yield finish
     finally:
-        finish()
+        if finish_on_exit:
+            finish()
 
 
 @asynccontextmanager
@@ -159,6 +167,88 @@ async def timed_submission_lock(lock, field):
         async with lock:
             acquired()
             yield
+
+
+class RecorderWriteTiming:
+    """Owner-loop history of actual holds on one recorder's write slot."""
+
+    def __init__(self):
+        self._tracer = None
+        self._holder = None
+        self._turns = deque(maxlen=64)
+        self._discarded_until = None
+
+    def acquired(self, operation):
+        tracer = _ACTIVE
+        if tracer is None:
+            return
+        try:
+            if self._tracer is None or self._tracer() is not tracer:
+                self._tracer = weakref.ref(tracer)
+                self._turns.clear()
+                self._discarded_until = None
+            self._holder = (tracer.clock(), operation if operation in _RECORDER_WRITE_TYPES else 'other_write')
+        except Exception:
+            pass
+
+    def released(self):
+        holder, self._holder = self._holder, None
+        tracer = _ACTIVE
+        if holder is None or tracer is None or self._tracer() is not tracer:
+            return
+        try:
+            end = tracer.clock()
+            if len(self._turns) == self._turns.maxlen:
+                self._discarded_until = self._turns[0][1]
+            self._turns.append((holder[0], end, holder[1]))
+        except Exception:
+            pass
+
+    def begin_wait(self):
+        tracer = _ACTIVE
+        if tracer is not None and (parent := _PARENT.get()) is not None:
+            try:
+                return tracer, parent, tracer.clock()
+            except Exception:
+                pass
+        return None
+
+    def report_wait(self, wait):
+        if wait is None or self._holder is None:
+            return
+        tracer, parent, start = wait
+        end = self._holder[0]
+        if tracer is not _ACTIVE or end - start < _RECORDER_WAIT_SLOW_NS:
+            return
+        try:
+            writers, attributed_ns = {}, 0
+            for began, finished, operation in reversed(self._turns):
+                if finished <= start:
+                    break
+                overlap_ns = min(end, finished) - max(start, began)
+                if overlap_ns <= 0:
+                    continue
+                stats = writers.setdefault(operation, [0, 0, 0, 0])
+                stats[0] += 1
+                stats[1] += overlap_ns
+                stats[2] = max(stats[2], overlap_ns)
+                stats[3] = max(stats[3], finished - began)
+                attributed_ns += overlap_ns
+            wait_ms = round((end - start) / 1e6, 3)
+            evidence = dict(wait_ms=wait_ms,
+                            writers={operation: dict(turns=count, total_ms=round(total / 1e6, 3),
+                                                     max_overlap_ms=round(overlap / 1e6, 3), max_hold_ms=round(hold / 1e6, 3))
+                                     for operation, (count, total, overlap, hold) in writers.items()},
+                            unattributed_ms=round((end - start - attributed_ns) / 1e6, 3),
+                            truncated=self._discarded_until is not None and self._discarded_until > start)
+            with tracer.lock:
+                row = tracer.active.get(parent)
+                if row is not None and row['operation'] == 'order.place':
+                    # A checkpoint retry can reacquire the slot on the same request.
+                    if wait_ms > row.get('final_slot_wait_evidence', {}).get('wait_ms', 0):
+                        row['final_slot_wait_evidence'] = evidence
+        except Exception:
+            pass
 
 
 def _identity(value):
@@ -372,6 +462,7 @@ class EngineDiagnostics:
         self.recent, self.active, self.operations = deque(maxlen=capacity), {}, {}
         self._shutdown_recent = deque(maxlen=32)
         self._submission_recent = deque(maxlen=64)
+        self._order_dispatch_samples = deque(maxlen=_DISPATCH_SAMPLE_LIMIT)
         self._quote_fills, self._quote_sends = {}, {}
         self._quote_attempts = {}
         self._slow_quotes = deque(maxlen=8)
@@ -458,7 +549,7 @@ class EngineDiagnostics:
                 stats['errors'] += bool(error)
                 stats['last_end_ns'] = now
                 stats['max_duration_ms'] = max(stats['max_duration_ms'], duration)
-                if duration >= SLOW_MS[row['operation']]:
+                if duration >= SLOW_MS[row['operation']] or 'final_slot_wait_evidence' in row:
                     self._slow.append(dict(row, duration_ms=duration, end_ns=now, error=bool(error)))
                     self._slow_dirty = True
         except Exception:
@@ -581,9 +672,16 @@ class EngineDiagnostics:
             return dict(recent=[dict(row) for row in self.recent], active=[dict(row) for row in self.active.values()],
                         shutdown_recent=[dict(row) for row in self._shutdown_recent],
                         submission_recent=[dict(row) for row in self._submission_recent],
+                        order_dispatch=self._order_dispatch_summary(),
                         operations={name: dict(stats) for name, stats in self.operations.items()},
                         dropped_spans=self.dropped_spans, sink_errors=self.sink_errors,
                         sql_hooks_attached=bool(self.hooks))
+
+    def _order_dispatch_summary(self):
+        samples = sorted(self._order_dispatch_samples)
+        count = len(samples)
+        return dict(samples=count, p95_ms=samples[(count * 95 + 99) // 100 - 1] if count else None,
+                    max_ms=samples[-1] if count else None)
 
     def _stacks(self, active):
         # Never retain frames, source lines, locals, SQL or request objects.
@@ -620,6 +718,10 @@ class EngineDiagnostics:
             if len(json.dumps(payload).encode()) > 24000:
                 payload['shutdown_recent'] = payload.get('shutdown_recent', [])[-8:]
                 payload['slow'] = payload.get('slow', [])[-4:]
+                if payload['event'] == 'order_submission_stages':
+                    completed = payload['completed']
+                    payload['completed'] = completed[-8:]
+                    payload['dropped_since_previous'] += len(completed) - len(payload['completed'])
             if len(json.dumps(payload).encode()) <= 24000:
                 self.emit(payload)
                 return True
@@ -641,9 +743,10 @@ class EngineDiagnostics:
             # Batch writes have no single order ID, so they only appear in the counters.
             operations = {name: {'completed': stats['completed'], 'errors': stats['errors']}
                           for name, stats in self.operations.items() if name in SUBMISSION_OPERATIONS}
+            dispatch = self._order_dispatch_summary()
         self._last_submission_emitted_ns = now
         payload = dict(event='order_submission_stages', at_ns=now, wall_time_ns=time.time_ns(), process_id=os.getpid(),
-                       operations=operations, completed=completed, from_sequence=first + 1, to_sequence=last,
+                       operations=operations, completed=completed, order_dispatch=dispatch, from_sequence=first + 1, to_sequence=last,
                        dropped_since_previous=max(0, last - first - len(completed)))
         if self._deliver(payload):
             with self.lock:

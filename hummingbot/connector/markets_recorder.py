@@ -110,7 +110,7 @@ class MarketsRecorder:
         self._config_file_path: str = config_file_path
         self._strategy_name: str = strategy_name
         self.cleanup_operation_id = None
-        self.order_writes = SubmissionAdmission()
+        self.order_writes = SubmissionAdmission(track_writes=True)
         self._published_order_event = None
         self._market_data_collection_config: MarketDataCollectionConfigMap = market_data_collection
         self._market_data_collection_task: Optional[asyncio.Task] = None
@@ -166,10 +166,10 @@ class MarketsRecorder:
                 owner.terminal_tasks.discard(task)
 
     @asynccontextmanager
-    async def native_order_lock(self, market, owner):
+    async def native_order_lock(self, market, owner, *, operation='tracker_update'):
         from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
 
-        async with timed_submission_lock(self.order_writes, 'tracker_recorder_wait_ms'):
+        async with timed_submission_lock(self.order_writes.write(operation), 'tracker_recorder_wait_ms'):
             if (active_guard() is not owner or owner.engine is not self._sql_manager.engine
                     or self._shared_instance is not self or market not in self._markets):
                 raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
@@ -199,7 +199,7 @@ class MarketsRecorder:
     async def retry_order_acknowledgement(self, market, owner, apply):
         """Run a native OPEN update, rebuilding its snapshot on each proven retry."""
         async def attempt(deadline):
-            async with self.native_order_lock(market, owner):
+            async with self.native_order_lock(market, owner, operation='open_ack'):
                 if deadline is not None and asyncio.get_running_loop().time() >= deadline:
                     return _ACK_RETRY_EXPIRED
                 return await apply()
@@ -255,7 +255,7 @@ class MarketsRecorder:
             work.on_claim = acquired
             # The venue has accepted this order. Use the same bounded
             # priority as transport receipts to publish that durable fact.
-            result = await slot.acquire(final=True, work=work)
+            result = await slot.acquire(final=True, work=work, operation='open_ack')
         if result is not True:
             if isinstance(result, BaseException):
                 raise result
