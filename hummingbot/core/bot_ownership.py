@@ -38,7 +38,7 @@ from hummingbot.core.startup_order_reconciliation import UntrackedOpenOrders, re
 from hummingbot.core.submission_admission import QueuedIntent, SubmissionAdmission
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
-from hummingbot.model.db_migration.postgres.connection import IDLE_SESSION_TIMEOUT_SECONDS
+from hummingbot.model.db_migration.postgres.connection import IDLE_SESSION_TIMEOUT_SECONDS, connect_for_observation
 from hummingbot.model.db_migration.postgres.locks import OWNER_KEY, OWNER_NAMESPACE
 from hummingbot.model.order import Order
 
@@ -353,11 +353,23 @@ class BotOwnership:
             BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
             BotState.owner_generation == self.generation, self._advisory_lock_exists())
 
-        def read():
-            with self.engine.connect() as connection, _ownership_read(connection):
+        def select_state(connection):
+            with _ownership_read(connection):
                 row = connection.execute(statement).mappings().first()
                 connection.commit()
                 return row
+
+        def read():
+            try:
+                with connect_for_observation(self.engine) as connection:
+                    return select_state(connection)
+            except DBAPIError as error:
+                if not error.connection_invalidated:
+                    raise
+            # Repeat the read once on a validated pooled connection after a
+            # disconnect. The physical owner session is never retried here.
+            with self.engine.connect() as connection:
+                return select_state(connection)
 
         try:
             row = await asyncio.to_thread(read)

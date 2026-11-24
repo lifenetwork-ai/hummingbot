@@ -1,4 +1,7 @@
 """Bounded synchronous PostgreSQL connections shared by runtime and operator tools."""
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
@@ -8,6 +11,19 @@ from hummingbot.model.db_migration.postgres.io_deadline import DeadlineConnectio
 from hummingbot.model.ownership_lock_observation import observe_ownership_locks
 
 IDLE_SESSION_TIMEOUT_SECONDS = 30
+_OBSERVATION_ENGINE = ContextVar('postgres_observation_engine', default=None)
+
+
+@contextmanager
+def connect_for_observation(engine: Engine):
+    """Use the observer's immediate SELECT as the pooled connection probe."""
+    token = _OBSERVATION_ENGINE.set(engine)
+    try:
+        connection = engine.connect()
+    finally:
+        _OBSERVATION_ENGINE.reset(token)
+    with connection:
+        yield connection
 
 
 def create_postgres_engine(settings: RuntimeSettings) -> Engine:
@@ -36,12 +52,12 @@ def create_postgres_engine(settings: RuntimeSettings) -> Engine:
                         f"-c idle_session_timeout={IDLE_SESSION_TIMEOUT_SECONDS * 1000}"),
         },
     )
-    # Pool pre-ping executes through DBAPI before the SQL cursor hooks. Observe
-    # its native outcome without disabling validation or changing reconnects.
-    native_ping = engine.dialect.do_ping
+    # Pool pre-ping executes through DBAPI before the SQL cursor hooks.
+    native_ping = trace_runtime('db.ping')(engine.dialect.do_ping)
 
-    @trace_runtime('db.ping')
     def observed_ping(dbapi_connection):
+        if _OBSERVATION_ENGINE.get() is engine and not dbapi_connection.closed:
+            return True
         return native_ping(dbapi_connection)
 
     engine.dialect.do_ping = observed_ping

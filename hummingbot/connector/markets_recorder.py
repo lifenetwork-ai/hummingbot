@@ -954,8 +954,13 @@ class MarketsRecorder:
                 with bootstrap_io_budget(connection, time.monotonic() + 20):
                     connection.exec_driver_sql("SET LOCAL statement_timeout = '12s'")
                     parameters = {'controller_ids': controller_ids, 'held': CloseType.POSITION_HOLD.value}
-                    with connection.execute(statement, parameters, execution_options={'yield_per': 4000}) as rows:
-                        yield from rows
+                    page_size = 4000
+                    with connection.execute(statement, parameters, execution_options={'yield_per': page_size}) as rows:
+                        while page := rows.fetchmany(page_size):
+                            yield from page
+                            # A short PostgreSQL cursor page already proves EOF.
+                            if len(page) < page_size:
+                                break
                 return
             yield from (session.query(Executors.id, Executors.close_type, Executors.net_pnl_quote,
                                       Executors.filled_amount_quote, Executors.controller_id)

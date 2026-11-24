@@ -12,6 +12,46 @@ from hummingbot.core.engine_diagnostics import EngineDiagnostics
 owned = _owned
 
 
+@pytest.mark.parametrize('halt_only', [False, True])
+def test_owner_observation_uses_its_select_as_the_pool_liveness_check(owned, halt_only, monkeypatch):
+    import hummingbot.core.engine_diagnostics as diagnostic
+
+    owned.engine.pool.dispose()
+    with owned.engine.connect() as connection:
+        connection.execute(text('SELECT 1'))
+    tracer = EngineDiagnostics(emit=lambda _: None)
+    tracer.attach_engine(owned.engine)
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    try:
+        row = owned.loop.run_until_complete(owned.owner.observe_state(halt_only=halt_only))
+        if halt_only:
+            assert 'halt' in row and not row['halt']
+        else:
+            assert row['owner_generation'] == owned.owner.generation
+        operations = tracer.snapshot()['operations']
+        assert operations['db.sql']['completed'] == 1
+        assert 'db.ping' not in operations
+        with owned.engine.connect() as connection:
+            assert connection.execute(text('SELECT 1')).scalar_one() == 1
+        assert tracer.snapshot()['operations']['db.ping']['completed'] == 1
+    finally:
+        tracer.detach_engine()
+
+
+def test_owner_observation_recovers_from_a_cut_pooled_session(owned, monkeypatch):
+    owned.engine.pool.dispose()
+    physical = owned.owner.connection
+    with owned.engine.connect() as connection:
+        pooled_pid = connection.execute(text('SELECT pg_backend_pid()')).scalar_one()
+    assert owned.owner.connection.scalar(text('SELECT pg_terminate_backend(:pid, 2000)'), {'pid': pooled_pid})
+    owned.owner.connection.commit()
+    monkeypatch.setattr(owned.owner, 'check_owner', lambda: pytest.fail('A disconnected reader must retry off the engine loop'))
+    row = owned.loop.run_until_complete(owned.owner.observe_state())
+    assert row['owner_uuid'] == owned.owner.owner_uuid and owned.owner.connection is physical
+    with owned.engine.connect() as connection:
+        assert connection.execute(text('SELECT pg_backend_pid()')).scalar_one() != pooled_pid
+
+
 def test_pre_ping_is_measured_separately_from_cursor_sql(pg_engine, monkeypatch):
     import hummingbot.core.engine_diagnostics as diagnostic
     from hummingbot.client.config.runtime_config import RuntimeSettings

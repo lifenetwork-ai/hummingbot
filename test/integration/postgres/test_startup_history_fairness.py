@@ -11,6 +11,7 @@ from test.integration.postgres.test_recorder import recording as _recording
 from types import SimpleNamespace
 
 import pytest
+from psycopg2.extensions import cursor
 from sqlalchemy import event, text
 
 from hummingbot.model.db_migration.postgres.io_deadline import bootstrap_io_budget
@@ -183,6 +184,40 @@ def test_managed_history_uses_a_separate_bounded_budget_from_runtime_queries(rec
         event.remove(pg_engine, 'before_cursor_execute', delayed_history)
     with pg_engine.connect() as connection:
         assert connection.exec_driver_sql('SHOW statement_timeout').scalar_one() == '2s'
+    assert pg_engine.pool.checkedout() == 0
+
+
+@pytest.mark.parametrize('size', [3, 4002])
+def test_compact_history_stops_fetching_after_a_short_server_page(recording, pg_engine, size):
+    with pg_engine.begin() as connection:
+        connection.execute(text("""
+            INSERT INTO executors (id, timestamp, type, close_type, status, config, net_pnl_pct,
+                net_pnl_quote, cum_fees_quote, filled_amount_quote, is_active, is_trading, custom_info, controller_id)
+            SELECT 'history-' || n, n, 'order_executor', 3, 3, '{}', 0, 1, 0, 15,
+                   false, false, '{}', 'life'
+            FROM generate_series(1, :size) AS n
+        """), {'size': size})
+    fetched = []
+
+    class ObservedCursor(cursor):
+        def fetchmany(self, size=None):
+            rows = super().fetchmany(size)
+            if self.name:
+                fetched.append((size, len(rows)))
+            return rows
+
+    def observe(raw, *_):
+        raw.cursor_factory = ObservedCursor
+
+    event.listen(pg_engine, 'checkout', observe)
+    try:
+        result = ExecutorOrchestrator.read_startup_performance(recording[0], ['life'], compact=True)
+    finally:
+        event.remove(pg_engine, 'checkout', observe)
+    _, pnl, volume, counts = result.totals[0]
+    assert pnl == size and volume == size * 15 and sum(dict(counts).values()) == size
+    assert len(fetched) == (2 if size < 4000 else 3)
+    assert all(0 < returned <= requested <= 4000 for requested, returned in fetched)
     assert pg_engine.pool.checkedout() == 0
 
 
