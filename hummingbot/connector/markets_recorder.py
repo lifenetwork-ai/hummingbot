@@ -252,7 +252,9 @@ class MarketsRecorder:
         slot = self.order_writes
         with submission_timing('tracker_recorder_wait_ms') as acquired:
             work.on_claim = acquired
-            result = await slot.acquire(work=work)
+            # The venue has accepted this order. Use the same bounded
+            # priority as transport receipts to publish that durable fact.
+            result = await slot.acquire(final=True, work=work)
         if result is not True:
             if isinstance(result, BaseException):
                 raise result
@@ -265,7 +267,7 @@ class MarketsRecorder:
                     or self.service_recorder_for(work.market) is not self):
                 raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
             peers = slot.take_work(MAX_OPEN_ACK_BATCH - 1, lambda peer: (
-                isinstance(peer, _QueuedAcknowledgement) and peer.market is work.market and peer.owner is work.owner))
+                isinstance(peer, _QueuedAcknowledgement) and peer.market is work.market and peer.owner is work.owner), final=True)
             results.extend([None] * len(peers))
             prepared = []
             now = asyncio.get_running_loop().time()

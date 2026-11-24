@@ -26,8 +26,9 @@ class QueuedIntent(QueuedWrite):
 class SubmissionAdmission:
     """FIFO within each class, with bounded priority at the recorder.
 
-    Receipts precede ordinary writes. New intents can wait behind ready sends
-    and other ordinary writes without reordering those writes.
+    Received venue evidence gets bounded priority over ordinary writes.
+    New intents can wait behind ready sends and other ordinary writes without
+    reordering those writes.
     """
 
     def __init__(self):
@@ -79,18 +80,19 @@ class SubmissionAdmission:
         finally:
             self._queued_writes.pop(future, None)
 
-    def take_work(self, maximum, compatible=None):
+    def take_work(self, maximum, compatible=None, *, final=False):
         """Collect consecutive compatible waiters while the leader owns the slot."""
+        queue = self._sends if final else self._admissions
         peers = []
-        while self._admissions and len(peers) < maximum:
-            future = self._admissions[0]
+        while queue and len(peers) < maximum:
+            future = queue[0]
             if future.done():
-                self._admissions.popleft()
+                queue.popleft()
                 continue
             work = self._queued_writes.get(future)
             if work is None or compatible is not None and not compatible(work):
                 break
-            self._admissions.popleft()
+            queue.popleft()
             work.claimed = True
             if work.on_claim is not None:
                 work.on_claim()

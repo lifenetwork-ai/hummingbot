@@ -96,13 +96,14 @@ async def test_ready_sends_and_order_updates_keep_fifo_as_they_pass_a_waiting_in
 
 
 @pytest.mark.asyncio
-async def test_claiming_batch_does_not_skip_an_intervening_recorder_write():
+@pytest.mark.parametrize('final', [False, True])
+async def test_claiming_batch_does_not_skip_an_intervening_recorder_write(final):
     gate = BotOwnership(None, 'test').submission_admission
     queue = [QueuedWrite(), None, QueuedWrite()]
     granted = []
 
     async def wait_for_slot(index, work):
-        if await gate.acquire(work=work):
+        if await gate.acquire(work=work, final=final):
             try:
                 granted.append(index)
             finally:
@@ -111,7 +112,7 @@ async def test_claiming_batch_does_not_skip_an_intervening_recorder_write():
     async with gate:
         tasks = [asyncio.create_task(wait_for_slot(index, work)) for index, work in enumerate(queue)]
         await asyncio.sleep(0)
-        (work, future), = gate.take_work(8, lambda item: isinstance(item, QueuedWrite))
+        (work, future), = gate.take_work(8, lambda item: isinstance(item, QueuedWrite), final=final)
         assert work is queue[0] and not queue[2].claimed
         future.set_result(None)
     await asyncio.gather(*tasks)

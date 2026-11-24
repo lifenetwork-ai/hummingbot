@@ -14,9 +14,11 @@ from sqlalchemy import event, update
 
 from hummingbot.core import bot_ownership
 from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
 from hummingbot.core.order_submission_guard import session_order_scope
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.order import Order
+from hummingbot.model.order_status import OrderStatus
 from hummingbot.model.runtime_journal import SubmissionAttempt
 
 owned = owned_fixture
@@ -24,10 +26,10 @@ native = native_fixture
 
 
 class FIFOAdmission(asyncio.Lock):
-    async def acquire(self, *, work=None):
+    async def acquire(self, *, final=False, work=None):
         return await super().acquire()
 
-    def take_work(self, maximum, compatible=None):
+    def take_work(self, maximum, compatible=None, *, final=False):
         return []
 
     def final_send(self):
@@ -94,6 +96,74 @@ def test_ready_send_passes_admission_waiting_on_recorder(native, monkeypatch):
         assert {row.order_id: row.state for row in db.query(SubmissionAttempt)} == {
             'ready': 'acknowledged', 'next': 'acknowledged',
         }
+    assert not native.store.read()['recovery_state'].get('halt')
+
+
+def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native, monkeypatch):
+    ids = ('first-open', 'second-open')
+    dispatched, both_dispatched = set(), asyncio.Event()
+    release_rest, ack_queued = asyncio.Event(), asyncio.Event()
+    ordinary_observations, writes = [], []
+    reply = native.transport.call.side_effect
+    slot = native.recorder.order_writes
+    acquire = slot.acquire
+    persist = native.recorder._persist_open_acknowledgements
+    queued = 0
+
+    async def venue(request):
+        dispatched.add(json.loads(request.data)['clOrdId'])
+        if dispatched == set(ids):
+            both_dispatched.set()
+        await release_rest.wait()
+        return await reply(request)
+
+    async def observe_queue(**kwargs):
+        nonlocal queued
+        if kwargs.get('work') is not None:
+            queued += 1
+            if queued == len(ids):
+                ack_queued.set()
+        return await acquire(**kwargs)
+
+    async def persist_acks(market, prepared):
+        writes.append(tuple(plan.event.order_id for _, _, plan in prepared))
+        return await persist(market, prepared)
+
+    async def ordinary_write():
+        async with slot:
+            with native.manager.get_new_session() as db:
+                ordinary_observations.append([db.get(Order, identity).creation_pending for identity in ids])
+
+    async def exercise():
+        with session_order_scope(native.session.id, native.session.generation):
+            submissions = [asyncio.create_task(native.market._create_order(
+                TradeType.BUY, identity, 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
+                for identity in ids]
+        try:
+            await asyncio.wait_for(both_dispatched.wait(), 3)
+            async with slot:
+                prior = asyncio.create_task(ordinary_write())
+                await asyncio.sleep(0)
+                # Private OPEN events can arrive while both REST callers are waiting.
+                acks = [native.market._order_tracker.process_order_update(OrderUpdate(
+                    trading_pair='LIFE-USDT', update_timestamp=time.time(), new_state=OrderState.OPEN,
+                    client_order_id=identity, exchange_order_id='venue-' + identity)) for identity in ids]
+                await asyncio.wait_for(ack_queued.wait(), 3)
+            await asyncio.gather(prior, *acks)
+        finally:
+            release_rest.set()
+            await asyncio.gather(*submissions)
+
+    native.transport.call.side_effect = venue
+    monkeypatch.setattr(slot, 'acquire', observe_queue)
+    monkeypatch.setattr(native.recorder, '_persist_open_acknowledgements', persist_acks)
+    native.loop.run_until_complete(asyncio.wait_for(exercise(), 10))
+    assert ordinary_observations == [[False, False]]
+    assert writes == [ids] and native.transport.call.await_count == len(ids)
+    assert not slot.locked()
+    with native.manager.get_new_session() as db:
+        assert {row.order_id: row.state for row in db.query(SubmissionAttempt)} == dict.fromkeys(ids, 'acknowledged')
+        assert db.query(OrderStatus).filter(OrderStatus.status == 'BuyOrderCreated').count() == len(ids)
     assert not native.store.read()['recovery_state'].get('halt')
 
 
