@@ -270,7 +270,7 @@ def _recent_latency(values):
                 p99_ms=samples[(count * 99 + 99) // 100 - 1] if count else None)
 
 
-def _spot_quote_lane(config, *, controller_id=None):
+def _spot_quote_scope(config, *, controller_id=None):
     read = config.get if isinstance(config, dict) else lambda key: getattr(config, key, None)
     if (read('type') != 'position_executor' or read('connector_name') != 'okx'
             or read('use_configured_entry_price') is not True):
@@ -284,8 +284,19 @@ def _spot_quote_lane(config, *, controller_id=None):
     side, separator, _ = identifiers[-1].partition('_')
     if not separator or side not in _QUOTE_SIDES:
         return None
-    lane = hashlib.sha256(json.dumps((*identifiers, generation), separators=(',', ':')).encode()).hexdigest()[:16]
-    return lane, side
+    return (*identifiers[:-1], generation), identifiers[-1], side
+
+
+def _quote_level_key(controller, level):
+    return hashlib.sha256(json.dumps((*controller[:-1], level, controller[-1]), separators=(',', ':')).encode()).hexdigest()[:16]
+
+
+def _spot_quote_lane(config, *, controller_id=None):
+    scope = _spot_quote_scope(config, controller_id=controller_id)
+    if scope is not None:
+        controller, level, side = scope
+        return _quote_level_key(controller, level), side
+    return None
 
 
 def _executor_identity(config):
@@ -296,11 +307,12 @@ def observe_spot_quote_fill(executor, order_id):
     tracer = _ACTIVE
     if tracer is not None:
         try:
-            scope = _spot_quote_lane(executor.config)
+            scope = _spot_quote_scope(executor.config)
             order = _identity(order_id)
             if scope and order and executor._completed_entry_fill_timestamp() is not None:
-                lane, side = scope
-                tracer.record_quote_marker(f'quote.{side}_fill', order, lane=lane)
+                controller, level, side = scope
+                tracer.record_quote_marker(f'quote.{side}_fill', order, lane=_quote_level_key(controller, level),
+                                           controller=controller)
         except Exception:
             pass
 
@@ -313,6 +325,19 @@ def observe_spot_quote_handoff(config, field, order_id=None, *, controller_id=No
             if scope:
                 executor = _executor_identity(config) if field == 'first_proposal_at_ns' else None
                 tracer.record_quote_handoff(scope[0], field, _identity(order_id), executor=executor)
+        except Exception:
+            pass
+
+
+def observe_spot_quote_controller(config, stage, *, level_id=None, reason=None):
+    tracer = _ACTIVE
+    if tracer is not None:
+        try:
+            if not tracer._quote_fills or config.connector_name != 'okx' or not config.runtime_config_managed:
+                return
+            controller = (config.mm_session_id, config.id, config.trading_pair, config.mm_generation)
+            lane = _quote_level_key(controller, level_id) if level_id is not None else None
+            tracer.record_quote_controller(controller, stage, lane=lane, reason=reason)
         except Exception:
             pass
 
@@ -594,6 +619,43 @@ class EngineDiagnostics:
         row['completion_sequence'] = self._submission_completed
         self._submission_recent.append(row)
 
+    @staticmethod
+    def _record_proposal_wait(timings, now, reason):
+        history = timings.get('proposal_waits', ())
+        if history and history[-1]['reason_code'] == reason:
+            timings['proposal_waits'] = (*history[:-1], dict(history[-1], last_observed_at_ns=now))
+            return
+        if len(history) == 4:
+            history = (*history[:1], *history[-2:])
+            timings['proposal_waits_dropped'] = timings.get('proposal_waits_dropped', 0) + 1
+        timings['proposal_waits'] = (*history, dict(at_ns=now, reason_code=reason))
+
+    def record_quote_controller(self, controller, stage, *, lane=None, reason=None):
+        if reason is not None and not re.fullmatch(r'[a-z][a-z0-9_]{0,63}', reason):
+            reason = 'proposal_evaluation_unavailable'
+        now = self.clock()
+        with self.lock:
+            if self._closed:
+                return
+            fills = self._quote_fills.values() if lane is None else (self._quote_fills.get(lane),)
+            for fill in fills:
+                if fill is None or fill[3] != controller or not 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS:
+                    continue
+                timings = fill[2]
+                released = timings.get('release_report_at_ns')
+                if released is None or 'first_proposal_at_ns' in timings:
+                    continue
+                if stage == 'cycle':
+                    previous = timings.get('last_controller_cycle_at_ns', released)
+                    timings.setdefault('first_controller_cycle_at_ns', now)
+                    timings['last_controller_cycle_at_ns'] = now
+                    timings['max_controller_cycle_gap_ms'] = max(timings.get('max_controller_cycle_gap_ms', 0), (now - previous) / 1e6)
+                elif stage == 'evaluate':
+                    timings.setdefault('first_proposal_evaluation_at_ns', now)
+                    timings['last_proposal_evaluation_at_ns'] = now
+                elif reason is not None:
+                    self._record_proposal_wait(timings, now, reason)
+
     def record_quote_handoff(self, lane, field, order, *, executor=None):
         """Retain first observations for one already sampled, filled level."""
         if field not in _QUOTE_HANDOFF_TIMINGS:
@@ -605,6 +667,8 @@ class EngineDiagnostics:
                     or not (order == fill[0] or field == 'first_proposal_at_ns' and order is None)):
                 return
             timings = fill[2]
+            if field == 'first_proposal_at_ns' and 'first_proposal_at_ns' not in timings and timings.get('proposal_waits'):
+                self._record_proposal_wait(timings, now, 'proposed')
             timings.setdefault(field, now)
             if field == 'first_proposal_at_ns' and executor and executor not in self._quote_attempts:
                 timings.setdefault('first_proposal_executor', executor)
@@ -656,7 +720,7 @@ class EngineDiagnostics:
                 timings['outflow_preview_dropped'] = timings.get('outflow_preview_dropped', 0) + 1
             timings['outflow_preview'] = (*history, row)
 
-    def record_quote_marker(self, operation, order, *, lane=None, sent=None, executor=None):
+    def record_quote_marker(self, operation, order, *, lane=None, sent=None, executor=None, controller=None):
         """Retain opaque quote milestones on the existing watchdog stream."""
         now = self.clock()
         with self.lock:
@@ -672,9 +736,9 @@ class EngineDiagnostics:
                     count = 'expired' if now - previous[1] > _QUOTE_LINK_TTL_NS else 'superseded'
                     self._quote_counts[side][count] += 1
                 if lane not in self._quote_fills and len(self._quote_fills) >= _QUOTE_LIMIT:
-                    _, _, evicted = self._quote_fills.pop(next(iter(self._quote_fills)))
-                    self._quote_counts[evicted['side']]['evicted'] += 1
-                self._quote_fills[lane] = (order, now, {'side': side})
+                    evicted = self._quote_fills.pop(next(iter(self._quote_fills)))
+                    self._quote_counts[evicted[2]['side']]['evicted'] += 1
+                self._quote_fills[lane] = (order, now, {'side': side}, controller)
             elif stage == 'send':
                 fill = self._quote_fills.get(lane)
                 timings = {}
@@ -784,6 +848,13 @@ class EngineDiagnostics:
             return False
         try:
             if len(json.dumps(payload).encode()) > 24000:
+                if (payload['event'] in ('spot_buy_replacement_slow', 'spot_sell_replacement_slow')
+                        and payload.get('replacements') and payload.get('pending')):
+                    # Each quote list is bounded independently. Keep both when
+                    # their combined timing evidence exceeds the log limit.
+                    replacements = self._deliver(dict(payload, pending=[], pending_count=0))
+                    pending = self._deliver(dict(payload, replacements=[], dropped=0))
+                    return replacements and pending
                 payload['recent'] = payload.get('recent', [])[-16:]
                 payload['active'] = payload.get('active', [])[:8]
                 payload['stacks'] = payload.get('stacks', [])[:1]
@@ -834,7 +905,7 @@ class EngineDiagnostics:
             return
         pending = {side: [] for side in sides}
         with self.lock:
-            for lane, (order, filled_at, timings) in list(self._quote_fills.items()):
+            for lane, (order, filled_at, timings, _) in list(self._quote_fills.items()):
                 side = timings['side']
                 age = now - filled_at
                 if age > _QUOTE_LINK_TTL_NS:
@@ -843,7 +914,7 @@ class EngineDiagnostics:
                 if age >= _QUOTE_PENDING_WARNING_NS and side in sides:
                     waiting_for = ('open' if 'last_sent_at_ns' in timings else
                                    'dispatch' if 'first_proposal_at_ns' in timings else 'proposal')
-                    pending[side].append(dict(lane=lane, order=order, age_ms=age / 1e6, waiting_for=waiting_for,
+                    pending[side].append(dict(lane=lane, order=order, fill_at_ns=filled_at, age_ms=age / 1e6, waiting_for=waiting_for,
                                               expired=age > _QUOTE_LINK_TTL_NS, **timings))
             batches = []
             for side in sides:

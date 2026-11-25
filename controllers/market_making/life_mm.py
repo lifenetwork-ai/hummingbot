@@ -12,7 +12,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_valid
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
-from hummingbot.core.engine_diagnostics import observe_spot_quote_entry_stage, observe_spot_quote_handoff, trace_runtime
+from hummingbot.core.engine_diagnostics import (
+    observe_spot_quote_controller,
+    observe_spot_quote_entry_stage,
+    observe_spot_quote_handoff,
+    trace_runtime,
+)
 from hummingbot.core.mm_readiness import MM_READINESS_REASONS
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
@@ -258,7 +263,9 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         self._quote_diagnostics = dict(observed_at=self.market_data_provider.time(),
                                        reasons={'BUY': [], 'SELL': []}, proposed={'BUY': 0, 'SELL': 0})
 
-    def _quote_reason(self, reason, side=None):
+    def _quote_reason(self, reason, side=None, *, level_id=None, trace_reason=None):
+        if side is None or level_id is not None:
+            observe_spot_quote_controller(self.config, 'wait', level_id=level_id, reason=trace_reason or reason)
         if self._quote_diagnostics is not None:
             for name in (side.name,) if side is not None else ('BUY', 'SELL'):
                 reasons = self._quote_diagnostics['reasons'][name]
@@ -819,6 +826,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
     async def control_task(self):
         if self._executor_progress is not None:
             self._executor_progress.clear()
+            observe_spot_quote_controller(self.config, 'cycle')
         # Run freshness/cancellation even when the generic provider becomes unready.
         await self.update_processed_data()
         report_ready = self.executors_update_event.is_set()
@@ -830,6 +838,8 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             await self.send_actions(self.stop_quote_actions())
         elif report_ready:
             await self.send_actions(self.determine_executor_actions())
+        else:
+            observe_spot_quote_controller(self.config, 'wait', reason='executor_report_pending')
         # Publish cancellation requests before the synchronous, owner-fenced
         # transition write. A failed/pending write never reopens admission.
         if self._spread_policy.defense is not None:
@@ -891,18 +901,28 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 self._quote_reason(str(error) if str(error).startswith('reduction_') else 'reduction_basis_unavailable')
                 return self.stop_quote_actions()
         exposure, within_caps = None, False
+        inventory_reason = 'inventory_limit'
         if self._session_admitted and self.processed_data.get("ready"):
             try:
                 exposure = self._exposure()
                 within_caps = self._within_caps(*exposure)
             except (ValueError, ArithmeticError, TypeError):
-                pass
+                inventory_reason = 'inventory_basis_unavailable'
         if not within_caps:
             self._reset_quote_diagnostics()
-            self._quote_reason(self._quote_readiness_reason() or 'inventory_limit')
+            readiness = self._quote_readiness_reason()
+            self._quote_reason(readiness or 'inventory_limit', trace_reason=readiness or inventory_reason)
             return self.stop_quote_actions()
-        refresh = self._completed_entry_actions() + self._defense_refresh_actions()
+        completed = self._completed_entry_actions()
+        refresh = completed + self._defense_refresh_actions()
         if refresh or (self._spread_policy.defense is not None and self._stops_requested):
+            if completed:
+                reason = 'entry_handoff_priority'
+            elif refresh:
+                reason = 'defense_refresh_priority'
+            else:
+                reason = 'defense_retirement_pending'
+            observe_spot_quote_controller(self.config, 'wait', reason=reason)
             return refresh
         # Preserve the upstream create-then-stop ordering. Pass a local snapshot
         # only along this synchronous proposal call; public/send gates stay fresh
@@ -1020,10 +1040,11 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             if retiring:
                 pending_levels.add(executor.config.level_id)
             if executor.is_active or retiring:
-                self._quote_reason('active_executor', executor.config.side)
+                level = executor.config.level_id if retiring else executor.custom_info.get('level_id')
+                self._quote_reason('active_executor', executor.config.side, level_id=level)
             elif (executor.close_type == CloseType.STOP_LOSS
                   and self.market_data_provider.time() - executor.close_timestamp < self.config.cooldown_time):
-                self._quote_reason('cooldown', executor.config.side)
+                self._quote_reason('cooldown', executor.config.side, level_id=executor.custom_info.get('level_id'))
         return [level for level in levels if level not in pending_levels]
 
     def _exposure(self):
@@ -1089,6 +1110,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         return self._create_actions_proposal()
 
     def _create_actions_proposal(self, exposure=None):
+        observe_spot_quote_controller(self.config, 'evaluate')
         self._reset_quote_diagnostics()
         if not self._session_admitted or not self.processed_data.get("ready") or not self.market_data_provider.ready:
             self._quote_reason(self._quote_readiness_reason() or 'readiness_unavailable')
@@ -1121,10 +1143,10 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 config = action.executor_config
                 from hummingbot.core.order_submission_guard import recovery_side_permitted
                 if not recovery_side_permitted(self.config.connector_name, config.side):
-                    self._quote_reason('uncertain_order_risk_paused', config.side)
+                    self._quote_reason('uncertain_order_risk_paused', config.side, level_id=config.level_id)
                     continue
                 if (self.config.inventory_skew.enabled or self._spread_policy.defense is not None) and pending_allocation + config.amount * config.entry_price > self._quote_budget():
-                    self._quote_reason('allocation_limit', config.side)
+                    self._quote_reason('allocation_limit', config.side, level_id=config.level_id)
                     continue
                 is_buy = config.side == TradeType.BUY
                 proposed_long = long + config.amount if is_buy else long
@@ -1133,27 +1155,28 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 if self.config.runtime_config_managed and self.config.connector_name == "okx" and is_buy:
                     from hummingbot.core.order_submission_guard import spot_buy_preview
                     if not spot_buy_preview(connector, config.amount, config.entry_price, (config, action.controller_id)):
-                        self._quote_reason('spot_outflow_blocked', config.side)
+                        self._quote_reason('spot_outflow_blocked', config.side, level_id=config.level_id)
                         continue
                 if not self._within_caps(proposed_long, proposed_short):
-                    self._quote_reason('inventory_limit', config.side)
+                    self._quote_reason('inventory_limit', config.side, level_id=config.level_id)
                     continue
                 if self.config.connector_name == "okx" and not is_buy:
                     if config.amount > available_base:
-                        self._quote_reason('insufficient_base_balance', config.side)
+                        self._quote_reason('insufficient_base_balance', config.side, level_id=config.level_id)
                         continue
                     available_base -= config.amount
                 else:
                     if required_quote > available_quote:
-                        self._quote_reason('insufficient_quote_balance', config.side)
+                        self._quote_reason('insufficient_quote_balance', config.side, level_id=config.level_id)
                         continue
                     available_quote -= required_quote
                 long, short = proposed_long, proposed_short
                 pending_allocation += config.amount * config.entry_price
                 accepted.append(action)
-                if self.config.connector_name == "okx":
-                    observe_spot_quote_handoff(config, 'first_proposal_at_ns', controller_id=action.controller_id)
                 self._quote_diagnostics['proposed'][config.side.name] += 1
+            if self.config.connector_name == "okx":
+                for action in accepted:
+                    observe_spot_quote_handoff(action.executor_config, 'first_proposal_at_ns', controller_id=action.controller_id)
             return accepted
         except (ValueError, ArithmeticError, TypeError) as error:
             self._quote_diagnostics['proposed'] = {'BUY': 0, 'SELL': 0}
@@ -1437,6 +1460,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
     def _get_open_executor_config(self, level_id, price, amount):
         side = self.get_trade_type_from_level_id(level_id)
         if side == TradeType.SELL and self._inventory_sell_floor is not None and level_id != self._inventory_sell_floor[0]:
+            observe_spot_quote_controller(self.config, 'wait', level_id=level_id, reason='inventory_sell_floor_priority')
             return None
         if self.config.inventory_skew.enabled or self.config.spread_policy.enabled:
             connector = self.market_data_provider.get_connector_with_fallback(self.config.connector_name)
@@ -1447,18 +1471,18 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 status = self._inventory_status or {}
                 if side == TradeType.SELL and amount <= raw_amount and status.get('state') == 'active' and status.get('range_mode') == 'portfolio_pct':
                     reason = 'inventory_skew_sell_below_minimum' if self._inside_sell_band() else 'inventory_skew_sell_suppressed'
-                self._quote_reason(reason, side)
+                self._quote_reason(reason, side, level_id=level_id)
                 return None
         if not self.quote_price_valid(price):
-            self._quote_reason('quote_price_rejected', side)
+            self._quote_reason('quote_price_rejected', side, level_id=level_id)
             return None
         if self.config.spread_policy.enabled:
             try:
                 if not self.spread_quote_valid(side, price, amount, level_id=level_id):
-                    self._quote_reason('spread_policy_rejected', side)
+                    self._quote_reason('spread_policy_rejected', side, level_id=level_id)
                     return None
             except ValueError:
-                self._quote_reason('spread_policy_unavailable', side)
+                self._quote_reason('spread_policy_unavailable', side, level_id=level_id)
                 return None
         return super().get_executor_config(level_id, price, amount).model_copy(update={
             "mm_session_id": self.config.mm_session_id, "mm_generation": self.config.mm_generation,

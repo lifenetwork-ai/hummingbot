@@ -249,6 +249,27 @@ def test_slow_replacement_warnings_batch_and_bound_retention(side):
                    for row in next_batch['replacements'])
 
 
+def test_large_replacement_and_pending_traces_are_both_delivered_within_log_limit():
+    records = []
+    tracer = EngineDiagnostics(emit=records.append)
+    waits = [dict(at_ns=10**15 + i, last_observed_at_ns=10**15 + i, reason_code='insufficient_base_balance')
+             for i in range(4)]
+    outflow = [dict(at_ns=10**15 + i, reason_code='spot_outflow_limit', remaining_quote='1.' + '0' * 45,
+                    required_quote='100.' + '0' * 43) for i in range(4)]
+    samples = [dict(order=f'order-{i}', fill_at_ns=10**15, release_report_at_ns=10**15 + 1,
+                    first_controller_cycle_at_ns=10**15 + 2, last_controller_cycle_at_ns=10**15 + 3,
+                    first_proposal_evaluation_at_ns=10**15 + 4, last_proposal_evaluation_at_ns=10**15 + 5,
+                    max_controller_cycle_gap_ms=2000, proposal_waits=waits, outflow_preview=outflow) for i in range(8)]
+    payload = dict(event='spot_buy_replacement_slow', replacements=samples, pending=samples, pending_count=24, dropped=3)
+    assert len(json.dumps(payload).encode()) > 24000
+    assert tracer._deliver(payload)
+    completed, pending = records
+    assert completed['replacements'] == pending['pending'] == samples
+    assert not completed['pending'] and not pending['replacements']
+    assert completed['dropped'] == 3 and pending['pending_count'] == 24
+    assert max(len(json.dumps(record).encode()) for record in records) <= 24000
+
+
 @pytest.mark.parametrize('side', ['buy', 'sell'])
 @pytest.mark.parametrize('waiting_at', ['proposal', 'open'])
 def test_spot_replacement_reports_an_unfinished_gap_and_then_end_to_end_time(monkeypatch, side, waiting_at):

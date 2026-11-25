@@ -378,6 +378,87 @@ async def test_spot_outflow_trace_correlates_only_the_blocked_buy_level(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_sell_replacement_trace_distinguishes_controller_wait_and_level_balance(monkeypatch):
+    controller, _ = make_controller(configuration(
+        runtime_config_managed=True, mm_session_id='session', mm_generation=2, spread_policy={'fee_floor': True},
+        sell_spreads=[.01, .02], sell_amounts_pct=[Decimal(1), Decimal(3)],
+    ))
+    connector = controller.market_data_provider.get_connector_with_fallback.return_value
+    connector.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.001'))
+    connector.quantize_order_price.side_effect = lambda pair, value: value
+    connector.quantize_order_amount.side_effect = lambda pair, value: value
+    connector.trading_rules['LIFE-USDT'] = SimpleNamespace(min_order_size=Decimal('.001'), min_notional_size=Decimal('0'))
+    await controller.update_processed_data()
+    controller.admit_session('session', 2)
+    fills = {
+        level: controller.get_executor_config(level, *controller.get_price_and_amount(level)).model_copy(
+            update={'controller_id': controller.config.id}) for level in ('sell_0', 'sell_1')
+    }
+    clock, records = [1_000_000_000], []
+    tracer = engine_diagnostics.EngineDiagnostics(clock=lambda: clock[0], emit=records.append)
+    tracer._started = True
+    monkeypatch.setattr(engine_diagnostics, '_ACTIVE', tracer)
+    for level, config in fills.items():
+        engine_diagnostics.observe_spot_quote_fill(SimpleNamespace(
+            config=config, _completed_entry_fill_timestamp=lambda: 1), level)
+        engine_diagnostics.observe_spot_quote_handoff(config, 'release_report_at_ns', level)
+    retired = fills['sell_1'].model_copy(update={'mm_generation': 1})
+    engine_diagnostics.observe_spot_quote_fill(SimpleNamespace(
+        config=retired, _completed_entry_fill_timestamp=lambda: 1), 'retired-generation')
+    engine_diagnostics.observe_spot_quote_handoff(retired, 'release_report_at_ns', 'retired-generation')
+
+    clock[0] += 2_000_000_000
+    await controller.control_task()  # No new executor report yet.
+    clock[0] += 100_000_000
+    await controller.control_task()
+    assert controller.actions_queue.empty()
+    connector.get_available_balance.side_effect = lambda asset: fills['sell_0'].amount if asset == 'LIFE' else Decimal(1000)
+    controller.executors_update_event.set()
+    clock[0] = 4_000_000_000
+    await controller.control_task()
+    actions = controller.actions_queue.get_nowait()
+    assert [action.executor_config.level_id for action in actions if action.executor_config.side is TradeType.SELL] == ['sell_0']
+
+    clock[0] += 4_000_000_000
+    tracer._beat_ns = clock[0]
+    tracer.watch_once()
+    warning, = [row for row in records if row['event'] == 'spot_sell_replacement_slow']
+    waits = {row['order']: row for row in warning['pending']}
+    lower, higher = (waits[engine_diagnostics._identity(level)] for level in ('sell_0', 'sell_1'))
+    old = waits[engine_diagnostics._identity('retired-generation')]
+    assert 'proposal_waits' not in old and 'first_controller_cycle_at_ns' not in old
+    assert [row['reason_code'] for row in lower['proposal_waits']] == ['executor_report_pending', 'proposed']
+    assert [row['reason_code'] for row in higher['proposal_waits']] == ['executor_report_pending', 'insufficient_base_balance']
+    assert higher['proposal_waits'][0]['last_observed_at_ns'] == 3_100_000_000
+    assert higher['fill_at_ns'] == 1_000_000_000 and higher['first_controller_cycle_at_ns'] == 3_000_000_000
+    assert higher['first_proposal_evaluation_at_ns'] == 4_000_000_000
+    assert higher['max_controller_cycle_gap_ms'] == 2000
+
+    connector.get_available_balance.side_effect = lambda asset: Decimal(1000)
+    controller.executors_update_event.set()
+    await controller.control_task()
+    actions = controller.actions_queue.get_nowait()
+    action, = [action for action in actions if action.executor_config.level_id == 'sell_1']
+    config = action.executor_config.model_copy(update={'controller_id': action.controller_id})
+    request = SimpleNamespace(throttler_limit_id='/api/v5/trade/order', method=RESTMethod.POST, is_auth_required=True,
+                              data=json.dumps(dict(clOrdId='new-sell', side='sell', ordType='post_only')))
+    with order_submission_guard.session_order_scope('session', 2, executor=config.model_dump()):
+        engine_diagnostics.observe_spot_quote_dispatch(request)
+    engine_diagnostics.observe_spot_quote_open(
+        SimpleNamespace(name='okx'),
+        SimpleNamespace(client_order_id='new-sell', exchange_order_id='venue', amount=config.amount,
+                        executed_amount_base=Decimal(0)),
+    )
+    opened = tracer.snapshot()['submission_recent'][-1]
+    assert opened['operation'] == 'quote.sell_open'
+    assert [row['reason_code'] for row in opened['proposal_waits']] == [
+        'executor_report_pending', 'insufficient_base_balance', 'proposed',
+    ]
+    assert opened['last_controller_cycle_at_ns'] == 8_000_000_000
+    assert opened['max_controller_cycle_gap_ms'] == 4000
+
+
+@pytest.mark.asyncio
 async def test_amount_rounding_cannot_bypass_flat_fee_coverage():
     controller, _ = make_controller(configuration(spread_policy=dict(fee_floor=True)))
     connector = controller.market_data_provider.get_connector_with_fallback.return_value
