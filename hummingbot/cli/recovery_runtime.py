@@ -15,6 +15,8 @@ from hummingbot.core.segmented_recovery import verify_segment
 from hummingbot.model.bot_state_store import ControlConflict
 from hummingbot.model.recovery_store import RecoveryStore
 
+CHECKPOINT_FINALIZATION_SECONDS = 60
+
 
 class RecoveryReader:
     PATHS = frozenset({'/api/v5/account/config', '/api/v5/public/instruments', '/api/v5/trade/order',
@@ -53,6 +55,7 @@ class RecoveryCoordinator:
         self.active_row = None
         self.segmented = False
         self.finalizing = False
+        self.stage = 'claim'
 
     async def call(self, function, *args, **kwargs):
         return await self.work.submit(functools.partial(function, *args, **kwargs), heavy=True)
@@ -73,8 +76,10 @@ class RecoveryCoordinator:
 
     async def run(self, operation_id):
         self.active_row, self.segmented, self.finalizing = None, False, False
+        self.stage = 'claim'
         try:
-            await asyncio.wait_for(self._run(operation_id), RECOVERY_TIMEOUT_SECONDS)
+            async with asyncio.timeout(RECOVERY_TIMEOUT_SECONDS) as deadline:
+                await self._run(operation_id, deadline)
         except asyncio.CancelledError:
             raise
         except OwnershipLost:
@@ -88,13 +93,16 @@ class RecoveryCoordinator:
                 await self.finish(self.store.defer_proof, self.active_row, code)
                 return
             await self.finish(self.store.fail, operation_id, code)
-            self.host.log.warning('Recovery operation blocked code=%s', code,
-                                  extra={'event': 'recovery_blocked', 'operation_id': operation_id, 'reason_code': code})
+            sqlstate = getattr(getattr(error, 'orig', None), 'pgcode', None) if isinstance(error, SQLAlchemyError) else None
+            self.host.log.warning('Recovery operation blocked code=%s stage=%s type=%s sqlstate=%s',
+                                  code, self.stage, type(error).__name__, sqlstate,
+                                  extra={'event': 'recovery_blocked', 'operation_id': operation_id, 'reason_code': code,
+                                         'recovery_stage': self.stage, 'error_type': type(error).__name__, 'sqlstate': sqlstate})
         finally:
             readers, self.readers = self.readers, {}
             await asyncio.gather(*(reader.close() for reader in readers.values()), return_exceptions=True)
 
-    async def _run(self, operation_id):
+    async def _run(self, operation_id, deadline):
         host, owner = self.host, self.host.owner
         # Physical ownership connection belongs to this event-loop thread.
         # Snapshot, replay and fenced finalization use the recovery worker;
@@ -113,12 +121,14 @@ class RecoveryCoordinator:
             raise RecoveryBlocked('recovery_stop_incomplete')
         owner.allow_new_orders = False
         payload = row['payload']
+        self.stage = 'snapshot'
         snapshot = await self.call(self.store.operation_snapshot, payload)
         single = snapshot.get('uncertain_order')
         uncertain = snapshot.get('uncertain_orders') or ([single] if single else [])
         blockers = recovery_blockers(snapshot['state'], uncertain_ids=tuple(order['id'] for order in uncertain))
         if blockers:
             if row['action'] == 'recovery_check':
+                self.stage = 'finish_check'
                 await self.finish(self.store.finish_check, row, snapshot, [], dict(verified=False), blockers=blockers)
                 return
             raise RecoveryBlocked(blockers[0])
@@ -131,6 +141,7 @@ class RecoveryCoordinator:
         plan = snapshot.get('pending_fill_plan', []) if checkpoint else await self.call(replay_positions, snapshot)
         if host.managed_credentials is None:
             raise RecoveryBlocked('recovery_credentials_unavailable')
+        self.stage = 'credentials'
         await host.funding.credentials_changed()
         await host.managed_credentials.reload()
         from hummingbot.connector.credential_adapters import read_only_connector
@@ -138,6 +149,7 @@ class RecoveryCoordinator:
             if name not in ('okx', 'okx_perpetual'):
                 raise RecoveryBlocked('unsupported_connector')
             self.readers[name] = RecoveryReader(read_only_connector(name, config))
+        self.stage = 'exchange_proof'
         if checkpoint:
             self.segmented = True
             pending = fill_ids(snapshot)
@@ -184,10 +196,16 @@ class RecoveryCoordinator:
         else:
             proof = await verify_exchange(snapshot, plan, self.readers)
         owner.check_owner()
+        if checkpoint:
+            # Finalization independently scans the ledger under SHARE locks.
+            # Reserve its bounded I/O window after the segmented exchange reads.
+            deadline.reschedule(max(deadline.when(), asyncio.get_running_loop().time() + CHECKPOINT_FINALIZATION_SECONDS))
         self.finalizing = True  # Never automatically repeat a financial reset.
         if row['action'] == 'recovery_check':
+            self.stage = 'finish_check'
             await self.finish(self.store.finish_check, row, snapshot, plan, proof, blockers=[])
         else:
+            self.stage = 'finish_reset'
             await self.finish(self.store.finish_reset, row, snapshot, plan, proof)
             # The reviewed transaction committed while all old work was drained.
             # Its in-memory resume scope must not survive into a new Start.

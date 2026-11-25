@@ -132,6 +132,8 @@ async def test_network_failure_sanitizes_error_and_preserves_halt(monkeypatch):
         assert store.fail.call_args.args[-1] == 'recovery_check_unavailable'
         assert instance.host.halt_requested and instance.host.error == 'RecoveryRequired'
         assert 'CANARY' not in str(instance.host.log.mock_calls)
+        details = instance.host.log.warning.call_args.kwargs['extra']
+        assert details['recovery_stage'] == 'exchange_proof' and details['error_type'] == 'RuntimeError'
         store.finish_check.assert_not_called()
     finally:
         await instance.close()
@@ -320,6 +322,32 @@ async def test_cancelled_bulk_finalization_drains_without_clearing_halt(monkeypa
         assert not committed and instance.host.halt_requested
     finally:
         release.set()
+        await instance.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('action', ['recovery_check', 'recovery_reset'])
+async def test_verified_checkpoint_has_time_to_finalize_after_a_long_scan(monkeypatch, action):
+    instance, store = coordinator(monkeypatch, action=action)
+    store.snapshot.return_value['mode'] = 'verified_checkpoint'
+    monkeypatch.setattr(module, 'RECOVERY_TIMEOUT_SECONDS', .5)
+    monkeypatch.setattr(module, 'verify_segment', AsyncMock(return_value={'verified': True, 'segmented': True}))
+    final = getattr(store, 'finish_check' if action == 'recovery_check' else 'finish_reset')
+    original_finish = instance.finish
+
+    async def finish(function, *args, **kwargs):
+        if function is final:
+            await asyncio.sleep(.6)
+        return await original_finish(function, *args, **kwargs)
+
+    monkeypatch.setattr(instance, 'finish', finish)
+    try:
+        await instance.run('op')
+        final.assert_called_once()
+        store.fail.assert_not_called()
+        store.defer_proof.assert_not_called()
+        assert not instance.host.running and not instance.host.owner.allow_new_orders
+    finally:
         await instance.close()
 
 

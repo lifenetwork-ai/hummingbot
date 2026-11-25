@@ -1,13 +1,16 @@
 """Venue proof uses native Spot/contract conversions and exact original fees."""
+import asyncio
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative import OkxPerpetualDerivative
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
-from hummingbot.core.automatic_recovery import proof_covers_local, read_order_proof
+from hummingbot.core.automatic_recovery import AutomaticOrderRecovery, proof_covers_local, read_order_proof
 from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
 from hummingbot.core.order_submission_guard import SubmissionBlocked
@@ -30,6 +33,57 @@ def venue(perpetual):
     connector._request_order_update = AsyncMock(side_effect=lambda *a, **k: {'code': '0', 'data': [deepcopy(status)]})
     connector._request_order_fills = AsyncMock(side_effect=lambda *a, **k: {'code': '0', 'data': [deepcopy(fill)]})
     return connector, order, status, fill
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('interruption', [None, 'stop', 'new_pause'])
+async def test_resume_keeps_recovery_active_until_fenced_commit(interruption):
+    waiting, release = asyncio.Event(), asyncio.Event()
+
+    @asynccontextmanager
+    async def recorder_write():
+        waiting.set()
+        await release.wait()
+        yield
+
+    row = dict(desired_state='running', control_version=1, config_file_path='mm.yml', recovery_state={})
+    owner = Mock(version=1, config_file_path='mm.yml', allow_new_orders=False, scoped_recovery_enabled=False,
+                 shutdown_requested=False, mm_ready_check=None, order_write_scope=recorder_write)
+    owner.check_owner.return_value = row
+    recovery = AutomaticOrderRecovery(owner)
+    recovery.status.update(phase='reconciling', order_id='canceling-order')
+    recovery._pending = Mock(return_value=[])
+    recovery._audit = Mock()
+
+    def mutate(change, *, expected_version=None):
+        if expected_version is not None and row['control_version'] != expected_version:
+            return False
+        change(row['recovery_state'])
+        return True
+
+    owner._mutate_recovery.side_effect = mutate
+    core = SimpleNamespace(trade_fill_db=SimpleNamespace(assert_persistence_healthy=Mock()), markets_recorder=Mock())
+    task = asyncio.create_task(recovery.step(core, force=True))
+    try:
+        await asyncio.wait_for(waiting.wait(), 5)
+        assert recovery.active
+        assert recovery.status['order_id'] == 'canceling-order'
+        assert not owner.allow_new_orders
+        if interruption == 'stop':
+            row.update(desired_state='stopped', control_version=2)
+        elif interruption == 'new_pause':
+            recovery.status = dict(recovery.status, order_id='new-canceling-order')
+    finally:
+        release.set()
+        await task
+    if interruption is None:
+        assert not recovery.active and owner.allow_new_orders
+        assert row['recovery_state']['automatic_recovery']['phase'] == 'idle'
+    else:
+        assert recovery.active and not owner.allow_new_orders
+        assert recovery.status['order_id'] == ('new-canceling-order' if interruption == 'new_pause' else 'canceling-order')
+        assert 'automatic_recovery' not in row['recovery_state']
+        recovery._audit.assert_not_called()
 
 
 @pytest.mark.asyncio

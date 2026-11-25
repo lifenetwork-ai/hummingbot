@@ -164,6 +164,55 @@ async def test_failed_controller_task_halts_instead_of_waiting_forever(monkeypat
     assert item.availability.snapshot()["incidents"][0]["operator_action_required"]
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('recorder_healthy', [True, False])
+async def test_cancel_timeout_during_session_admission_halts_only_if_recorder_unhealthy(monkeypatch, recorder_healthy):
+    from hummingbot.core.automatic_recovery import AutomaticOrderRecovery
+    from hummingbot.core.mm_session import MMSession
+
+    item = host()
+    core = item.hb.trading_core
+    core.trade_fill_db = SimpleNamespace(persistence_healthy=recorder_healthy)
+    core._strategy_running = True
+    item.running, item.applied_version = True, 1
+    item.applied_mm_identity = ('session', 0)
+    session = SimpleNamespace(id='session', generation=0, expires_at=None, step_expires_at=None, status='running',
+                              catalogue=SimpleNamespace(markets={}))
+    monkeypatch.setattr(MMSession, 'model_validate', lambda _: session)
+    item.prepare_next_random_profile = MagicMock()
+    row = dict(control_version=1, config_type='mm-session', config_file_path='mm.yml', desired_state='running',
+               recovery_state={}, mm_session={'id': 'session'})
+    item.owner = MagicMock(allow_new_orders=True)
+    recovery = AutomaticOrderRecovery(item.owner)
+    recovery.poll = MagicMock()
+    item.owner.automatic_recovery = recovery
+    item.owner.observe_state = AsyncMock(return_value=row)
+    item.owner.observe_halt = AsyncMock(return_value=False)
+    item.confirmed_runtime_problem = AsyncMock(return_value=None)
+    item.stop_core = AsyncMock(return_value=True)
+    item.publish_status = AsyncMock()
+    item.poll_reconciliation = AsyncMock()
+    item.poll_funding = MagicMock()
+    monkeypatch.setattr("hummingbot.core.order_submission_guard.install_guard", lambda owner: None)
+
+    async def admit():
+        await asyncio.sleep(0)
+        recovery.status.update(phase='reconciling', reason_code='cancel_outcome_unknown')
+        item.owner.allow_new_orders = False
+        return False
+
+    item.admit_mm_session = admit
+    await item.observe_once()
+    if recorder_healthy:
+        item.owner.require_recovery.assert_not_called()
+        item.stop_core.assert_not_awaited()
+        assert item.running and item.phase == 'reconciling_orders'
+    else:
+        item.owner.require_recovery.assert_called_once()
+        item.stop_core.assert_awaited_once()
+        assert item.phase == 'halted'
+
+
 def test_optional_engine_detail_failure_retains_only_known_control_flags(monkeypatch):
     item = host()
     core = item.hb.trading_core

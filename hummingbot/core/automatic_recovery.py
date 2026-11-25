@@ -879,17 +879,25 @@ class AutomaticOrderRecovery:
             elif self.owner.mm_ready_check is not None and not self.owner.mm_ready_check():
                 raise SubmissionBlocked('recovery_readiness_pending')
             self.owner._check_intents(core.markets_recorder)
-            identity = self.status.pop('order_id', None) or 'runtime'
-            self.status.update(phase='idle', reason_code=None, operator_required=False)
+            reconciling = self.status
+            idle = dict(reconciling, phase='idle', reason_code=None, operator_required=False)
+            identity = idle.pop('order_id', None) or 'runtime'
 
             def resume(state):
                 if state.get('halt') or state.get('pending_mutations'):
                     raise SessionSubmissionBlocked('Current safety state blocks resume')
-                state.update(automatic_recovery=dict(self.status))
+                state.update(automatic_recovery=idle)
                 self._audit('automatic_recovery_resumed', identity, 'succeeded', 'current_authority_verified')
 
-            if await self._write_recovery_state(resume, expected_version=self.owner.version):
-                self.owner.allow_new_orders = True
+            version = self.owner.version
+            # Keep the pause visible until the same proof can safely reopen the
+            # gate. A newer cancel/send timeout may supersede it during the wait.
+            async with self.owner.order_write_scope():
+                if self.status is not reconciling or self.owner.shutdown_requested:
+                    return
+                if self.owner._mutate_recovery(resume, expected_version=version):
+                    self.status = idle
+                    self.owner.allow_new_orders = True
             self.failures = 0
         except asyncio.CancelledError:
             raise

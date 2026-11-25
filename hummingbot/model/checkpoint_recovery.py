@@ -6,6 +6,7 @@ ledgers retain the existing complete-history recovery path.
 import hashlib
 import re
 import time
+from contextlib import contextmanager
 
 from sqlalchemy import Text, and_, cast, exists, func, or_, select
 from sqlalchemy.orm import Session
@@ -37,24 +38,34 @@ def fill_identity():
                 RuntimeJournal.payload['exchange_trade_id'].as_string() == TradeFill.exchange_trade_id)
 
 
-def ledger_hash(connection):
-    """Stream fixed-size hashes of the complete, primary-key-ordered ledger."""
-    result = hashlib.sha256()
-    # Only recovery's read-only stream gets this budget. A failed FETCH rolls
+@contextmanager
+def _recovery_read_budget(connection):
+    # Only the read-only checkpoint proof gets this budget. A failed SQL read rolls
     # back to the savepoint with the original setting and the caller's locks.
     with bootstrap_io_budget(connection, time.monotonic() + 50), connection.begin_nested():
         timeout = connection.exec_driver_sql('SHOW statement_timeout').scalar_one()
         connection.exec_driver_sql("SET LOCAL statement_timeout = '6s'")
-        for model in LEDGER_MODELS:
-            table = model.__table__
-            result.update(table.name.encode() + b'\n')
-            # Hash every column without sending whole JSON payloads to Python.
-            row_hash = func.sha256(func.convert_to(cast(func.to_jsonb(table.table_valued()), Text), 'UTF8'))
-            statement = select(row_hash).select_from(table).order_by(*table.primary_key.columns).execution_options(yield_per=BATCH_SIZE)
-            with connection.execute(statement) as rows:
-                for value in rows.scalars():
-                    result.update(value)
+        yield
         connection.execute(select(func.set_config('statement_timeout', timeout, True)))
+
+
+def ledger_hash(connection):
+    with _recovery_read_budget(connection):
+        return _stream_ledger_hash(connection)
+
+
+def _stream_ledger_hash(connection):
+    """Stream fixed-size hashes of the complete, primary-key-ordered ledger."""
+    result = hashlib.sha256()
+    for model in LEDGER_MODELS:
+        table = model.__table__
+        result.update(table.name.encode() + b'\n')
+        # Hash every column without sending whole JSON payloads to Python.
+        row_hash = func.sha256(func.convert_to(cast(func.to_jsonb(table.table_valued()), Text), 'UTF8'))
+        statement = select(row_hash).select_from(table).order_by(*table.primary_key.columns).execution_options(yield_per=BATCH_SIZE)
+        with connection.execute(statement) as rows:
+            for value in rows.scalars():
+                result.update(value)
     return result.hexdigest()
 
 
@@ -109,6 +120,11 @@ def unresolved_attempts(connection, *, excluding=()):
 def snapshot(connection, state, positions, bindings, *, uncertain_ids=()):
     if state.get('config_type') != 'mm-session' or not state.get('config_file_path'):
         return None
+    with _recovery_read_budget(connection):
+        return _snapshot(connection, state, positions, bindings, uncertain_ids)
+
+
+def _snapshot(connection, state, positions, bindings, uncertain_ids):
     with Session(bind=connection) as session:
         checkpoint = session.get(RuntimeCheckpoint, state['config_file_path'])
         if (checkpoint is None or checkpoint.financial_hash != financial_hash(session)
@@ -157,7 +173,7 @@ def snapshot(connection, state, positions, bindings, *, uncertain_ids=()):
                      watermark=checkpoint.watermark, payload=checkpoint.payload, anchor=anchor,
                      expected_fills=expected, prefix_unjournaled_fills=unjournaled)
     result = dict(mode=MODE, state=state, positions=positions, bindings=bindings, orders=[], fills=[], truncated=False,
-                  checkpoint=value, ledger_hash=ledger_hash(connection), terminal_orders=terminal_orders)
+                  checkpoint=value, ledger_hash=_stream_ledger_hash(connection), terminal_orders=terminal_orders)
     if len(uncertain) == 1:
         result['uncertain_order'] = uncertain[0]  # Preserve existing single-order receipts and fingerprints.
     elif uncertain:

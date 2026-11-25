@@ -1099,20 +1099,12 @@ class ServiceHost:
             automatic = self.automatic_order_recovery
             if automatic is not None:
                 automatic.poll(core)
-            automatic_active = automatic is not None and automatic.active
-            if automatic_active:
-                self.phase = 'reconciling_orders'
-                if not automatic.isolated:
-                    for controller in self._mm_controllers():
-                        controller.revoke_session()
-            if self.mm_session is not None and (not automatic_active or automatic.isolated):
+            if self.mm_session is not None and (automatic is None or not automatic.active or automatic.isolated):
                 try:
                     admitted = not (row["recovery_state"] or {}).get("halt") and await self.admit_mm_session()
                 except (ValueError, ControlConflict):
                     admitted = False
                 self.phase = "running" if admitted else "waiting_for_mm_readiness"
-                if automatic_active and admitted:
-                    self.phase = 'reconciling_orders'  # Actual trading proof is still incomplete.
                 if not admitted:
                     for controller in self._mm_controllers():
                         controller.revoke_session()
@@ -1123,8 +1115,21 @@ class ServiceHost:
                     if valuation_task is None or valuation_task.done():
                         preparation, self.profile_switch = self.profile_switch, None
                         await preparation.close()
-            if (core.trade_fill_db is None or not core.trade_fill_db.persistence_healthy
-                    or (not self.owner.allow_new_orders and not automatic_active) or not core._strategy_running):
+            # A native timeout can close the gate while session admission or
+            # quote withdrawal is awaiting. Judge health from the current pause.
+            automatic_active = automatic is not None and automatic.active
+            if automatic_active:
+                if not automatic.isolated:
+                    for controller in self._mm_controllers():
+                        controller.revoke_session()
+                if not automatic.isolated or self.phase == 'running':
+                    self.phase = 'reconciling_orders'
+            recorder_healthy = core.trade_fill_db is not None and core.trade_fill_db.persistence_healthy
+            if (not recorder_healthy or not core._strategy_running
+                    or (not self.owner.allow_new_orders and not automatic_active)):
+                self.log.warning("Trading health failed recorder_healthy=%s strategy_running=%s admission_open=%s reconciling=%s",
+                                 recorder_healthy, core._strategy_running, self.owner.allow_new_orders, automatic_active,
+                                 extra={"event": "trading_health_failed"})
                 self.owner.require_recovery("Trading/recorder health requires reconciliation.")
                 self.phase, self.error = "halted", "TradingHealthFailed"
                 if not await self.stop_core():

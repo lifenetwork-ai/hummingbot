@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import event, func, select, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from hummingbot.model.admin_access import AdminAuditEvent
@@ -151,6 +152,34 @@ def test_recovery_ledger_fetch_uses_a_bounded_budget_and_restores_the_runtime_ti
         finally:
             event.remove(db, 'before_cursor_execute', slow_fetch)
         assert db.exec_driver_sql('SHOW statement_timeout').scalar_one() == '2s'
+
+
+@pytest.mark.parametrize('query_delay', [2.1, 10])
+def test_checkpoint_fill_coverage_has_a_bounded_recovery_budget(recovering, monkeypatch, query_delay):
+    monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
+    monkeypatch.setenv('OKX_SITE', 'www')
+    store, owner = recovering
+    seed_checkpoint(store, orders=12, fills=3)
+
+    def slow_coverage(_connection, _cursor, statement, parameters, _context, _executemany):
+        if statement.startswith('SELECT count(') and 'trade_fills' in statement and 'runtime_journal' in statement:
+            statement = f'SELECT proof.* FROM (SELECT pg_sleep({query_delay})) AS delay CROSS JOIN (' + statement + ') AS proof'
+        return statement, parameters
+
+    with store.engine.begin() as db:
+        event.listen(db, 'before_cursor_execute', slow_coverage, retval=True)
+        try:
+            if query_delay < 6:
+                snapshot = store.operation_snapshot({}, db)
+                assert snapshot['checkpoint']['expected_fills'] == 2
+            else:
+                with pytest.raises(OperationalError) as error:
+                    store.operation_snapshot({}, db)
+                assert error.value.orig.pgcode == '57014'
+        finally:
+            event.remove(db, 'before_cursor_execute', slow_coverage)
+        assert db.exec_driver_sql('SHOW statement_timeout').scalar_one() == '2s'
+    assert owner.check_owner()['recovery_state']['halt']
 
 
 @pytest.mark.parametrize('mutation', ['missing_audit', 'unauthorized_audit', 'financial', 'unjournaled', 'unapplied', 'binding'])
