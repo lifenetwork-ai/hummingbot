@@ -199,8 +199,9 @@ def test_send_transition_checks_advisory_lock_after_final_authority_read(owned):
         assert row.state == 'prepared' and row.payload_hash is None and row.deadline_ms is None
 
 
-def test_pending_transport_receipts_share_a_write_and_preserve_native_evidence(owned):
-    identities = [f'receipt-{i}' for i in range(4)]
+@pytest.mark.parametrize('receipt_count,expected_writes', [(1, 1), (4, 1), (10, 1), (12, 2)])
+def test_pending_transport_receipts_share_a_write_and_preserve_native_evidence(owned, receipt_count, expected_writes):
+    identities = [f'receipt-{i}' for i in range(receipt_count)]
     for identity in identities:
         intent(owned, identity)
         owned.owner._record_send_attempt(identity, {'clOrdId': identity}, 123456, {})
@@ -222,14 +223,14 @@ def test_pending_transport_receipts_share_a_write_and_preserve_native_evidence(o
     with queries(owned.engine) as statements:
         owned.loop.run_until_complete(receive())
     writes = [sql for sql in statements if sql.startswith('UPDATE submission_attempts')]
-    assert len(writes) == 1
+    assert len(writes) == expected_writes
     assert [sql for sql in statements if 'pg_locks' in sql] == writes
     with owned.manager.get_new_session() as db:
         for i, identity in enumerate(identities):
             entry = db.get(SubmissionAttempt, identity)
             assert entry.state == 'possibly_sent' and entry.deadline_ms == 123456
             expected = {'http_status': 200, 'code': '0', 'order': {'ordId': f'venue-{i}', 'sCode': '0', 'clOrdId': identity}}
-            assert entry.receipt == (expected if i < 3 else {'http_status': 503, 'code': '50013'})
+            assert entry.receipt == ({'http_status': 503, 'code': '50013'} if i == 3 else expected)
 
 
 def test_received_transport_evidence_passes_queued_recorder_work(owned):

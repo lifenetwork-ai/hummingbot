@@ -49,7 +49,8 @@ ACCOUNT_PATHS = {"/api/v5/account/set-leverage", "/api/v5/account/set-position-m
 # All waiting orders share the same cooldown.
 INTENT_ADMISSION_RETRY_DELAYS = (.025, .075, .15, .25, .5)
 MAX_INTENT_BATCH = 10
-MAX_ORDER_RECEIPT_BATCH = 4
+# Drain a full burst of admitted orders when their responses are already ready.
+MAX_ORDER_RECEIPT_BATCH = 10
 POSITION_CHECKPOINT_ORDER_WAIT_SECONDS = 1.0
 POSITION_CHECKPOINT_ORDER_RECHECK_SECONDS = .1
 SHUTDOWN_ORDER_PROOF_CONCURRENCY = 6
