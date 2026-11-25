@@ -4,7 +4,7 @@ import functools
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from hummingbot.cli.admin_database import AdminDatabaseExecutor
+from hummingbot.cli.admin_database import AdminDatabaseExecutor, retryable_statement_timeout
 from hummingbot.core.admin_identity import AccessDenied
 from hummingbot.core.bot_ownership import OwnershipLost
 from hummingbot.core.recovery import RECOVERY_TIMEOUT_SECONDS, RecoveryBlocked, recovery_blockers, replay_positions
@@ -122,7 +122,18 @@ class RecoveryCoordinator:
         owner.allow_new_orders = False
         payload = row['payload']
         self.stage = 'snapshot'
-        snapshot = await self.call(self.store.operation_snapshot, payload)
+        try:
+            snapshot = await self.call(self.store.operation_snapshot, payload)
+        except SQLAlchemyError as error:
+            if not retryable_statement_timeout(error):
+                raise
+            # The read transaction has rolled back. Retry once within the
+            # same operation deadline, before exchange proof or any write.
+            owner.check_owner()
+            host.log.warning('PostgreSQL timed out reading the recovery snapshot; retrying once',
+                             extra={'event': 'recovery_snapshot_retry', 'operation_id': row['id'],
+                                    'reason_code': 'statement_timeout'})
+            snapshot = await self.call(self.store.operation_snapshot, payload)
         single = snapshot.get('uncertain_order')
         uncertain = snapshot.get('uncertain_orders') or ([single] if single else [])
         blockers = recovery_blockers(snapshot['state'], uncertain_ids=tuple(order['id'] for order in uncertain))

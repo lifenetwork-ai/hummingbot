@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from hummingbot.cli import recovery_runtime as module
 from hummingbot.cli.recovery_runtime import RecoveryCoordinator, RecoveryReader
@@ -352,9 +353,40 @@ async def test_verified_checkpoint_has_time_to_finalize_after_a_long_scan(monkey
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('action', ['recovery_check', 'recovery_reset'])
+@pytest.mark.parametrize('fault', ['one_timeout', 'repeated_timeout', 'user_cancel', 'lost_connection', 'database_error'])
+async def test_only_transient_snapshot_timeout_retries_before_proof(monkeypatch, action, fault):
+    instance, store = coordinator(monkeypatch, action=action)
+    snapshot = store.snapshot.return_value
+    original = RuntimeError('CANARY-private-snapshot-error')
+    original.pgcode = 'XX000' if fault == 'database_error' else '57014'
+    original.diag = SimpleNamespace(message_primary='canceling statement due to user request' if fault == 'user_cancel'
+                                    else 'canceling statement due to statement timeout')
+    error = OperationalError('CANARY', {}, original, connection_invalidated=fault == 'lost_connection')
+    store.operation_snapshot.side_effect = [error, snapshot if fault == 'one_timeout' else error]
+    final = getattr(store, 'finish_check' if action == 'recovery_check' else 'finish_reset')
+    try:
+        await instance.run('op')
+        assert store.operation_snapshot.call_count == (2 if fault in ('one_timeout', 'repeated_timeout') else 1)
+        store.defer_proof.assert_not_called()
+        assert not instance.host.running and not instance.host.owner.allow_new_orders
+        assert 'CANARY' not in str(instance.host.log.mock_calls)
+        if fault == 'one_timeout':
+            module.verify_exchange.assert_awaited_once()
+            final.assert_called_once()
+            store.fail.assert_not_called()
+        else:
+            module.verify_exchange.assert_not_awaited()
+            final.assert_not_called()
+            store.fail.assert_called_once()
+            assert instance.host.halt_requested
+    finally:
+        await instance.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('fault', ['partial', 'timeout', 'network', 'commit_ack', 'invalid_evidence', 'final_commit'])
 async def test_segmented_worker_retries_only_read_evidence_and_never_financial_finalization(monkeypatch, fault):
-    from sqlalchemy.exc import OperationalError
     instance, store = coordinator(monkeypatch, action='recovery_reset')
     store.snapshot.return_value['mode'] = 'verified_checkpoint'
     cases = dict(timeout=TimeoutError(), network=OSError('CANARY-secret'),

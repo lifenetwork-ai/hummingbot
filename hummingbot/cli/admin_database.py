@@ -11,6 +11,16 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+from sqlalchemy.exc import DBAPIError
+
+
+def retryable_statement_timeout(error):
+    """Only an acknowledged server statement limit, never cancel/discard/DDL."""
+    return (isinstance(error, DBAPIError) and not error.connection_invalidated
+            and getattr(error.orig, 'pgcode', None) == '57014'
+            and getattr(getattr(error.orig, 'diag', None), 'message_primary', None)
+            == 'canceling statement due to statement timeout')
+
 
 class DatabaseBusy(RuntimeError):
     """Safe backpressure: callers may retry with their existing request identity."""

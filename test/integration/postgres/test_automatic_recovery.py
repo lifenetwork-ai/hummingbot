@@ -2,6 +2,7 @@
 import asyncio
 import json
 import time
+from contextlib import asynccontextmanager
 from decimal import Decimal
 from test.integration.postgres.test_ownership import owned as owned_fixture
 from types import SimpleNamespace
@@ -550,22 +551,67 @@ def test_large_lifetime_history_does_not_enter_incremental_handover_scope(manage
 
 
 def test_lost_cancel_response_reconciles_the_same_native_order_without_manual_halt(managed_native):
+    from hummingbot.model.admin_access import AdminAuditEvent
+    from hummingbot.model.runtime_journal import SubmissionAttempt
+
     context, exchange, recorder, transport = managed_native
     core = SimpleNamespace(markets_recorder=recorder, trade_fill_db=context.manager)
+    recovery = context.owner.automatic_recovery
+
+    async def reconcile_with_contended_recorder():
+        proof_recorded, writer_acquired, resume_waiting = (asyncio.Event() for _ in range(3))
+        recorder_scope = context.owner.order_write_scope
+        record_verified = recovery._record_verified
+
+        def record(*args):
+            record_verified(*args)
+            proof_recorded.set()
+
+        @asynccontextmanager
+        async def scope(*, received_evidence=False):
+            if asyncio.current_task() is reconciliation and proof_recorded.is_set():
+                await writer_acquired.wait()
+                resume_waiting.set()
+            async with recorder_scope(received_evidence=received_evidence):
+                yield
+
+        with patch.object(recovery, '_record_verified', side_effect=record), patch.object(context.owner, 'order_write_scope', scope):
+            reconciliation = asyncio.create_task(recovery.step(core, force=True))
+            try:
+                await asyncio.wait_for(proof_recorded.wait(), 5)
+                async with recorder_scope():
+                    writer_acquired.set()
+                    await asyncio.wait_for(resume_waiting.wait(), 5)
+                    with context.manager.get_new_session() as db:
+                        assert db.get(SubmissionAttempt, 'auto-order').state == 'terminal'
+                        # The first resume was for the original create.
+                        resumes = db.query(AdminAuditEvent).filter_by(action='automatic_recovery_resumed', target_id='auto-order')
+                        assert resumes.count() == 1
+                    assert recovery.active and not context.owner.allow_new_orders
+                    assert not context.store.read()['recovery_state'].get('halt')
+                await asyncio.wait_for(reconciliation, 5)
+            finally:
+                if not reconciliation.done():
+                    reconciliation.cancel()
+                    await asyncio.gather(reconciliation, return_exceptions=True)
+
     status = dict(clOrdId='auto-order', ordId='venue-auto', instId='BTC-USDT', side='buy', ordType='post_only',
                   px='100', sz='.1', accFillSz='0', uTime='1700000001000', state='live')
     with patch.object(exchange, '_request_order_update', AsyncMock(side_effect=lambda *a, **k: {'code': '0', 'data': [dict(status)]})), \
             patch.object(exchange, '_request_order_fills', AsyncMock(return_value={'code': '0', 'data': []})):
-        context.loop.run_until_complete(context.owner.automatic_recovery.step(core, force=True))
+        context.loop.run_until_complete(recovery.step(core, force=True))
         assert context.owner.allow_new_orders
         order = exchange.in_flight_orders['auto-order']
         with patch.object(exchange, '_place_cancel', AsyncMock(side_effect=asyncio.TimeoutError)) as cancel:
             context.loop.run_until_complete(exchange._execute_order_cancel(order))
-        assert context.owner.automatic_recovery.active and not context.owner.allow_new_orders
+        assert recovery.active and not context.owner.allow_new_orders
         assert not context.store.read()['recovery_state'].get('halt')
         status['state'] = 'canceled'
-        context.loop.run_until_complete(context.owner.automatic_recovery.step(core, force=True))
-        assert context.owner.allow_new_orders and not context.owner.automatic_recovery.active
+        context.loop.run_until_complete(reconcile_with_contended_recorder())
+        assert context.owner.allow_new_orders and not recovery.active
+        assert not context.store.read()['recovery_state'].get('halt')
+        with context.manager.get_new_session() as db:
+            assert db.query(AdminAuditEvent).filter_by(action='automatic_recovery_resumed', target_id='auto-order').count() == 2
         assert cancel.await_count == 1 and transport.call.await_count == 1
 
 
