@@ -6,6 +6,7 @@ long periodic interval isolates event progress from the regular clock fallback;
 it is not a proposed production setting or a Cloud latency benchmark.
 """
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from test.hummingbot.strategy_v2.controllers.test_filled_entry_handoff import account_observed
@@ -181,9 +182,11 @@ async def test_outflow_terminal_proof_wakes_spot_replacement_before_the_next_rep
     async with replay(monkeypatch, TradeType.BUY) as state:
         service = host()
         guard = SpotOutflowGuard(SimpleNamespace(), dict(trading_pair='LIFE-USDT', window_seconds=60,
-                                                         max_net_outflow_quote='10000', fee_allowance_rate='.01'))
+                                                         max_net_outflow_quote='10000', fee_allowance_rate='.01'),
+                                 on_terminal_pending=service.poll_outflow)
         service.owner = SimpleNamespace(spot_outflow=guard, allow_new_orders=True)
         service.running = True
+        service.next_outflow_poll = time.monotonic() + 60
         monkeypatch.setattr(service, '_mm_controllers', lambda: [state.controller])
         guard.reason_code = None
         guard.identity = lambda: {'account_id': 'offline'}
@@ -198,14 +201,16 @@ async def test_outflow_terminal_proof_wakes_spot_replacement_before_the_next_rep
         assert guard.projection.reserve(prior)
         guard.orders[prior.client_order_id] = (state.connector, prior)
         waiting_for_proof = asyncio.Event()
+        finish_proof = asyncio.Event()
 
-        def preview(*args):
-            allowed = guard.preview(*args)
+        def preview(*args, **kwargs):
+            allowed = guard.preview(*args, **kwargs)
             if not allowed and guard.terminal_pending:
                 waiting_for_proof.set()
             return allowed
 
         async def confirm(identity):
+            await finish_proof.wait()
             guard.projection.confirm_terminal(identity, Decimal(0))
             return True
 
@@ -216,7 +221,8 @@ async def test_outflow_terminal_proof_wakes_spot_replacement_before_the_next_rep
         await asyncio.wait_for(waiting_for_proof.wait(), 5)
         assert not state.creates and guard.terminal_pending
         state.recorder.checkpoint_held_positions.assert_called_once()
-        service.poll_outflow()
+        assert service.outflow_task is not None
+        finish_proof.set()
         await service.outflow_task
         assert not guard.terminal_pending
         await asyncio.wait_for(state.created.wait(), 1)

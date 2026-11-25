@@ -225,10 +225,16 @@ def fill_committed(row) -> None:
         _guard.fill_committed(row)
 
 
-def spot_buy_preview(connector, amount, price):
+def spot_outflow_terminal_committed(connector, order):
+    outflow = getattr(_guard, 'spot_outflow', None)
+    if outflow is not None and postgres_requested():
+        outflow.terminal_committed(connector, order)
+
+
+def spot_buy_preview(connector, amount, price, quote_scope=None):
     if not postgres_requested() or _guard is None or _guard.spot_outflow is None:
         return True
-    return _guard.spot_outflow.preview(connector, amount, price)
+    return _guard.spot_outflow.preview(connector, amount, price, quote_scope)
 
 
 def fence_session(session) -> None:

@@ -462,3 +462,47 @@ async def test_actual_terminal_proof_failure_keeps_incident_and_retry_backoff():
     assert incident['reason_code'] == 'spot_outflow_terminal_order_read'
     assert item.next_outflow_poll > before + 20
     assert len(guard.terminal_pending) == 9 and len(guard.terminal_failures) == 4
+
+
+@pytest.mark.asyncio
+async def test_terminal_notification_keeps_one_worker_and_respects_failure_backoff():
+    from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+
+    item = host()
+    guard = SpotOutflowGuard(
+        None, dict(window_seconds=60, max_net_outflow_quote='100', fee_allowance_rate='.01', trading_pair='LIFE-USDT'),
+        on_terminal_pending=item.poll_outflow,
+    )
+    item.owner = SimpleNamespace(spot_outflow=guard, allow_new_orders=True)
+    item.running = True
+    item.next_outflow_poll = time.monotonic() + 60
+    guard.projection = SimpleNamespace()
+    guard._confirm_committed_fill = lambda identity: False
+    started, fail = asyncio.Event(), asyncio.Event()
+
+    async def confirm(identity):
+        started.set()
+        await fail.wait()
+        raise OSError('offline proof failure')
+
+    guard._confirm = confirm
+    connector = object()
+    order = SimpleNamespace(client_order_id='one', is_done=True)
+    guard.orders['one'] = (connector, order)
+    guard.terminal_committed(connector, SimpleNamespace(client_order_id='one', is_done=True))
+    assert item.outflow_task is None
+    guard.terminal_committed(connector, order)
+    task = item.outflow_task
+    assert task is not None
+    try:
+        await asyncio.wait_for(started.wait(), 2)
+        item.poll_outflow(terminal_guard=guard)
+        assert item.outflow_task is task
+        fail.set()
+        await task
+        assert item.next_outflow_poll > time.monotonic() and set(guard.terminal_pending) == {'one'}
+        item.poll_outflow(terminal_guard=guard)
+        assert item.outflow_task is task
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)

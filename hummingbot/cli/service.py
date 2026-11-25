@@ -12,6 +12,7 @@ import signal
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import Context
 from copy import deepcopy
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -97,6 +98,7 @@ class ServiceHost:
         self.mm_readiness_reason = None
         self.outflow_task = None
         self.next_outflow_poll = 0
+        self._outflow_retry_at = 0
         self.applied_mm_identity = None
         self.profile_switch = None
         self.random_repeat = None
@@ -549,7 +551,8 @@ class ServiceHost:
             raise cancelled
         self.observations.reporting = ((initial_state or {}).get("status") or {}).get("reporting") or {}
         self.owner = BotOwnership(self.engine, self.settings.bot_id, stopping=self.stop.is_set,
-                                  scoped_recovery=self.settings.scoped_recovery_enabled)
+                                  scoped_recovery=self.settings.scoped_recovery_enabled,
+                                  on_outflow_terminal_pending=self.poll_outflow)
         self.catalogue = {kind: list_configs(kind) for kind in STRATEGY_TYPES}
         self.config_hashes = {kind: {name: hashlib.sha256(config_path(kind, name).read_bytes()).hexdigest()
                                      for name in files} for kind, files in self.catalogue.items()}
@@ -1176,13 +1179,18 @@ class ServiceHost:
         self.poll_funding()
         self.poll_outflow()
 
-    def poll_outflow(self):
+    def poll_outflow(self, *, terminal_guard=None):
         from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
         guard = getattr(self.owner, "spot_outflow", None)
-        if (not isinstance(guard, SpotOutflowGuard) or guard.initializing or (self.outflow_task is not None and not self.outflow_task.done())
-                or time.monotonic() < self.next_outflow_poll):
+        if (not isinstance(guard, SpotOutflowGuard) or guard.initializing or self.stop.is_set()
+                or (self.outflow_task is not None and not self.outflow_task.done())):
             return
-        self.next_outflow_poll = time.monotonic() + 1
+        if terminal_guard is not None and (guard is not terminal_guard or not self.running or not self.owner.allow_new_orders):
+            return
+        now = time.monotonic()
+        if now < (self._outflow_retry_at if terminal_guard is not None else self.next_outflow_poll):
+            return
+        self.next_outflow_poll = now + 1
 
         async def observe():
             try:
@@ -1193,13 +1201,14 @@ class ServiceHost:
                     guard.reason_code = None
                 terminal_failure = guard.terminal_reason_code()
                 if terminal_failure:
-                    self.next_outflow_poll = time.monotonic() + self.availability.fail(
+                    self.next_outflow_poll = self._outflow_retry_at = time.monotonic() + self.availability.fail(
                         "spot_outflow", terminal_failure, retry=True)
                 else:
                     # The bounded batch can leave unattempted orders, including
                     # arrivals during an awaited proof. Keep their reservations
                     # and ordinary polling cadence; backlog is not a read failure.
                     self.availability.clear("spot_outflow")
+                    self._outflow_retry_at = 0
                     if (drained and self.running and self.owner.allow_new_orders
                             and self.owner.spot_outflow is guard and guard.reason_code is None):
                         for controller in self._mm_controllers():
@@ -1208,9 +1217,9 @@ class ServiceHost:
                 self.owner.check_owner()
                 self.hb.trading_core.trade_fill_db.assert_persistence_healthy()
                 guard.reason_code = "spot_outflow_observation_unavailable"
-                self.next_outflow_poll = time.monotonic() + self.availability.fail(
+                self.next_outflow_poll = self._outflow_retry_at = time.monotonic() + self.availability.fail(
                     "spot_outflow", "spot_outflow_observation_unavailable", error, retry=True)
-        self.outflow_task = asyncio.create_task(observe())
+        self.outflow_task = asyncio.create_task(observe(), context=Context() if terminal_guard is not None else None)
 
     def capture_overview_observation(self):
         # Optional reporting cannot change admission, order state or lifecycle.

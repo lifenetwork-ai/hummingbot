@@ -79,6 +79,8 @@ _QUOTE_SIDES = ('buy', 'sell')
 _QUOTE_REJECTION_CODES = {
     'QuoteRefreshRequired': 'quote_refresh_required',
     'MarketReadinessBlocked': 'market_readiness_blocked',
+    'SpotOutflowBlocked': 'spot_outflow_limit',
+    'SpotOutflowPending': 'spot_outflow_pending',
     'SessionSubmissionBlocked': 'session_submission_blocked',
     'SubmissionBlocked': 'submission_blocked',
 }
@@ -311,6 +313,19 @@ def observe_spot_quote_handoff(config, field, order_id=None, *, controller_id=No
             if scope:
                 executor = _executor_identity(config) if field == 'first_proposal_at_ns' else None
                 tracer.record_quote_handoff(scope[0], field, _identity(order_id), executor=executor)
+        except Exception:
+            pass
+
+
+def observe_spot_buy_outflow(config, controller_id, reason, *, used=None, cap=None, required=None):
+    tracer = _ACTIVE
+    if tracer is not None:
+        try:
+            if not tracer._quote_fills:
+                return
+            scope = _spot_quote_lane(config, controller_id=controller_id)
+            if scope and scope[1] == 'buy':
+                tracer.record_spot_buy_outflow(scope[0], reason, used=used, cap=cap, required=required)
         except Exception:
             pass
 
@@ -616,6 +631,30 @@ class EngineDiagnostics:
             elif stage == 'rejected' and order and order == attempt.get('order'):
                 timings['last_rejection'] = dict(executor=executor, order=order, at_ns=now,
                                                  reason_code=_QUOTE_REJECTION_CODES.get(reason, 'order_failure'))
+
+    def record_spot_buy_outflow(self, lane, reason, *, used=None, cap=None, required=None):
+        if reason is not None and not re.fullmatch(r'spot_outflow_[a-z0-9_]{1,51}', reason):
+            reason = 'spot_outflow_blocked'
+        now = self.clock()
+        with self.lock:
+            fill = self._quote_fills.get(lane)
+            if self._closed or fill is None or not 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS:
+                return
+            timings = fill[2]
+            history = timings.get('outflow_preview', ())
+            if (history[-1]['reason_code'] if history else None) == reason:
+                return
+            row = dict(at_ns=now, reason_code=reason)
+            if required is not None:
+                remaining_quote, required_quote = str(max(0, cap - used)), str(required)
+                if max(len(remaining_quote), len(required_quote)) <= 48:
+                    row.update(remaining_quote=remaining_quote, required_quote=required_quote)
+            # Keep the first denial and the most recent transitions. Assign a
+            # new tuple so send/OPEN evidence keeps the snapshot it consumed.
+            if len(history) == 4:
+                history = (*history[:1], *history[-2:])
+                timings['outflow_preview_dropped'] = timings.get('outflow_preview_dropped', 0) + 1
+            timings['outflow_preview'] = (*history, row)
 
     def record_quote_marker(self, operation, order, *, lane=None, sent=None, executor=None):
         """Retain opaque quote milestones on the existing watchdog stream."""

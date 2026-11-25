@@ -519,6 +519,10 @@ class ClientOrderTracker:
             recorder.publish_recorded_order_event(self._connector, tag, payload)
         if not staged.is_open:
             self._note_completion(order, update, terminal[0] if terminal else None)
+            if (terminal is not None and terminal[0] in (MarketEvent.BuyOrderCompleted, MarketEvent.OrderCancelled)
+                    and self._connector.name == 'okx' and order.trade_type is TradeType.BUY):
+                from hummingbot.core.order_submission_guard import spot_outflow_terminal_committed
+                spot_outflow_terminal_committed(self._connector, order)
         if cancelled is not None:
             raise cancelled
 

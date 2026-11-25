@@ -16,7 +16,7 @@ from hummingbot.client.config.mm_profiles import MMProfilesConfig
 from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount, TradeFeeSchema
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent, OrderFilledEvent
 from hummingbot.core.mm_session import MMSession, MMSessionRequest
@@ -420,6 +420,26 @@ def fully_executed_buy(owned, *, commit=True):
         owned.recorder._did_fill_order(MarketEvent.OrderFilled.value, owned.market, evt)
     owned.owner.spot_outflow.projection.advance(stamp + 2000)
     return item, evt
+
+
+def test_native_terminal_wakes_outflow_after_terminal_commit(owned):
+    item, _ = fully_executed_buy(owned)
+    item.current_state = OrderState.OPEN
+    guard = owned.owner.spot_outflow
+    observations = []
+
+    def notify(*, terminal_guard):
+        assert terminal_guard is guard and item.current_state is OrderState.FILLED
+        with owned.manager.get_new_session() as db:
+            observations.append(db.get(Order, item.client_order_id).last_status)
+
+    guard._on_terminal_pending = notify
+    update = OrderUpdate(item.trading_pair, time.time(), OrderState.FILLED,
+                         client_order_id=item.client_order_id, exchange_order_id=item.exchange_order_id)
+    tracker = owned.market._order_tracker
+    owned.loop.run_until_complete(tracker._persist_order_update(owned.recorder, item, update))
+    assert observations == ['BuyOrderCompleted']
+    assert set(guard.terminal_pending) == {item.client_order_id}
 
 
 @pytest.mark.parametrize('handoff', [False, True])

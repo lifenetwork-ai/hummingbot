@@ -843,10 +843,10 @@ class PositionExecutor(ExecutorBase):
             outflow_wait = (event.error_type in ("SpotOutflowBlocked", "SpotOutflowPending") and self.config.mm_session_id is not None
                             and self.config.connector_name == 'okx' and self.config.side == TradeType.BUY
                             and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)
-            if (reprice and self._is_managed_maker_entry and len(self._failed_orders) == 1
+            if (reprice and self._is_managed_maker_entry
                     and self._close_order is None and self._take_profit_limit_order is None
                     and self._restored_pending_entry is None and not self._held_position_orders
-                    and proved_zero_fill_rejection(rejected.order)):
+                    and all(proved_zero_fill_rejection(tracked.order) for tracked in self._failed_orders)):
                 self.close_type = CloseType.EARLY_STOP
                 self.stop(immediate_report=True)
             elif reprice or (outflow_wait or session_closed or checkpoint_wait) and self.status == RunnableStatus.RUNNING:

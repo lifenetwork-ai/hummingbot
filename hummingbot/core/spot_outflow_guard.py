@@ -11,6 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
+from hummingbot.core.engine_diagnostics import observe_spot_buy_outflow
 from hummingbot.core.event.events import BuyOrderCreatedEvent, MarketEvent
 from hummingbot.core.order_submission_guard import SpotOutflowBlocked, SpotOutflowPending, SubmissionBlocked
 from hummingbot.core.spot_outflow import (
@@ -26,7 +27,7 @@ from hummingbot.model.trade_fill import TradeFill
 
 
 class SpotOutflowGuard:
-    def __init__(self, owner, policy):
+    def __init__(self, owner, policy, *, on_terminal_pending=None):
         self.owner, self.policy = owner, policy
         self.config = SpotOutflowConfig.model_validate({key: value for key, value in policy.items() if key != "trading_pair"})
         self.binding = None
@@ -39,6 +40,7 @@ class SpotOutflowGuard:
         self.terminal_pending = {}
         self.terminal_stages = {}
         self.terminal_failures = {}
+        self._on_terminal_pending = on_terminal_pending
         self.initializing = False
         self.reason_code = "spot_outflow_initializing"
         self.last_buy_denial = None
@@ -252,22 +254,34 @@ class SpotOutflowGuard:
         self.last_buy_denial = None
         self.orders[order.client_order_id] = (connector, order)
 
-    def preview(self, connector, amount, price):
+    def preview(self, connector, amount, price, quote_scope=None):
         """A cheap proposal filter; pre-intent/final-send remain authoritative."""
         self._mark_terminal_orders()
-        if (not self._identity_matches() or self.projection is None or self.reason_code
-                or self.projection.reason() or self.terminal_pending):
+        if not self._identity_matches() or self.projection is None or self.reason_code:
+            reason = self.reason_code or 'spot_outflow_initializing'
+        else:
+            reason = self.projection.reason() or ('spot_outflow_reconciling' if self.terminal_pending else None)
+        if reason is not None:
+            if quote_scope is not None:
+                observe_spot_buy_outflow(*quote_scope, reason)
             return False
         order = SimpleNamespace(trading_pair=self.policy["trading_pair"], amount=amount, price=price,
                                 order_type=OrderType.LIMIT_MAKER, trade_type=TradeType.BUY)
         try:
             required = amount * price * (1 + self.config.fee_allowance_rate) + self._flat_fee(connector, order)
-            allowed = max(ZERO, self.projection.net) + self.projection.reserved() + required <= self.config.max_net_outflow_quote
-            self.last_buy_denial = None if allowed else "spot_outflow_limit"
-            return allowed
+            used = max(ZERO, self.projection.net) + self.projection.reserved()
+            allowed = used + required <= self.config.max_net_outflow_quote
         except (ValueError, TypeError, ArithmeticError):
             self.last_buy_denial = "spot_outflow_fee_unavailable"
+            if quote_scope is not None:
+                observe_spot_buy_outflow(*quote_scope, self.last_buy_denial)
             return False
+        self.last_buy_denial = None if allowed else "spot_outflow_limit"
+        if quote_scope is not None:
+            observe_spot_buy_outflow(
+                *quote_scope, self.last_buy_denial, used=used, cap=self.config.max_net_outflow_quote, required=required,
+            )
+        return allowed
 
     def authorize(self, data, row):
         self._require_bound_identity(spot_order=data.get('instId') == self.policy['trading_pair'])
@@ -290,7 +304,16 @@ class SpotOutflowGuard:
         self.terminal_failures.pop(client_id, None)
 
     def mark_terminal_pending(self, client_id):
+        first = not self.terminal_pending
         self.terminal_pending.setdefault(client_id, None)
+        if first and self._on_terminal_pending is not None:
+            self._on_terminal_pending(terminal_guard=self)
+
+    def terminal_committed(self, connector, order):
+        identity = order.client_order_id
+        retained = self.orders.get(identity)
+        if retained is not None and retained[0] is connector and retained[1] is order and order.is_done:
+            self.mark_terminal_pending(identity)
 
     def _mark_terminal_orders(self):
         for client_id, (_, order) in self.orders.items():

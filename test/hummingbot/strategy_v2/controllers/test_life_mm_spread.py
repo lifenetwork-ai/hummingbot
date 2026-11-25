@@ -307,6 +307,77 @@ async def test_spot_proposal_correlates_before_orchestrator_sets_config_controll
 
 
 @pytest.mark.asyncio
+async def test_spot_outflow_trace_correlates_only_the_blocked_buy_level(monkeypatch):
+    from test.hummingbot.core.test_spot_outflow import fill
+
+    from hummingbot.core.spot_outflow import SpotOutflowProjection
+    from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+
+    controller, _ = make_controller(configuration(
+        runtime_config_managed=True, mm_session_id='session', mm_generation=2, spread_policy={'fee_floor': True},
+        buy_spreads=[.01, .02], buy_amounts_pct=[Decimal(3), Decimal(1)],
+    ))
+    connector = controller.market_data_provider.get_connector_with_fallback.return_value
+    connector.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.001'))
+    connector.quantize_order_price.side_effect = lambda pair, value: value
+    connector.quantize_order_amount.side_effect = lambda pair, value: value
+    connector.trading_rules['LIFE-USDT'] = SimpleNamespace(min_order_size=Decimal('.001'), min_notional_size=Decimal('0'))
+    await controller.update_processed_data()
+    controller.admit_session('session', 2)
+    previous = {level: controller.get_executor_config(level, *controller.get_price_and_amount(level)).model_copy(
+        update={'controller_id': controller.config.id}) for level in ('buy_0', 'buy_1')}
+    amounts = {level: config.amount * config.entry_price * Decimal('1.01') for level, config in previous.items()}
+    budget = (amounts['buy_0'] + amounts['buy_1']) / 2
+    guard = SpotOutflowGuard(
+        None, dict(trading_pair='LIFE-USDT', window_seconds=60, max_net_outflow_quote=budget * 2, fee_allowance_rate='.01'),
+    )
+    guard.identity = lambda: {'account_id': 'offline'}
+    guard.binding, guard.reason_code = guard.identity(), None
+    guard.projection = SpotOutflowProjection(guard.config, 'LIFE-USDT', coverage_start_ms=0)
+    guard.projection.advance(1000000)
+    guard.projection.add_fill(fill('old', 941000, price=str(budget)))
+    monkeypatch.setattr(order_submission_guard, '_guard', SimpleNamespace(spot_outflow=guard))
+    monkeypatch.setattr(order_submission_guard, 'postgres_requested', lambda: True)
+    clock = [1_000_000_000]
+    tracer = engine_diagnostics.EngineDiagnostics(clock=lambda: clock[0])
+    monkeypatch.setattr(engine_diagnostics, '_ACTIVE', tracer)
+    for level, config in previous.items():
+        engine_diagnostics.observe_spot_quote_fill(
+            SimpleNamespace(config=config, _completed_entry_fill_timestamp=lambda: 1), level)
+
+    for at in (1_030_000_000, 1_040_000_000):
+        clock[0] = at
+        assert [action.executor_config.level_id for action in controller.create_actions_proposal()
+                if action.executor_config.side == TradeType.BUY] == ['buy_1']
+    guard.projection.advance(1002000)
+    clock[0] = 1_060_000_000
+    for action in controller.create_actions_proposal():
+        if action.executor_config.side != TradeType.BUY:
+            continue
+        config = action.executor_config.model_copy(update={'controller_id': action.controller_id})
+        level = config.level_id
+        request = SimpleNamespace(throttler_limit_id='/api/v5/trade/order', method=RESTMethod.POST, is_auth_required=True,
+                                  data=json.dumps(dict(clOrdId=f'new-{level}', side='buy', ordType='post_only')))
+        with order_submission_guard.session_order_scope('session', 2, executor=config.model_dump()):
+            engine_diagnostics.observe_spot_quote_dispatch(request)
+        engine_diagnostics.observe_spot_quote_open(
+            SimpleNamespace(name='okx'),
+            SimpleNamespace(client_order_id=f'new-{level}', exchange_order_id='venue', amount=config.amount,
+                            executed_amount_base=Decimal(0)),
+        )
+
+    opened = {row['replaces']: row for row in tracer.snapshot()['submission_recent'] if row['operation'] == 'quote.buy_open'}
+    higher, lower = (opened[engine_diagnostics._identity(level)] for level in ('buy_0', 'buy_1'))
+    assert 'outflow_preview' not in lower
+    refused, eligible = higher['outflow_preview']
+    assert refused['at_ns'] == 1_030_000_000 and refused['reason_code'] == 'spot_outflow_limit'
+    assert Decimal(refused['remaining_quote']) == budget
+    assert Decimal(refused['required_quote']) == amounts['buy_0']
+    assert eligible['at_ns'] == 1_060_000_000 and eligible['reason_code'] is None
+    assert Decimal(eligible['required_quote']) <= Decimal(eligible['remaining_quote'])
+
+
+@pytest.mark.asyncio
 async def test_amount_rounding_cannot_bypass_flat_fee_coverage():
     controller, _ = make_controller(configuration(spread_policy=dict(fee_floor=True)))
     connector = controller.market_data_provider.get_connector_with_fallback.return_value

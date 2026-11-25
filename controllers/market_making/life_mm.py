@@ -1132,7 +1132,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 required_quote = config.amount * config.entry_price / config.leverage
                 if self.config.runtime_config_managed and self.config.connector_name == "okx" and is_buy:
                     from hummingbot.core.order_submission_guard import spot_buy_preview
-                    if not spot_buy_preview(connector, config.amount, config.entry_price):
+                    if not spot_buy_preview(connector, config.amount, config.entry_price, (config, action.controller_id)):
                         self._quote_reason('spot_outflow_blocked', config.side)
                         continue
                 if not self._within_caps(proposed_long, proposed_short):

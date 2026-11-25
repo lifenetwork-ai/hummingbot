@@ -104,7 +104,7 @@ class OwnershipLost(SubmissionBlocked):
 
 
 class BotOwnership:
-    def __init__(self, engine, bot_id, *, stopping=None, scoped_recovery=False):
+    def __init__(self, engine, bot_id, *, stopping=None, scoped_recovery=False, on_outflow_terminal_pending=None):
         self.engine = engine
         self.store = BotStateStore(engine, bot_id)
         self.owner_uuid = str(uuid.uuid4())
@@ -152,6 +152,7 @@ class BotOwnership:
         self.cleanup_versions = {}
         self.cleanup_intents = {}
         self.spot_outflow = None
+        self._on_outflow_terminal_pending = on_outflow_terminal_pending
         self._handoff_spot_outflow = None
         self.listing_bootstrap = None
         self.volatility_checkpoints = None
@@ -1571,7 +1572,7 @@ class BotOwnership:
                 if reuse_outflow:
                     await self.spot_outflow.advance(int(final_row['database_now'] * 1000))
                 else:
-                    self.spot_outflow = SpotOutflowGuard(self, policy)
+                    self.spot_outflow = SpotOutflowGuard(self, policy, on_terminal_pending=self._on_outflow_terminal_pending)
                     await self.spot_outflow.initialize()
                 policies = getattr(core.strategy.config, "mm_bootstrap_policies", None)
                 if policies:

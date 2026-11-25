@@ -1,5 +1,6 @@
 """Native terminal financial application cannot wait for an unrelated clock tick."""
 import asyncio
+from copy import copy
 from decimal import Decimal
 from test.hummingbot.strategy_v2.executors.test_terminal_order_checkpoint import closing_quote
 from test.hummingbot.strategy_v2.executors.test_terminal_position_checkpoint import fill, setup_checkpoint
@@ -18,7 +19,7 @@ from hummingbot.core.event.events import MarketOrderFailureEvent
 from hummingbot.core.order_submission_guard import current_executor_scope, current_session_scope, session_order_scope
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.models.base import RunnableStatus
-from hummingbot.strategy_v2.models.executors import CloseType
+from hummingbot.strategy_v2.models.executors import CloseType, TrackedOrder
 from hummingbot.strategy_v2.utils.perpetual_reduction import HedgeCostBasis
 
 
@@ -97,6 +98,38 @@ async def test_managed_reprice_without_exposure_publishes_on_next_loop_turn(nati
     else:
         assert not controller.executors_update_event.is_set()
         assert executor.status == RunnableStatus.SHUTTING_DOWN and executor.close_type == CloseType.POSITION_HOLD
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('prior_proven', [True, False])
+async def test_reprice_after_an_earlier_rejection_only_uses_fast_path_with_both_proofs(native_publication, monkeypatch, prior_proven):
+    strategy, orchestrator, executor, first, recorder, controller = native_publication(entry=True)
+    first.exchange_order_id, first.current_state = None, OrderState.FAILED
+    rejected = copy(first)
+    rejected.client_order_id = 'second-entry'
+    proofs = {rejected.client_order_id: rejected}
+    if prior_proven:
+        proofs[first.client_order_id] = first
+    owner = SimpleNamespace(unsent_rejections=proofs, exchange_rejections={}, active_intents=set(), sent_intents=set(), lost=False)
+    monkeypatch.setattr(order_submission_guard, '_guard', owner)
+    monkeypatch.setattr(order_submission_guard, 'postgres_requested', lambda: True)
+    strategy.MANAGED_REPORT_COALESCE_SECONDS = 60
+
+    executor.process_order_failed_event(None, None, MarketOrderFailureEvent(
+        100, first.client_order_id, OrderType.LIMIT_MAKER, 'position_checkpoint_pending', 'MarketReadinessBlocked'))
+    assert executor.status == RunnableStatus.RUNNING and len(executor._failed_orders) == 1
+    executor._open_order = TrackedOrder(rejected.client_order_id)
+    executor._open_order.order = rejected
+    executor.process_order_failed_event(None, None, MarketOrderFailureEvent(
+        101, rejected.client_order_id, OrderType.LIMIT_MAKER, 'spread_policy_quote_rejected', 'QuoteRefreshRequired'))
+    await asyncio.sleep(0)
+    if prior_proven:
+        assert controller.executors_update_event.is_set() and executor.is_closed
+        assert not orchestrator.positions_held['maker']
+        recorder.checkpoint_held_positions.assert_not_called()
+    else:
+        assert executor.status == RunnableStatus.SHUTTING_DOWN and executor.close_type == CloseType.POSITION_HOLD
+        assert not controller.executors_update_event.is_set()
 
 
 @pytest.mark.asyncio

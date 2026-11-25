@@ -211,7 +211,8 @@ def test_spot_sell_warning_joins_executor_stages_and_keeps_only_slow_replacement
         assert 'private-' not in json.dumps(warning)
 
 
-def test_slow_replacement_warnings_batch_and_bound_retention():
+@pytest.mark.parametrize('side', ['buy', 'sell'])
+def test_slow_replacement_warnings_batch_and_bound_retention(side):
     now, records = [10_000_000_000], []
     tracer = EngineDiagnostics(clock=lambda: now[0], emit=records.append)
     tracer._started = True
@@ -219,17 +220,20 @@ def test_slow_replacement_warnings_batch_and_bound_retention():
     def replace(index):
         lane, executor, order = f'lane-{index}', f'candidate-{index}', f'quote-{index}'
         original = f'filled-{index}'
-        tracer.record_quote_marker('quote.sell_fill', original, lane=lane)
+        tracer.record_quote_marker(f'quote.{side}_fill', original, lane=lane)
+        if side == 'buy':
+            for reason in ('spot_outflow_limit', None) * 3:
+                tracer.record_spot_buy_outflow(lane, reason, used=60, cap=100, required=50)
         tracer.record_quote_handoff(lane, 'first_proposal_at_ns', None, executor=executor)
         now[0] += 1_000_000_000
         tracer.record_quote_attempt(executor, 'submitted', order)
-        tracer.record_quote_marker('quote.sell_send', order, lane=lane, executor=executor)
-        tracer.record_quote_marker('quote.sell_open', order)
+        tracer.record_quote_marker(f'quote.{side}_send', order, lane=lane, executor=executor)
+        tracer.record_quote_marker(f'quote.{side}_open', order)
 
     def warnings():
         tracer._beat_ns = now[0]
         tracer.watch_once()
-        return [row for row in records if row['event'] == 'spot_sell_replacement_slow']
+        return [row for row in records if row['event'] == f'spot_{side}_replacement_slow']
 
     replace(0)
     first, = warnings()
@@ -240,6 +244,9 @@ def test_slow_replacement_warnings_batch_and_bound_retention():
     _, next_batch = warnings()
     assert next_batch['dropped'] == 2
     assert [row['order'] for row in next_batch['replacements']] == [f'quote-{i}' for i in range(3, 11)]
+    if side == 'buy':
+        assert all(len(row['outflow_preview']) == 4 and row['outflow_preview_dropped'] == 2
+                   for row in next_batch['replacements'])
 
 
 @pytest.mark.parametrize('side', ['buy', 'sell'])
