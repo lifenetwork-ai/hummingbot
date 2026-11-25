@@ -112,7 +112,9 @@ def test_terminal_status_paired_roundtrip_measurement(owned):
     combined_evidence = MarketsRecorder._read_order_event_evidence
     serial = 0
 
-    def separate_evidence(session, identity, timestamp, status, *, include_pending_intent=False):
+    def separate_evidence(_recorder, session, identity, timestamp, status, *, include_pending_intent=False,
+                          tracking=None, market_name=None):
+        assert tracking is None  # This benchmark isolates the order-evidence read.
         order = session.get(Order, identity)
         if order is None:
             return None
@@ -138,7 +140,7 @@ def test_terminal_status_paired_roundtrip_measurement(owned):
             event.listen(owned.engine, 'after_cursor_execute', network_wait)
         try:
             reader = separate_evidence if separate_reads else combined_evidence
-            with patch.object(MarketsRecorder, '_read_order_event_evidence', staticmethod(reader)), \
+            with patch.object(MarketsRecorder, '_read_order_event_evidence', reader), \
                     queries(owned.engine) as statements, \
                     patch.object(owned.owner, '_read_owner', wraps=owned.owner._read_owner) as checks:
                 started = time.perf_counter()
