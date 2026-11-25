@@ -108,6 +108,12 @@ def _guard_diagnostics(guard):
     return evidence
 
 
+def _outflow_reason(value):
+    if isinstance(value, str) and re.fullmatch(r'spot_outflow_[a-z0-9_]{1,51}', value):
+        return value
+    return None
+
+
 def record_guards(connection, bot_id, session, previous, status, version):
     """Only confirmed changes are events; no per-tick book snapshots are stored."""
     old = previous.get("mm_guard_observation") or {}
@@ -117,6 +123,7 @@ def record_guards(connection, bot_id, session, previous, status, version):
         return
     signature = {}
     observations = {}
+    outflow = status.get("spot_outflow") or {}
     if status.get("phase") is not None:
         signature["all"] = dict(phase=status["phase"],
                                 runtime_reason=(status.get("availability") or {}).get("reason_code"),
@@ -135,7 +142,14 @@ def record_guards(connection, bot_id, session, previous, status, version):
                                inventory_reason=(market.get("inventory_skew") or {}).get("reason_code"),
                                spread_state=(market.get("spread_policy") or {}).get("state"),
                                defense_state=((market.get('spread_policy') or {}).get('defense') or {}).get('state'),
-                               outflow_buy_allowed=(status.get("spot_outflow") or {}).get("buy_allowed") if name == "spot" else None)
+                               outflow_buy_allowed=outflow.get("buy_allowed") if name == "spot" else None)
+        if name == "spot" and outflow.get("buy_allowed") is False:
+            reason = _outflow_reason(outflow.get("reason_code"))
+            # A ready projection disallows BUY globally when no budget remains.
+            if outflow.get("reason_code") is None and outflow.get("ready") is True and outflow.get("remaining_quote") is not None:
+                reason = "spot_outflow_limit"
+            if reason is not None:
+                signature[name]["outflow_buy_block_reason"] = reason
     sequence = old.get("sequence", 0)
     status["mm_guard_observation"] = old
     if not signature:
@@ -149,9 +163,12 @@ def record_guards(connection, bot_id, session, previous, status, version):
         for market, value in signature.items():
             if prior.get(market) != value:
                 payload = dict(market=market, previous=prior.get(market), current=value)
-                # Evidence can vary with every book update. Keep it out of the
-                # signature and history cursor so only transitions write rows.
-                if market in observations and (evidence := _guard_diagnostics(observations[market])):
+                # Per-candidate denial can change between levels of the same ladder.
+                # Like book samples, retain it only alongside a state transition.
+                evidence = _guard_diagnostics(observations.get(market, {}))
+                if market == "spot" and (denial := _outflow_reason(outflow.get("last_buy_denial"))):
+                    evidence["outflow_last_buy_denial"] = denial
+                if evidence:
                     payload['diagnostics'] = evidence
                 append_event(connection, bot_id=bot_id, session=session, event_type="guard_changed", version=version,
                              source="observer", payload=payload,

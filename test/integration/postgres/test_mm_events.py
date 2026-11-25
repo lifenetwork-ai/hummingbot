@@ -177,6 +177,46 @@ def test_guard_transition_keeps_book_and_recovery_evidence_without_tick_events(h
         owner.release()
 
 
+def test_guard_transitions_record_spot_buy_block_reasons_without_balance_tick_events(history):
+    store, _, _ = history
+    receipt, _, _ = start(history)
+    owner = BotOwnership(store.engine, store.bot_id)
+    assert owner.try_acquire()
+    args = dict(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1, save_balances=False)
+    scope = dict(id=receipt['session_id'], generation=0)
+    markets = [dict(market=name, ready=True) for name in ('spot', 'perpetual')]
+
+    def publish(**outflow):
+        assert store.publish(**args, status=dict(mm_session=scope, mm_markets=markets, spot_outflow=outflow))
+
+    try:
+        publish(buy_allowed=False, ready=False, remaining_quote=None)
+        publish(buy_allowed=False, ready=True, remaining_quote='0')
+        publish(buy_allowed=False, ready=True, remaining_quote='0', reserved_quote='100')
+        publish(buy_allowed=False, ready=False, remaining_quote='0', reason_code='spot_outflow_reconciling',
+                last_buy_denial='spot_outflow_limit')
+        publish(buy_allowed=False, ready=False, remaining_quote='0', reason_code='spot_outflow_reconciling')
+        publish(buy_allowed=True, ready=True, remaining_quote='10', last_buy_denial='spot_outflow_limit')
+        publish(buy_allowed=True, ready=True, remaining_quote='20', last_buy_denial='spot_outflow_limit')
+        publish(buy_allowed=True, ready=True, remaining_quote='20')
+        publish(buy_allowed=False, ready=True, remaining_quote='0', last_buy_denial='arbitrary connector error')
+        rows = session_events(store, receipt['session_id'], event_type='guard_changed')['items']
+        spot = [row['payload'] for row in reversed(rows) if row['payload']['market'] == 'spot']
+        assert [(row['current']['outflow_buy_allowed'], row['current'].get('outflow_buy_block_reason'),
+                 row.get('diagnostics', {}).get('outflow_last_buy_denial')) for row in spot] == [
+            (False, None, None),
+            (False, 'spot_outflow_limit', None),
+            (False, 'spot_outflow_reconciling', 'spot_outflow_limit'),
+            (True, None, 'spot_outflow_limit'),
+            (False, 'spot_outflow_limit', None),
+        ]
+        perpetual, = [row['payload'] for row in rows if row['payload']['market'] == 'perpetual']
+        assert 'outflow_buy_block_reason' not in perpetual['current']
+        assert 'diagnostics' not in perpetual
+    finally:
+        owner.release()
+
+
 def test_event_insert_failure_rolls_back_owner_transition_and_migration_replay_keeps_history(history):
     store, _, _ = history
     receipt, _, _ = start(history)

@@ -1144,7 +1144,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 long, short = proposed_long, proposed_short
                 pending_allocation += config.amount * config.entry_price
                 accepted.append(action)
-                if self.config.connector_name == "okx" and not is_buy:
+                if self.config.connector_name == "okx":
                     observe_spot_quote_handoff(config, 'first_proposal_at_ns', controller_id=action.controller_id)
                 self._quote_diagnostics['proposed'][config.side.name] += 1
             return accepted

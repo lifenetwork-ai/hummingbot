@@ -247,7 +247,8 @@ async def test_sell_tick_rounding_cannot_narrow_the_composed_spread():
 
 
 @pytest.mark.asyncio
-async def test_spot_sell_proposal_correlates_before_orchestrator_sets_config_controller_id(monkeypatch):
+@pytest.mark.parametrize('side', [TradeType.BUY, TradeType.SELL])
+async def test_spot_proposal_correlates_before_orchestrator_sets_config_controller_id(monkeypatch, side):
     controller, _ = make_controller(configuration(
         runtime_config_managed=True, mm_session_id='session', mm_generation=2, spread_policy={'fee_floor': True},
     ))
@@ -258,8 +259,10 @@ async def test_spot_sell_proposal_correlates_before_orchestrator_sets_config_con
     connector.trading_rules['LIFE-USDT'] = SimpleNamespace(min_order_size=Decimal('.001'), min_notional_size=Decimal('0'))
     await controller.update_processed_data()
     controller.admit_session('session', 2)
-    price, amount = controller.get_price_and_amount('sell_0')
-    previous = controller.get_executor_config('sell_0', price, amount).model_copy(
+    side_name = side.name.lower()
+    level = f'{side_name}_0'
+    price, amount = controller.get_price_and_amount(level)
+    previous = controller.get_executor_config(level, price, amount).model_copy(
         update={'controller_id': controller.config.id},
     )
 
@@ -270,25 +273,37 @@ async def test_spot_sell_proposal_correlates_before_orchestrator_sets_config_con
         SimpleNamespace(config=previous, _completed_entry_fill_timestamp=lambda: 1), 'filled',
     )
     clock[0] += 40_000_000
-    action, = (action for action in controller.create_actions_proposal() if action.executor_config.side == TradeType.SELL)
+    action, = (action for action in controller.create_actions_proposal() if action.executor_config.side == side)
     assert action.executor_config.controller_id == 'main'
     dispatch_config = action.executor_config.model_copy(update={'controller_id': action.controller_id})
     request = SimpleNamespace(
         throttler_limit_id='/api/v5/trade/order', method=RESTMethod.POST, is_auth_required=True,
-        data=json.dumps({'clOrdId': 'replacement', 'side': 'sell', 'ordType': 'post_only'}),
+        data=json.dumps({'clOrdId': 'replacement', 'side': side_name, 'ordType': 'post_only'}),
     )
-    clock[0] += 20_000_000
+    clock[0] += 5_000_000
+    engine_diagnostics.observe_spot_quote_executor(dispatch_config, 'created')
     with order_submission_guard.session_order_scope('session', 2, executor=dispatch_config.model_dump()):
-        engine_diagnostics.observe_spot_quote_dispatch(request)
-    clock[0] += 10_000_000
+        clock[0] += 5_000_000
+        engine_diagnostics.observe_spot_quote_submit('replacement')
+        clock[0] += 10_000_000
+        dispatch = engine_diagnostics.observe_spot_quote_dispatch(request)
+    clock[0] += 5_000_000
+    engine_diagnostics.observe_spot_quote_response(dispatch)
+    clock[0] += 5_000_000
     engine_diagnostics.observe_spot_quote_open(
         SimpleNamespace(name='okx'),
         SimpleNamespace(client_order_id='replacement', exchange_order_id='native',
                         amount=dispatch_config.amount, executed_amount_base=Decimal('0')),
     )
     opened = tracer.snapshot()['submission_recent'][-1]
-    assert opened['operation'] == 'quote.sell_open'
+    assert opened['operation'] == f'quote.{side_name}_open'
     assert opened['first_proposal_at_ns'] == 1_040_000_000
+    assert opened['replacement_proposal_at_ns'] == opened['first_proposal_at_ns']
+    assert opened['replacement_created_at_ns'] == 1_045_000_000
+    assert opened['replacement_submit_at_ns'] == 1_050_000_000
+    assert opened['sent_at_ns'] == 1_060_000_000
+    assert opened['http_response_at_ns'] == 1_065_000_000
+    assert opened['fill_to_open_ms'] == 70
 
 
 @pytest.mark.asyncio
