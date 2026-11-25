@@ -1292,33 +1292,21 @@ class InjectiveV2PerpetualDerivativeTests(AbstractPerpetualDerivativeTests.Perpe
     @aioresponses()
     async def test_create_order_fails_and_raises_failure_event(self, mock_api):
         self._simulate_trading_rules_initialized()
-        request_sent_event = asyncio.Event()
         self.exchange._set_current_timestamp(1640780000)
 
-        transaction_simulation_response = self._msg_exec_simulation_mock_response()
-        self.exchange._data_source._query_executor._simulate_transaction_responses.put_nowait(
-            transaction_simulation_response)
+        query_executor = self.exchange._data_source._query_executor
+        query_executor._simulate_transaction_responses.put_nowait(self._msg_exec_simulation_mock_response())
+        query_executor._send_transaction_responses.put_nowait({"txhash": "", "rawLog": "Error", "code": 11})
 
-        response = {"txhash": "", "rawLog": "Error", "code": 11}
-        mock_queue = AsyncMock()
-        mock_queue.get.side_effect = partial(
-            self._callback_wrapper_with_response,
-            callback=lambda args, kwargs: request_sent_event.set(),
-            response=response
-        )
-        self.exchange._data_source._query_executor._send_transaction_responses = mock_queue
-
-        order_id = self.place_buy_order()
-        await asyncio.wait_for(request_sent_event.wait(), timeout=1)
-
-        for i in range(3):
-            if order_id in self.exchange.in_flight_orders:
-                await asyncio.sleep(0.5)
+        with patch.object(query_executor, "send_tx_sync_mode", wraps=query_executor.send_tx_sync_mode) as send:
+            order_id = self.place_buy_order()
+            failure_event = await self.order_failure_logger.wait_for(MarketOrderFailureEvent, timeout_seconds=5)
+            send.assert_awaited_once()
 
         self.assertNotIn(order_id, self.exchange.in_flight_orders)
 
         self.assertEqual(0, len(self.buy_order_created_logger.event_log))
-        failure_event: MarketOrderFailureEvent = self.order_failure_logger.event_log[0]
+        self.assertEqual([failure_event], self.order_failure_logger.event_log)
         self.assertEqual(self.exchange.current_timestamp, failure_event.timestamp)
         self.assertEqual(OrderType.LIMIT, failure_event.order_type)
         self.assertEqual(order_id, failure_event.order_id)
