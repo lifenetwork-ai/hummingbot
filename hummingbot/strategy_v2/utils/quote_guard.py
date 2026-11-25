@@ -199,14 +199,13 @@ def observe_market(connector, book, pair, *, now, max_age_seconds, max_levels, m
 class QuoteGuard:
     def __init__(self, config, sideways_range=None):
         self.config, self.sideways_range = config, sideways_range
-        self.blocked = True
-        self.good_since = self.good_since_epoch = self.last_token = None
-        self.valid_samples = 0
+        self.invalidate()
 
     def invalidate(self):
         self.blocked = True
         self.good_since = self.good_since_epoch = self.last_token = None
         self.valid_samples = 0
+        self._own_depth_recovery_after = None
 
     def evaluate(self, observation, reference, monotonic_now, *, sample=False):
         reason, deviation = None, None
@@ -227,15 +226,33 @@ class QuoteGuard:
                     reason = "sideways_breakout"
                 inner = inner and limits.resume_lower_price <= observation.market_mid <= limits.resume_upper_price
         if reason is not None or (self.blocked and not inner):
+            depth_recovery_after = None
+            if (self.config.mode == "strict" and observation.market_mid is None
+                    and observation.detail == "inconsistent_own_depth" and observation.book_at is not None):
+                # An admitted market can briefly see its own order change
+                # on one stream before the other. Withdraw while they disagree.
+                if not self.blocked:
+                    depth_recovery_after = observation.book_at
+                elif self._own_depth_recovery_after is not None:
+                    depth_recovery_after = max(self._own_depth_recovery_after, observation.book_at)
             self.invalidate()
-        elif self.blocked and sample and observation.token != self.last_token:
+            self._own_depth_recovery_after = depth_recovery_after
+        elif (self.blocked and sample and observation.token != self.last_token
+              and (self._own_depth_recovery_after is None
+                   or (observation.book_at is not None and observation.book_at > self._own_depth_recovery_after))):
             if self.good_since is None or monotonic_now < self.good_since:
                 self.good_since, self.good_since_epoch = monotonic_now, observation.observed_at
                 self.valid_samples = 0
             self.last_token = observation.token
             self.valid_samples = min(2, self.valid_samples + 1)
-            if self.valid_samples >= 2 and monotonic_now - self.good_since >= float(self.config.recovery_delay_seconds):
+            # A tracker-only correction or a different view of the same
+            # public book cannot substitute for two newer qualified books.
+            recovering_depth = self._own_depth_recovery_after is not None
+            if recovering_depth:
+                self._own_depth_recovery_after = observation.book_at
+            if self.valid_samples >= 2 and (recovering_depth or monotonic_now - self.good_since >= float(self.config.recovery_delay_seconds)):
                 self.blocked = False
+                self._own_depth_recovery_after = None
         return dict(enabled=True, mode="strict", ready=not self.blocked,
                     reason_code=reason or ("guard_recovering" if self.blocked else None),
                     data_quality=observation.quality, detail=observation.detail,

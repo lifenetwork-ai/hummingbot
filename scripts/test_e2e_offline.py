@@ -842,7 +842,8 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         assert all(order['instId'] == 'LIFE-USDT' for order in old_quotes)
         old_ids = {order['clOrdId'] for order in old_quotes}
         original = self.state()
-        self.control(book_snapshot_delays={'AVAX-USDT': 3, 'LIFE-USDT-SWAP': 6})
+        self.control(book_snapshot_delays={'AVAX-USDT': 3, 'LIFE-USDT-SWAP': 6}, reject_public_handshakes=True)
+        assert http(self.exchange_port, '/ws/v5/public')[0] == 502
         receipt = self.mm_command(port, 'switch', wait=False, market_mode='spot',
                                   selection='fixed', profile_id='follow_token', duration_seconds=600)
 
@@ -868,23 +869,31 @@ print(json.dumps({'select_one_p95_ms':sorted(samples)[23]}))
         next_quotes = poll(switched, timeout=60, description='next profile has live quotes after terminal proof of the old profile')
         assert not (old_ids & {order['clOrdId'] for order in next_quotes})
         ledger = self.ledger()
+        assert ledger['rejected_public_handshakes'] == 1, 'Cutover attempted a new public connection instead of reusing its feed'
+        self.control(reject_public_handshakes=False)
         assert sum(request.get('injected_book_snapshot_delay_s') == 3 for request in ledger['requests']) == 1
         old = [order for order in ledger['orders'] if order['clOrdId'] in old_ids]
         assert len(old) == len(old_ids) and all(order['state'] == 'canceled' for order in old)
         gap_ms = min(int(order['cTime']) for order in next_quotes) - max(int(order['uTime']) for order in old)
         assert gap_ms >= 0
+        side_gaps_ms = {
+            side: (min(int(order['cTime']) for order in next_quotes if order['side'] == side)
+                   - max(int(order['uTime']) for order in old if order['side'] == side))
+            for side in ('buy', 'sell')
+        }
         state = self.state()
         assert state['owner_uuid'] == original['owner_uuid'] and not state['recovery_state'].get('halt')
         assert state['recovery_state']['spot_outflow'] == original['recovery_state']['spot_outflow']
         poll(drawdown_ready, description='new profile has a fresh drawdown report')
         assert position_exposure(ledger['positions']) == held
         swap_snapshots = sum(request.get('injected_book_snapshot_delay_s') == 6 for request in ledger['requests'])
-        print(f'Offline guarded Spot handoff with retained Perpetual exposure: gap={gap_ms}ms, cold snapshots={swap_snapshots}', flush=True)
+        print(f'Offline guarded Spot handoff: gap={gap_ms}ms, side gaps={side_gaps_ms}, cold snapshots={swap_snapshots}', flush=True)
         assert swap_snapshots == 0, 'Profile switch restarted the public valuation book'
         self.mm_command(port, 'stop')
         assert not live() and not self.ledger()['unknown']
         self.metrics['profile_switch'] = dict(old_quotes_working_during_preparation=True, terminal_before_new_posts=True,
-                                              retained_perpetual_valuation=True, quote_gap_ms=gap_ms, simulated=True)
+                                              retained_perpetual_valuation=True, quote_gap_ms=gap_ms,
+                                              side_quote_gap_ms=side_gaps_ms, public_handshake_502_probe_only=True, simulated=True)
 
     def shutdown_proof_scenario(self):
         # The ordinary continuous scenario does not arm Spot outflow. This

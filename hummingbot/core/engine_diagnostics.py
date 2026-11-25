@@ -65,14 +65,16 @@ _SUBMISSION_TIMING_OPERATIONS = {
     'tracker_ack_ms': 'order.place',
     'tracker_recorder_wait_ms': 'order.place',
 }
-_DISPATCH_SAMPLE_LIMIT = 256
+_LATENCY_SAMPLE_LIMIT = 1024
 _RECORDER_WAIT_SLOW_NS = 250_000_000
 _RECORDER_WRITE_TYPES = frozenset({'intent', 'final_authority', 'transport_receipt', 'open_ack', 'tracker_update',
                                    'fill', 'position_checkpoint', 'session_update', 'other_write'})
 _QUOTE_LIMIT = 64
 _QUOTE_LINK_TTL_NS = 120_000_000_000
 _QUOTE_SLOW_NS = 1_000_000_000
+_QUOTE_PENDING_WARNING_NS = 5_000_000_000
 _QUOTE_WARNING_INTERVAL_NS = 30_000_000_000
+_QUOTE_SIDES = ('buy', 'sell')
 _QUOTE_REJECTION_CODES = {
     'QuoteRefreshRequired': 'quote_refresh_required',
     'MarketReadinessBlocked': 'market_readiness_blocked',
@@ -257,7 +259,15 @@ def _identity(value):
     return None
 
 
-def _spot_sell_lane(config, *, controller_id=None):
+def _recent_latency(values):
+    samples = sorted(values)
+    count = len(samples)
+    return dict(samples=count, max_ms=samples[-1] if count else None,
+                p95_ms=samples[(count * 95 + 99) // 100 - 1] if count else None,
+                p99_ms=samples[(count * 99 + 99) // 100 - 1] if count else None)
+
+
+def _spot_quote_lane(config, *, controller_id=None):
     read = config.get if isinstance(config, dict) else lambda key: getattr(config, key, None)
     if (read('type') != 'position_executor' or read('connector_name') != 'okx'
             or read('use_configured_entry_price') is not True):
@@ -266,41 +276,45 @@ def _spot_sell_lane(config, *, controller_id=None):
     identifiers = (read('mm_session_id'), read('controller_id') if controller_id is None else controller_id,
                    read('trading_pair'), read('level_id'))
     if (type(generation) is not int or generation < 0
-            or any(not isinstance(value, str) or not 0 < len(value) <= 128 for value in identifiers)
-            or not identifiers[-1].startswith('sell_')):
+            or any(not isinstance(value, str) or not 0 < len(value) <= 128 for value in identifiers)):
         return None
-    return hashlib.sha256(json.dumps((*identifiers, generation), separators=(',', ':')).encode()).hexdigest()[:16]
+    side, separator, _ = identifiers[-1].partition('_')
+    if not separator or side not in _QUOTE_SIDES:
+        return None
+    lane = hashlib.sha256(json.dumps((*identifiers, generation), separators=(',', ':')).encode()).hexdigest()[:16]
+    return lane, side
 
 
 def _executor_identity(config):
     return _identity(config.get('id') if isinstance(config, dict) else getattr(config, 'id', None))
 
 
-def observe_spot_sell_fill(executor, order_id):
+def observe_spot_quote_fill(executor, order_id):
     tracer = _ACTIVE
     if tracer is not None:
         try:
-            lane = _spot_sell_lane(executor.config)
+            scope = _spot_quote_lane(executor.config)
             order = _identity(order_id)
-            if lane and order and executor._completed_entry_fill_timestamp() is not None:
-                tracer.record_quote_marker('quote.sell_fill', order, lane=lane)
+            if scope and order and executor._completed_entry_fill_timestamp() is not None:
+                lane, side = scope
+                tracer.record_quote_marker(f'quote.{side}_fill', order, lane=lane)
         except Exception:
             pass
 
 
-def observe_spot_sell_handoff(config, field, order_id=None, *, controller_id=None):
+def observe_spot_quote_handoff(config, field, order_id=None, *, controller_id=None):
     tracer = _ACTIVE
     if tracer is not None:
         try:
-            lane = _spot_sell_lane(config, controller_id=controller_id)
-            if lane:
+            scope = _spot_quote_lane(config, controller_id=controller_id)
+            if scope:
                 executor = _executor_identity(config) if field == 'first_proposal_at_ns' else None
-                tracer.record_quote_handoff(lane, field, _identity(order_id), executor=executor)
+                tracer.record_quote_handoff(scope[0], field, _identity(order_id), executor=executor)
         except Exception:
             pass
 
 
-def observe_spot_sell_executor(config, stage, order_id=None, *, reason=None):
+def observe_spot_quote_executor(config, stage, order_id=None, *, reason=None):
     tracer = _ACTIVE
     if tracer is not None:
         try:
@@ -311,38 +325,38 @@ def observe_spot_sell_executor(config, stage, order_id=None, *, reason=None):
             pass
 
 
-def observe_spot_sell_submit(order_id):
+def observe_spot_quote_submit(order_id):
     if _ACTIVE is not None:
         try:
             from hummingbot.core.order_submission_guard import current_executor_scope
-            observe_spot_sell_executor(current_executor_scope(), 'submitted', order_id)
+            observe_spot_quote_executor(current_executor_scope(), 'submitted', order_id)
         except Exception:
             pass
 
 
-def observe_spot_sell_entry_stage(executor, field):
+def observe_spot_quote_entry_stage(executor, field):
     if _ACTIVE is not None:
         try:
             info = executor.custom_info
             ids = info.get('order_ids')
             if info.get('entry_order_filled') is True and isinstance(ids, list) and ids:
-                observe_spot_sell_handoff(executor.config, field, ids[0])
+                observe_spot_quote_handoff(executor.config, field, ids[0])
         except Exception:
             pass
 
 
-def observe_spot_sell_report(executors, held_ids):
+def observe_spot_quote_report(executors, held_ids):
     if _ACTIVE is None:
         return
     try:
         for info in executors:
             field = 'release_report_at_ns' if info.id in held_ids else 'fill_report_at_ns'
-            observe_spot_sell_entry_stage(info, field)
+            observe_spot_quote_entry_stage(info, field)
     except Exception:
         pass
 
 
-def observe_spot_sell_dispatch(request):
+def observe_spot_quote_dispatch(request):
     tracer = _ACTIVE
     if tracer is None:
         return None
@@ -352,12 +366,13 @@ def observe_spot_sell_dispatch(request):
             return None
         from hummingbot.core.order_submission_guard import current_executor_scope
         config = current_executor_scope()
-        lane = _spot_sell_lane(config)
-        if lane:
+        scope = _spot_quote_lane(config)
+        if scope:
+            lane, side = scope
             data = json.loads(request.data)
             order = _identity(data.get('clOrdId'))
-            if order and data.get('side') == 'sell' and data.get('ordType') == 'post_only':
-                marker = tracer.record_quote_marker('quote.sell_send', order, lane=lane, executor=_executor_identity(config))
+            if order and data.get('side') == side and data.get('ordType') == 'post_only':
+                marker = tracer.record_quote_marker(f'quote.{side}_send', order, lane=lane, executor=_executor_identity(config))
                 if marker is not None:
                     return tracer, marker
     except Exception:
@@ -365,16 +380,16 @@ def observe_spot_sell_dispatch(request):
     return None
 
 
-def observe_spot_sell_response(dispatch):
+def observe_spot_quote_response(dispatch):
     if dispatch is not None:
         try:
             tracer, sent = dispatch
-            tracer.record_quote_marker('quote.sell_response', sent['order'], sent=sent)
+            tracer.record_quote_marker(f"quote.{sent['side']}_response", sent['order'], sent=sent)
         except Exception:
             pass
 
 
-def observe_spot_sell_open(connector, order):
+def observe_spot_quote_open(connector, order):
     tracer = _ACTIVE
     if tracer is not None:
         try:
@@ -382,7 +397,7 @@ def observe_spot_sell_open(connector, order):
                     and 0 <= order.executed_amount_base < order.amount):
                 identity = _identity(order.client_order_id)
                 if identity:
-                    tracer.record_quote_marker('quote.sell_open', identity)
+                    tracer.record_quote_marker('quote.open', identity)
         except Exception:
             pass
 
@@ -409,7 +424,7 @@ def trace_runtime(operation, *, order_parameter=None):
             try:
                 metadata = fields(args, kwargs)
                 if operation == 'order.submit' and metadata['order']:
-                    observe_spot_sell_submit(metadata['order'])
+                    observe_spot_quote_submit(metadata['order'])
                 return tracer.begin(operation, **metadata)
             except Exception:
                 return None  # Metadata is never permission to fail a business operation.
@@ -462,12 +477,15 @@ class EngineDiagnostics:
         self.recent, self.active, self.operations = deque(maxlen=capacity), {}, {}
         self._shutdown_recent = deque(maxlen=32)
         self._submission_recent = deque(maxlen=64)
-        self._order_dispatch_samples = deque(maxlen=_DISPATCH_SAMPLE_LIMIT)
+        self._order_dispatch_samples = deque(maxlen=_LATENCY_SAMPLE_LIMIT)
         self._quote_fills, self._quote_sends = {}, {}
         self._quote_attempts = {}
-        self._slow_quotes = deque(maxlen=8)
-        self._dropped_slow_quotes = 0
-        self._last_quote_warning_ns = -_QUOTE_WARNING_INTERVAL_NS
+        self._quote_samples = {side: deque(maxlen=_LATENCY_SAMPLE_LIMIT) for side in _QUOTE_SIDES}
+        self._quote_counts = {side: dict(completed=0, expired=0, superseded=0, evicted=0, unlinked_open=0)
+                              for side in _QUOTE_SIDES}
+        self._slow_quotes = {side: deque(maxlen=8) for side in _QUOTE_SIDES}
+        self._dropped_slow_quotes = dict.fromkeys(_QUOTE_SIDES, 0)
+        self._last_quote_warning_ns = dict.fromkeys(_QUOTE_SIDES, -_QUOTE_WARNING_INTERVAL_NS)
         self._submission_completed = self._submission_published = 0
         self._last_submission_emitted_ns = -2_000_000_000
         self.sequence = self.dropped_spans = self.sink_errors = 0
@@ -604,20 +622,26 @@ class EngineDiagnostics:
         with self.lock:
             if self._closed:
                 return None
-            evidence = dict(lane=lane, replaces=None)
-            if operation == 'quote.sell_fill':
+            side, _, stage = operation.removeprefix('quote.').partition('_')
+            evidence = dict(lane=lane, side=side, replaces=None)
+            if stage == 'fill':
                 previous = self._quote_fills.get(lane)
                 if previous and previous[0] == order:
                     return None
+                if previous:
+                    count = 'expired' if now - previous[1] > _QUOTE_LINK_TTL_NS else 'superseded'
+                    self._quote_counts[side][count] += 1
                 if lane not in self._quote_fills and len(self._quote_fills) >= _QUOTE_LIMIT:
-                    del self._quote_fills[next(iter(self._quote_fills))]
-                self._quote_fills[lane] = (order, now, {})
-            elif operation == 'quote.sell_send':
+                    _, _, evicted = self._quote_fills.pop(next(iter(self._quote_fills)))
+                    self._quote_counts[evicted['side']]['evicted'] += 1
+                self._quote_fills[lane] = (order, now, {'side': side})
+            elif stage == 'send':
                 fill = self._quote_fills.get(lane)
                 timings = {}
                 evidence.update(fill_at_ns=None, sent_at_ns=now, http_response_at_ns=None)
                 if fill and 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS and fill[0] != order:
                     evidence.update(replaces=fill[0], fill_at_ns=fill[1])
+                    fill[2]['last_sent_at_ns'] = now
                     timings = dict(fill[2])
                     attempt = self._quote_attempts.get(executor)
                     if attempt and (attempt['lane'], attempt['replaces'], attempt.get('order')) == (lane, fill[0], order):
@@ -626,15 +650,23 @@ class EngineDiagnostics:
                 if order not in self._quote_sends and len(self._quote_sends) >= _QUOTE_LIMIT:
                     del self._quote_sends[next(iter(self._quote_sends))]
                 self._quote_sends[order] = {**evidence, **timings}
-            elif operation == 'quote.sell_open':
+            elif stage == 'open' or operation == 'quote.open':
                 evidence = self._quote_sends.pop(order, None)
                 if evidence is None or not 0 <= now - evidence['sent_at_ns'] <= _QUOTE_LINK_TTL_NS:
                     return None
+                side = evidence['side']
+                operation = f'quote.{side}_open'
                 fill = self._quote_fills.get(evidence['lane'])
-                if fill and fill[0] == evidence['replaces']:
+                if fill and fill[0] == evidence['replaces'] and 0 <= now - fill[1] <= _QUOTE_LINK_TTL_NS:
                     del self._quote_fills[evidence['lane']]
-            elif operation == 'quote.sell_response':
-                evidence = {key: sent[key] for key in ('lane', 'replaces', 'fill_at_ns', 'sent_at_ns')}
+                    duration = (now - fill[1]) / 1e6
+                    evidence['fill_to_open_ms'] = duration
+                    self._quote_samples[side].append(duration)
+                    self._quote_counts[side]['completed'] += 1
+                else:
+                    self._quote_counts[side]['unlinked_open'] += 1
+            elif stage == 'response':
+                evidence = {key: sent[key] for key in ('lane', 'side', 'replaces', 'fill_at_ns', 'sent_at_ns')}
                 evidence['http_response_at_ns'] = now
                 pending = self._quote_sends.get(order)
                 if pending is not None and pending['sent_at_ns'] == sent['sent_at_ns']:
@@ -643,11 +675,11 @@ class EngineDiagnostics:
                 return None
             row = dict(operation=operation, at_ns=now, order=order, **evidence)
             self._retain_submission(row)
-            if (operation == 'quote.sell_open' and 'replacement_submit_at_ns' in row and 'first_proposal_at_ns' in row
-                    and row['replacement_submit_at_ns'] - row['first_proposal_at_ns'] >= _QUOTE_SLOW_NS):
-                if len(self._slow_quotes) == self._slow_quotes.maxlen:
-                    self._dropped_slow_quotes += 1
-                self._slow_quotes.append(row)
+            if row.get('fill_to_open_ms', 0) >= _QUOTE_SLOW_NS / 1e6:
+                quotes = self._slow_quotes[side]
+                if len(quotes) == quotes.maxlen:
+                    self._dropped_slow_quotes[side] += 1
+                quotes.append(row)
             return row
 
     @contextmanager
@@ -673,15 +705,17 @@ class EngineDiagnostics:
                         shutdown_recent=[dict(row) for row in self._shutdown_recent],
                         submission_recent=[dict(row) for row in self._submission_recent],
                         order_dispatch=self._order_dispatch_summary(),
+                        quote_replacement=self._quote_replacement_summary(),
                         operations={name: dict(stats) for name, stats in self.operations.items()},
                         dropped_spans=self.dropped_spans, sink_errors=self.sink_errors,
                         sql_hooks_attached=bool(self.hooks))
 
     def _order_dispatch_summary(self):
-        samples = sorted(self._order_dispatch_samples)
-        count = len(samples)
-        return dict(samples=count, p95_ms=samples[(count * 95 + 99) // 100 - 1] if count else None,
-                    max_ms=samples[-1] if count else None)
+        return _recent_latency(self._order_dispatch_samples)
+
+    def _quote_replacement_summary(self):
+        return {side: {**self._quote_counts[side], **_recent_latency(values)}
+                for side, values in self._quote_samples.items()}
 
     def _stacks(self, active):
         # Never retain frames, source lines, locals, SQL or request objects.
@@ -744,25 +778,45 @@ class EngineDiagnostics:
             operations = {name: {'completed': stats['completed'], 'errors': stats['errors']}
                           for name, stats in self.operations.items() if name in SUBMISSION_OPERATIONS}
             dispatch = self._order_dispatch_summary()
+            quote_replacement = self._quote_replacement_summary()
         self._last_submission_emitted_ns = now
         payload = dict(event='order_submission_stages', at_ns=now, wall_time_ns=time.time_ns(), process_id=os.getpid(),
-                       operations=operations, completed=completed, order_dispatch=dispatch, from_sequence=first + 1, to_sequence=last,
+                       operations=operations, completed=completed, order_dispatch=dispatch, quote_replacement=quote_replacement,
+                       from_sequence=first + 1, to_sequence=last,
                        dropped_since_previous=max(0, last - first - len(completed)))
         if self._deliver(payload):
             with self.lock:
                 self._submission_published = last
 
     def _publish_slow_quotes(self, now):
-        if not self._slow_quotes or now - self._last_quote_warning_ns < _QUOTE_WARNING_INTERVAL_NS:
+        sides = {side for side, last in self._last_quote_warning_ns.items() if now - last >= _QUOTE_WARNING_INTERVAL_NS}
+        if not sides or (not self._quote_fills and not any(self._slow_quotes.values())):
             return
+        pending = {side: [] for side in sides}
         with self.lock:
-            replacements = list(self._slow_quotes)
-            dropped = self._dropped_slow_quotes
-            self._slow_quotes.clear()
-            self._dropped_slow_quotes = 0
-        self._last_quote_warning_ns = now
-        self._deliver(dict(event='spot_sell_replacement_slow', at_ns=now, wall_time_ns=time.time_ns(),
-                           process_id=os.getpid(), replacements=replacements, dropped=dropped))
+            for lane, (order, filled_at, timings) in list(self._quote_fills.items()):
+                side = timings['side']
+                age = now - filled_at
+                if age > _QUOTE_LINK_TTL_NS:
+                    del self._quote_fills[lane]
+                    self._quote_counts[side]['expired'] += 1
+                if age >= _QUOTE_PENDING_WARNING_NS and side in sides:
+                    waiting_for = ('open' if 'last_sent_at_ns' in timings else
+                                   'dispatch' if 'first_proposal_at_ns' in timings else 'proposal')
+                    pending[side].append(dict(lane=lane, order=order, age_ms=age / 1e6, waiting_for=waiting_for,
+                                              expired=age > _QUOTE_LINK_TTL_NS, **timings))
+            batches = []
+            for side in sides:
+                if self._slow_quotes[side] or pending[side]:
+                    items = sorted(pending[side], key=lambda row: row['age_ms'], reverse=True)
+                    batches.append(dict(event=f'spot_{side}_replacement_slow', at_ns=now, wall_time_ns=time.time_ns(),
+                                        process_id=os.getpid(), replacements=list(self._slow_quotes[side]),
+                                        pending=items[:8], pending_count=len(items), dropped=self._dropped_slow_quotes[side]))
+                    self._last_quote_warning_ns[side] = now
+                    self._slow_quotes[side].clear()
+                    self._dropped_slow_quotes[side] = 0
+        for payload in batches:
+            self._deliver(payload)
 
     def _read_scheduler(self):
         if self._loop_native_tid is None:

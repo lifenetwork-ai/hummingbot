@@ -7,10 +7,12 @@ from unittest.mock import Mock
 
 import pytest
 
+from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.core import engine_diagnostics as diagnostic, order_submission_guard as gates
 from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.in_flight_order import OrderState
 from hummingbot.core.engine_diagnostics import EngineDiagnostics
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 
@@ -85,28 +87,28 @@ def test_spot_sell_milestones_keep_scope_and_record_ws_evidence_before_http(monk
                               data=json.dumps(dict(clOrdId=order.client_order_id, side='sell', ordType='post_only')))
     executor = SimpleNamespace(config=config, _completed_entry_fill_timestamp=lambda: 1)
 
-    diagnostic.observe_spot_sell_fill(executor, 'private-filled')
-    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), order)  # Unobserved transport.
-    diagnostic.observe_spot_sell_handoff(config, 'account_wait_at_ns', 'different-order')
+    diagnostic.observe_spot_quote_fill(executor, 'private-filled')
+    diagnostic.observe_spot_quote_open(SimpleNamespace(name='okx'), order)  # Unobserved transport.
+    diagnostic.observe_spot_quote_handoff(config, 'account_wait_at_ns', 'different-order')
     now[0] += 10_000_000
-    diagnostic.observe_spot_sell_handoff(dict(config, mm_generation=2), 'first_proposal_at_ns')
+    diagnostic.observe_spot_quote_handoff(dict(config, mm_generation=2), 'first_proposal_at_ns')
     with gates.session_order_scope('private-session', 2, executor=dict(config, mm_generation=2)):
-        unrelated = diagnostic.observe_spot_sell_dispatch(request)
+        unrelated = diagnostic.observe_spot_quote_dispatch(request)
     assert unrelated[1]['replaces'] is None
-    diagnostic.observe_spot_sell_handoff(config, 'first_proposal_at_ns')
+    diagnostic.observe_spot_quote_handoff(config, 'first_proposal_at_ns')
     order.client_order_id = 'private-same-level'
     request.data = json.dumps(dict(clOrdId=order.client_order_id, side='sell', ordType='post_only'))
     with gates.session_order_scope('private-session', 1, executor=config):
-        dispatched = diagnostic.observe_spot_sell_dispatch(request)
+        dispatched = diagnostic.observe_spot_quote_dispatch(request)
 
     assert not records
     now[0] += 12_000_000
-    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx_perpetual'), order)
-    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), SimpleNamespace(**{**vars(order), 'executed_amount_base': 1}))
-    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), order)
-    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), order)
+    diagnostic.observe_spot_quote_open(SimpleNamespace(name='okx_perpetual'), order)
+    diagnostic.observe_spot_quote_open(SimpleNamespace(name='okx'), SimpleNamespace(**{**vars(order), 'executed_amount_base': 1}))
+    diagnostic.observe_spot_quote_open(SimpleNamespace(name='okx'), order)
+    diagnostic.observe_spot_quote_open(SimpleNamespace(name='okx'), order)
     now[0] += 15_000_000
-    diagnostic.observe_spot_sell_response(dispatched)
+    diagnostic.observe_spot_quote_response(dispatched)
     tracer._beat_ns = now[0]
     tracer.watch_once()
 
@@ -156,31 +158,31 @@ def test_spot_sell_warning_joins_executor_stages_and_keeps_only_slow_replacement
                   mm_session_id='private-session', mm_generation=1, controller_id='private-controller',
                   trading_pair='BTC-USDT', level_id='sell_0')
     executor = SimpleNamespace(config=config, _completed_entry_fill_timestamp=lambda: 1)
-    diagnostic.observe_spot_sell_fill(executor, 'private-original')
-    diagnostic.observe_spot_sell_handoff(config, 'first_proposal_at_ns')
+    diagnostic.observe_spot_quote_fill(executor, 'private-original')
+    diagnostic.observe_spot_quote_handoff(config, 'first_proposal_at_ns')
     first_proposal = now[0]
     if reprice:
         now[0] += 1_000_000
-        diagnostic.observe_spot_sell_executor(config, 'created')
+        diagnostic.observe_spot_quote_executor(config, 'created')
         with gates.session_order_scope('private-session', 1, executor=config):
-            diagnostic.observe_spot_sell_submit('private-rejected-order')
-        diagnostic.observe_spot_sell_executor(config, 'rejected', 'private-rejected-order', reason='QuoteRefreshRequired')
+            diagnostic.observe_spot_quote_submit('private-rejected-order')
+        diagnostic.observe_spot_quote_executor(config, 'rejected', 'private-rejected-order', reason='QuoteRefreshRequired')
         now[0] += 1_400_000_000 if slow else 40_000_000
         config = dict(config, id='private-replacement')
-        diagnostic.observe_spot_sell_handoff(config, 'first_proposal_at_ns')
+        diagnostic.observe_spot_quote_handoff(config, 'first_proposal_at_ns')
     proposal = now[0]
     now[0] += 1_300_000_000 if slow and not reprice else 3_000_000
-    diagnostic.observe_spot_sell_executor(config, 'created')
+    diagnostic.observe_spot_quote_executor(config, 'created')
     order = SimpleNamespace(client_order_id='private-worked', exchange_order_id='private-native',
                             amount=1, executed_amount_base=0)
     request = SimpleNamespace(throttler_limit_id='/api/v5/trade/order', method=RESTMethod.POST, is_auth_required=True,
                               data=json.dumps(dict(clOrdId=order.client_order_id, side='sell', ordType='post_only')))
     with gates.session_order_scope('private-session', 1, executor=config):
-        diagnostic.observe_spot_sell_submit(order.client_order_id)
+        diagnostic.observe_spot_quote_submit(order.client_order_id)
         submitted = now[0]
-        diagnostic.observe_spot_sell_dispatch(request)
+        diagnostic.observe_spot_quote_dispatch(request)
     now[0] += 40_000_000
-    diagnostic.observe_spot_sell_open(SimpleNamespace(name='okx'), order)
+    diagnostic.observe_spot_quote_open(SimpleNamespace(name='okx'), order)
     for _ in range(65):
         with tracer.span('order.intent', order='private-other-order'):
             pass
@@ -238,6 +240,53 @@ def test_slow_replacement_warnings_batch_and_bound_retention():
     _, next_batch = warnings()
     assert next_batch['dropped'] == 2
     assert [row['order'] for row in next_batch['replacements']] == [f'quote-{i}' for i in range(3, 11)]
+
+
+@pytest.mark.parametrize('side', ['buy', 'sell'])
+@pytest.mark.parametrize('waiting_at', ['proposal', 'open'])
+def test_spot_replacement_reports_an_unfinished_gap_and_then_end_to_end_time(monkeypatch, side, waiting_at):
+    now, records = [10_000_000_000], []
+    tracer = EngineDiagnostics(clock=lambda: now[0], emit=records.append)
+    tracer._started = True
+    monkeypatch.setattr(diagnostic, '_ACTIVE', tracer)
+    config = dict(type='position_executor', connector_name='okx', use_configured_entry_price=True,
+                  id='candidate', mm_session_id='session', mm_generation=1, controller_id='controller',
+                  trading_pair='BTC-USDT', level_id=f'{side}_0')
+    executor = SimpleNamespace(config=config, _completed_entry_fill_timestamp=lambda: 1)
+    order = SimpleNamespace(client_order_id='replacement', exchange_order_id='native',
+                            trade_type=TradeType[side.upper()], amount=1, executed_amount_base=0,
+                            build_order_created_message=lambda: 'order created')
+    request = SimpleNamespace(throttler_limit_id='/api/v5/trade/order', method=RESTMethod.POST, is_auth_required=True,
+                              data=json.dumps(dict(clOrdId=order.client_order_id, side=side, ordType='post_only')))
+
+    def dispatch():
+        diagnostic.observe_spot_quote_handoff(config, 'first_proposal_at_ns')
+        with gates.session_order_scope('session', 1, executor=config):
+            assert diagnostic.observe_spot_quote_dispatch(request) is not None
+
+    def publish():
+        tracer._beat_ns = now[0]
+        tracer.watch_once()
+        return [r for r in records if r['event'] == f'spot_{side}_replacement_slow']
+
+    diagnostic.observe_spot_quote_fill(executor, 'filled')
+    if waiting_at == 'open':
+        dispatch()
+    now[0] += 6_000_000_000
+    pending, = publish()
+    item, = pending['pending']
+    assert item['waiting_for'] == waiting_at and item['age_ms'] == 6000
+    assert not pending['replacements']
+    if waiting_at == 'proposal':
+        dispatch()
+    ClientOrderTracker(SimpleNamespace(name='okx'))._note_creation(order, OrderState.OPEN)
+    now[0] += 30_000_000_000
+    _, completed = publish()
+    sample, = completed['replacements']
+    assert completed['pending'] == []
+    assert sample['fill_to_open_ms'] == 6000
+    summary = tracer.snapshot()['quote_replacement'][side]
+    assert summary['completed'] == summary['samples'] == 1 and summary['max_ms'] == 6000
 
 
 def test_eight_order_burst_retains_all_five_phases_before_next_batch():

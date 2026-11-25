@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Union
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.order_candidate import OrderCandidate, PerpetualOrderCandidate
-from hummingbot.core.engine_diagnostics import observe_spot_sell_executor, observe_spot_sell_fill
+from hummingbot.core.engine_diagnostics import observe_spot_quote_executor, observe_spot_quote_fill
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
     BuyOrderCreatedEvent,
@@ -779,7 +779,7 @@ class PositionExecutor(ExecutorBase):
 
         if (self._is_managed_maker_entry and self._open_order
                 and self._open_order.order_id == event.order_id):
-            observe_spot_sell_fill(self, event.order_id)
+            observe_spot_quote_fill(self, event.order_id)
             notify = getattr(self._strategy, 'notify_executor_entry_filled', None)
             if callable(notify):
                 notify(self)
@@ -826,7 +826,7 @@ class PositionExecutor(ExecutorBase):
         if self._open_order and event.order_id == self._open_order.order_id:
             from hummingbot.core.order_submission_guard import proved_zero_fill_rejection
 
-            observe_spot_sell_executor(self.config, 'rejected', event.order_id, reason=event.error_type)
+            observe_spot_quote_executor(self.config, 'rejected', event.order_id, reason=event.error_type)
             session_closed = (event.error_type == 'SessionSubmissionBlocked'
                               and getattr(self.config, 'mm_session_id', None) is not None
                               and self.config.triple_barrier_config.open_order_type == OrderType.LIMIT_MAKER)

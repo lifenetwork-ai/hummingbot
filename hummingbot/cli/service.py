@@ -800,7 +800,7 @@ class ServiceHost:
                 or session.request.selection != 'random' or step_end is None
                 or session.expires_at is not None and step_end >= session.expires_at):
             return
-        lead = min(PREPARE_SECONDS / 2, session.request.step_duration_seconds / 2)
+        lead = min(PREPARE_SECONDS, session.request.step_duration_seconds / 2)
         if 0 < step_end - float(row['database_now']) <= lead:
             target = session.model_copy(deep=True)
             if target.advance(now=nextafter(step_end, inf), rng=rng) and target.status == 'preparing':
@@ -813,7 +813,7 @@ class ServiceHost:
     @staticmethod
     def advance_profile(session, now, rng, preparation, *, repeat=None):
         session.advance(now=now, rng=rng, repeat=repeat == (session.id, session.generation, session.step_index))
-        if (preparation is not None and preparation.automatic and preparation.ready
+        if (preparation is not None and preparation.automatic
                 and (session.id, session.generation, session.step_index, session.status) == (
                     *preparation.identity, preparation.session.step_index, 'preparing')):
             session.profile_id = preparation.session.profile_id
@@ -941,12 +941,15 @@ class ServiceHost:
                     and float(row["database_now"]) >= self.mm_session.step_expires_at
                     and (not (row["recovery_state"] or {}).get("halt") or session_expired)
                     and (session_expired or not self.mm_startup_pending())):
-                preparation = self.profile_switch
                 recovery = row['recovery_state'] or {}
-                repeat = self.random_repeat if (self.running and self.phase == 'running' and self.owner.allow_new_orders
-                                                and row['control_version'] == self.applied_version
-                                                and not recovery.get('pending_mutations')
-                                                and not recovery.get('mm_profile_switch')) else None
+                can_prepare_handoff = (self.running and not self.stop.is_set()
+                                       and row['control_version'] == self.applied_version
+                                       and (self.mm_session.id, self.mm_session.generation) == self.applied_mm_identity
+                                       and not any(recovery.get(key) for key in ('halt', 'pending_mutations', 'mm_profile_switch'))
+                                       and (self.automatic_order_recovery is None or not self.automatic_order_recovery.active))
+                preparation = self.profile_switch if can_prepare_handoff else None
+                repeat = (self.random_repeat if can_prepare_handoff and self.phase == 'running'
+                          and self.owner.allow_new_orders else None)
                 try:
                     self.mm_session = await self._update_mm_session(
                         owner_uuid=self.owner.owner_uuid, owner_generation=self.owner.generation, version=row["control_version"],
@@ -955,7 +958,7 @@ class ServiceHost:
                 except ControlConflict:
                     return
                 self.random_repeat = None
-                if (preparation is not None and preparation.automatic and preparation.ready
+                if (preparation is not None and preparation.automatic
                         and preparation.identity == (self.mm_session.id, self.mm_session.generation)
                         and self.mm_session.status == 'preparing'
                         and self.mm_session.step_index == preparation.session.step_index
@@ -976,8 +979,16 @@ class ServiceHost:
             automatic = self.automatic_order_recovery
             keep_market_data = (self.running and self.profile_switch is not None and self.profile_switch.promoted
                                 and row['desired_state'] == 'running' and mm_identity == self.profile_switch.identity
+                                and (not self.profile_switch.automatic or version == self.applied_version)
                                 and (automatic is None or not automatic.active)
-                                and not (row['recovery_state'] or {}).get('halt'))
+                                and not self.stop.is_set()
+                                and not any((row['recovery_state'] or {}).get(key) for key in ('halt', 'pending_mutations')))
+            if keep_market_data and self.profile_switch.automatic:
+                preparation_ready = self.profile_switch.ready
+                self.log.log(logging.INFO if preparation_ready else logging.WARNING,
+                             "Random MM profile cutover selected market data reuse",
+                             extra={"event": "mm_random_profile_cutover", "step_index": self.mm_session.step_index,
+                                    "preparation_ready": preparation_ready, "guards_ready": self.profile_switch.guards_ready})
             stopped = await self.stop_core(keep_market_data=True) if keep_market_data else await self.stop_core()
             if not stopped:
                 raise RuntimeError("Service cleanup did not complete; process exit is required.")

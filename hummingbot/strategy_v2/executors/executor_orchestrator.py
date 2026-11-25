@@ -14,7 +14,11 @@ from sqlalchemy.engine import Row
 from hummingbot.connector.markets_recorder import MarketsRecorder
 from hummingbot.core.data_type.common import PositionAction, PositionMode, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
-from hummingbot.core.engine_diagnostics import observe_spot_sell_entry_stage, observe_spot_sell_executor, trace_runtime
+from hummingbot.core.engine_diagnostics import (
+    observe_spot_quote_entry_stage,
+    observe_spot_quote_executor,
+    trace_runtime,
+)
 from hummingbot.core.operational_warnings import ExecutorArchiveBusy, PositionCheckpointBusy, PositionCheckpointPending
 from hummingbot.logger import HummingbotLogger
 from hummingbot.model.executors import Executors
@@ -930,7 +934,7 @@ class ExecutorOrchestrator:
         else:
             raise ValueError("Unsupported executor config type")
 
-        observe_spot_sell_executor(executor_config, 'created')
+        observe_spot_quote_executor(executor_config, 'created')
         executor.start()
         self.active_executors[controller_id].append(executor)
         # MarketsRecorder.get_instance().store_or_update_executor(executor)
@@ -1066,7 +1070,7 @@ class ExecutorOrchestrator:
                 cancelled = None
                 if fresh:
                     for info in fresh:
-                        observe_spot_sell_entry_stage(info, 'checkpoint_started_at_ns')
+                        observe_spot_quote_entry_stage(info, 'checkpoint_started_at_ns')
                     try:
                         cancelled = await recorder.persist_held_positions(
                             positions, [info.model_copy(deep=True) for info in fresh], bases,
@@ -1077,7 +1081,7 @@ class ExecutorOrchestrator:
                 self.positions_held, self.executors_ids_position_held = committed
                 self._position_checkpoint_retry_at = 0.0
                 for info in fresh:
-                    observe_spot_sell_entry_stage(info, 'checkpoint_committed_at_ns')
+                    observe_spot_quote_entry_stage(info, 'checkpoint_committed_at_ns')
                 if cancelled is not None:
                     raise cancelled
         finally:

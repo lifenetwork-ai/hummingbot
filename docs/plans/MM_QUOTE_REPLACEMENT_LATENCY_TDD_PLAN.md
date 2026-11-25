@@ -4,6 +4,139 @@ Scope: optimize the verified revision110 path without changing caps, fee-inclusi
 breakeven, terminal proof, native financial commits or quote qualification.
 Existing Demo runs and failed quote windows retain their original scope.
 
+## Revision 292 latency plan for 2026-11-25
+
+The user-visible outcomes are time to replenish a filled level, time without a
+working quote on either eligible side during a switch, and time to publish the
+requested ladder. Record three separate clocks for these outcomes. A working
+quote requires native order evidence. A controller reporting ready can precede
+the first working quote.
+
+| Observed on Demo revision `00292-rwk` | Evidence and scope |
+| --- | --- |
+| 12.68 s from fill to replacement OPEN | Earlier Spot SELL episode around 14:07 ICT. Two guard-recovery intervals occurred before the viable proposal. |
+| 60.74 s from Random step change to running | At 15:30 ICT, switching sideways to follow_market. Across about 48.5 s, Spot and Perpetual order-book clients each logged 43 public Demo WS handshake errors with HTTP 502. The actual interval without a working quote and the reason each connection needed to open remain to be measured. |
+| About 10.9 s from inconsistent own depth to Spot ready | Separate episode at 15:32 ICT. Public depth and the private view of own orders disagreed. The warm-guard change is local. |
+| 1.71 s for a complete submit span | Slowest detailed sample in the 15:07–15:37 ICT window. Another order in the burst waited 906 ms for the recorder, including 405 ms across four OPEN ACK grants and 396 ms across eleven final authority grants. |
+
+### Proposed targets
+
+| Interval | Initial engineering target |
+| --- | --- |
+| Fill received to replacement OPEN on the same eligible Spot side and level, with healthy dependencies | p95 ≤ 1 s and p99 ≤ 2 s |
+| Loss of the last working quote on an eligible side to first working quote on that side during a healthy profile change | ≤ 2 s per side on the cutovers reviewed. A side that retains coverage has zero gap. Also report time to restore every eligible level. |
+| A level's proposal ready to first HTTP dispatch, across bursts of up to ten levels per side | p95 ≤ 250 ms and p99 ≤ 500 ms. Report first and last dispatch for each burst and time to the last durable OPEN. |
+| All required data and safety checks valid again after an outage to first eligible proposal dispatched | ≤ 500 ms locally. Report first successful connection, first usable book, full qualification and first durable OPEN separately. |
+
+These budgets are proposed acceptance criteria. Preserve the end-to-end totals,
+including outages and risk holds. Publish the healthy cohort alongside them.
+Flag every gap over 5 s with its timeline, outstanding prerequisite and affected
+levels. Count unfinished or ambiguously linked replacements explicitly.
+
+### Execution order
+
+1. **Capture the full timeline on the current path.** Extend the existing bounded
+   diagnostics in `hummingbot/core/engine_diagnostics.py`. The current slow
+   replacement warning requires a Spot SELL to reach OPEN and a slow interval
+   between its first proposal and submit. Cover BUY and SELL, waits before the
+   first proposal, HTTP/ACK waits, and work still outstanding. Join by session,
+   step, market, side, level and native identities. Use a monotonic clock within
+   each process. Label venue timestamps and any sampled bounds. Keep aggregates
+   over ordinary completions as well as bounded slow traces. Include the
+   number of dropped, superseded and unlinked samples. Exercise each missing
+   case with a deterministic clock and confirm collection adds no synchronous
+   database write on the submit path.
+2. **Qualify the pending warm-guard fix first.** Replay a fill that reaches the
+   tracker before the public book catches up, then reverse delivery order.
+   Verify the warm strict guard closes immediately and accepts two strictly
+   newer qualifying public books. Tracker-only changes and replayed book
+   timestamps must leave it closed. Exercise cold start, stale/empty/own-only
+   books, reconnect and price deviation with their normal recovery rules. Run
+   the native quote replay and packaged `quote-guards` and `rolling-refresh`.
+   Measure second qualified update to proposal. If a sleeping controller
+   accounts for the residual, test a coalesced wake while that guard is
+   recovering, retaining its periodic freshness check.
+3. **Run the Random handoff and feed work in parallel with guard qualification.**
+   Instrument `hummingbot/cli/service.py` and `hummingbot/cli/profile_switch.py`
+   at next-target selection, dependency acquisition, promotion decision,
+   old-order drain, stream reuse/reconnect and new generation readiness. Random
+   currently starts preparing at most 10 s before expiry. Only a promoted
+   preparation can select the path that retains market data. Reproduce a late
+   preparation on an otherwise healthy feed and a separate 50 s public Demo
+   handshake outage. Measure which connections and reference pairs each profile
+   actually needs, including retained-exposure valuation. Use that evidence to
+   select the warmup lead, preserve the selected target across handoff, retain
+   compatible healthy public feeds across a late preparation, and start guard
+   sampling as soon as its inputs qualify. Scope reuse by environment, market,
+   pair and current credentials where applicable. Give each failed subscription
+   one bounded reconnect loop with jitter if duplicate work is reproduced.
+   Verify quick detection when connectivity returns. The old generation may
+   quote only while authorized. Stop, expiry, a changed owner or account, and
+   unresolved orders must still fence the handoff. Run packaged
+   `startup-latency`, `until-stopped` and `shutdown-proof`, including a
+   spot-only case with and without genuine perpetual data dependencies.
+4. **Reduce the shared recorder wait under a real burst.** Replay one order,
+   then 10 BUY plus 10 SELL with the deployed batching settings and real
+   PostgreSQL. Inject a controlled database round-trip delay and overlap
+   receipts, OPEN ACKs, late fills and a terminal update. Compare queue time,
+   SQL/flush/commit time inside each grant, pool checkout, and HTTP time on
+   the same workload. Inspect `hummingbot/core/bot_ownership.py` and
+   `hummingbot/connector/markets_recorder.py`. Shorten the longest measured
+   ACK or per-order authority work first. A pool change needs measured checkout
+   contention. Use the existing submission-stage, send-priority and send-gate
+   PostgreSQL tests. Stop between siblings, owner loss, cancellation, unknown
+   COMMIT and restart must retain durable intent, reservations and exactly-once
+   financial application. For an uncertain send, verify zero automatic resends.
+   Compare first/last dispatch and last OPEN so prioritizing one level cannot
+   hide slower completion of the ladder.
+5. **Qualify each change independently.** Compare baseline and candidate images
+   with the same resources, profiles, market replay and fault schedule. Run the
+   full CI suite on the release candidate. Observe one active Demo revision per
+   window, beginning with 30 minutes, and extend across at least ten healthy
+   cutovers. Report count, maximum and unfinished cases per cohort. Require at
+   least 100 completed samples for a p95 and 1,000 for a p99 before using them
+   to qualify a target. With fewer cutovers report each one. Check the existing
+   99% two-sided quote gate with its unchanged classifier. A duplicate send,
+   lost fill, stale-generation send, spurious HALT or regression in quote
+   coverage blocks promotion. Revert the offending change and retain the failed
+   window for comparison. Measure the 502 replay separately from healthy handoffs.
+
+### Local implementation and replay
+
+- The warm strict guard resumes after two distinct, newer, qualified public
+  books when a previously ready market briefly disagrees with its tracked
+  orders. The tests exercise a private-only correction, duplicate public
+  timestamp, cold start, stale book and deviation.
+- Random prepares up to 20 seconds before expiry, bounded by half of the step.
+  Guard sampling overlaps the other preparations. A matching pending preview
+  retains its selected profile and provider as the old generation drains.
+  Concurrent Stop, control-version change and account mutation force the
+  ordinary cleanup path. Packaged guarded Switch measured a 576 ms gap from
+  final old terminal evidence to first new venue order. With new public
+  WebSocket handshakes returning HTTP 502 and existing sockets still connected,
+  another run measured 198 ms for BUY and 209 ms for SELL. The simulator saw
+  only the explicit failing handshake probe. Both transitions retained
+  Perpetual valuation under a Spot-only profile.
+- Diagnostics keep bounded fill, proposal, dispatch and OPEN milestones by
+  Spot side and level. A warning also shows samples still waiting for proposal,
+  dispatch or OPEN. The aggregate retains the latest 1,024 completions per
+  side and counts expired, superseded, evicted and unlinked observations.
+- With ten private OPEN events already queued, real PostgreSQL tests reduce
+  their commits from two to one, including a queued transport receipt. A
+  fresh 10 BUY plus 10 SELL run with 3 ms added per SQL statement had 146
+  statements at either ACK limit. The paired runs took 1,168 and 1,177 ms
+  through the last OPEN with limits eight and ten respectively. The mixed
+  burst remains outside the planned dispatch budget.
+- Packaged Demo-image overlays passed `quote-guards`, `rolling-refresh`,
+  `profile-switch`, `startup-latency`, `until-stopped`, `shutdown-proof` and
+  `feed-recovery`. The latter forced two HTTP 502 responses after closing
+  public sockets. No quote was sent while the reference was stale. All eight
+  quotes returned 2.05 s after enabling handshakes, on the same process.
+  The local stable backend run passed 12,177 tests. The targeted PostgreSQL
+  regression passed 86 tests, and the paired 20-order benchmark was also
+  verified against both ACK limits.
+  The 50-second outage replay and connected Demo measurements remain open.
+
 ## Intent contention cooldown and readiness evidence — local 2026-11-18
 
 - [x] Reproduce four unit and four real PostgreSQL failures before changing

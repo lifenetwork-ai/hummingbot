@@ -24,7 +24,7 @@ class ProfileSwitchPreparation:
                 self.references.setdefault(config.reference_connector, set()).update(ref.pair for ref in config.references)
         self.candles = []
         self.guard_samples = {}
-        self.guard_task = None
+        self.guard_task = asyncio.create_task(self.sample_guards()) if self.strict_guards else None
         self.task = asyncio.create_task(self.prepare())
         self.promoted = False
 
@@ -52,8 +52,6 @@ class ProfileSwitchPreparation:
                     break
                 except (ValueError, EnvironmentError):
                     await asyncio.sleep(.1)
-        if self.strict_guards:
-            self.guard_task = asyncio.create_task(self.sample_guards())
 
     async def _prepare_reference_books(self, name, pairs):
         connector = self.provider.get_connector_with_fallback(name)

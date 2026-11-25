@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy import event, update
 
+from hummingbot.connector import markets_recorder
 from hummingbot.core import bot_ownership
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate
@@ -106,8 +107,9 @@ def test_ready_send_passes_admission_waiting_on_recorder(native, monkeypatch):
 
 
 @pytest.mark.parametrize('interleave_receipt', [False, True])
-def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native, monkeypatch, interleave_receipt):
-    ids = ('first-open', 'second-open')
+@pytest.mark.parametrize('size', [2, 10])
+def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native, monkeypatch, interleave_receipt, size):
+    ids = tuple(f'private-open-{index}' for index in range(size))
     receipt_id = 'http-response'
     submitted_ids = (*ids, receipt_id) if interleave_receipt else ids
     dispatched, all_dispatched = set(), asyncio.Event()
@@ -173,7 +175,7 @@ def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native
     monkeypatch.setattr(slot, 'acquire', observe_queue)
     monkeypatch.setattr(native.recorder, '_persist_open_acknowledgements', persist_acks)
     native.loop.run_until_complete(asyncio.wait_for(exercise(), 10))
-    assert ordinary_observations == [[False, False]]
+    assert ordinary_observations == [[False] * size]
     assert writes == ([ids, (receipt_id,)] if interleave_receipt else [ids])
     assert native.transport.call.await_count == len(submitted_ids)
     assert not slot.locked()
@@ -183,6 +185,58 @@ def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native
         assert all(row.receipt['order']['ordId'] == 'venue-' + identity for identity, row in attempts.items())
         assert db.query(OrderStatus).filter(OrderStatus.status == 'BuyOrderCreated').count() == len(submitted_ids)
     assert not native.store.read()['recovery_state'].get('halt')
+
+
+@pytest.mark.parametrize('previous_ack_limit', [8, None], ids=['previous', 'candidate'])
+def test_two_sided_ladder_uses_native_persistence_with_production_batch_limits(native, monkeypatch, previous_ack_limit):
+    if previous_ack_limit is not None:
+        monkeypatch.setattr(markets_recorder, 'MAX_OPEN_ACK_BATCH', previous_ack_limit)
+    first_ready = 0.0
+    dispatched, opened = {}, {}
+    reply = native.transport.call.side_effect
+    stage_ack = native.market._order_tracker._note_creation
+
+    def roundtrip(*args):
+        time.sleep(.003)
+
+    async def venue(request):
+        identity = json.loads(request.data)['clOrdId']
+        assert identity not in dispatched
+        dispatched[identity] = (time.perf_counter() - first_ready) * 1000
+        return await reply(request)
+
+    def acknowledge(order, new_state):
+        assert new_state is OrderState.OPEN and order.client_order_id not in opened
+        opened[order.client_order_id] = (time.perf_counter() - first_ready) * 1000
+        return stage_ack(order, new_state)
+
+    async def burst():
+        nonlocal first_ready
+        first_ready = time.perf_counter()
+        with session_order_scope(native.session.id, native.session.generation):
+            await asyncio.gather(*(native.market._create_order(
+                side, f'ladder-{side.name}-{level}', 'LIFE-USDT', Decimal('1'),
+                OrderType.LIMIT_MAKER, Decimal('10')) for side in (TradeType.BUY, TradeType.SELL) for level in range(10)))
+
+    event.listen(native.engine, 'after_cursor_execute', roundtrip)
+    try:
+        with patch.object(native.transport.call, 'side_effect', venue), \
+                patch.object(native.market._order_tracker, '_note_creation', side_effect=acknowledge), \
+                queries(native.engine) as statements:
+            native.loop.run_until_complete(asyncio.wait_for(burst(), 10))
+    finally:
+        event.remove(native.engine, 'after_cursor_execute', roundtrip)
+    assert len(dispatched) == len(opened) == native.transport.call.await_count == 20
+    assert all(opened[identity] >= dispatched[identity] for identity in dispatched)
+    assert sorted(dispatched) == sorted(opened)
+    with native.manager.get_new_session() as db:
+        assert db.query(SubmissionAttempt).filter_by(state='acknowledged').count() == 20
+        assert db.query(Order).filter_by(creation_pending=False).count() == 20
+    assert not native.store.read()['recovery_state'].get('halt')
+    report(f'two_sided_ladder_ack_{markets_recorder.MAX_OPEN_ACK_BATCH}', {
+        'first_dispatch_ms': min(dispatched.values()), 'last_dispatch_ms': max(dispatched.values()),
+        'last_open_ms': max(opened.values()), 'sql_statements': len(statements),
+    })
 
 
 @pytest.mark.parametrize('trial,fifo', [(i, fifo) for i in range(3) for fifo in (True, False)])

@@ -122,21 +122,40 @@ def test_book_before_private_ack_masks_ambiguous_price_and_missing_competitive_o
     assert observation([order(price="100")], bids=[(99, 100)]).detail == "inconsistent_own_depth"
 
 
-def test_acknowledged_quote_missing_from_public_book_waits_then_recovers_on_fresh_books():
-    """Handover/private-public skew is a bounded safety wait, not a latched halt."""
+def test_ready_guard_recovers_from_own_depth_skew_on_two_newer_public_books():
     guard = ready_guard()
     own = order(price='100')
     inconsistent = observation([own], bids=[(99, 100)], timestamp=1003, now=1003)
-    blocked = guard.evaluate(inconsistent, Decimal('100'), 3, sample=True)
+    blocked = guard.evaluate(inconsistent, Decimal('100'), 3)
     assert not blocked['ready'] and blocked['detail'] == 'inconsistent_own_depth'
-    # Seeing the private state again cannot substitute for a fresh public book.
-    assert not guard.evaluate(inconsistent, Decimal('100'), 10, sample=True)['ready']
-    # Once the book contains the acknowledged order, remove its quantity and
-    # qualify external liquidity using the existing recovery time and samples.
-    consistent = observation([own], bids=[(100, 10), (99, 100)], timestamp=1011, now=1011)
-    assert not guard.evaluate(consistent, Decimal('100'), 11, sample=True)['ready']
-    fresh = observation([own], bids=[(100, 10), (99, 100)], timestamp=1013, now=1013)
-    assert guard.evaluate(fresh, Decimal('100'), 13, sample=True)['ready']
+    # A private fill can make the same public book look consistent.
+    own.current_state = OrderState.PARTIALLY_FILLED
+    own.executed_amount_base = Decimal('1')
+    corrected = observation([own], bids=[(99, 100)], timestamp=1003, now=1003)
+    assert guard.evaluate(corrected, Decimal('100'), 3.1, sample=True)['recovery_valid_samples'] == 0
+
+    first = observation([own], bids=[(99, 100)], timestamp=1004, now=1004)
+    assert not guard.evaluate(first, Decimal('100'), 4, sample=True)['ready']
+    same_version = observation([own], bids=[(99, 101)], timestamp=1004, now=1004)
+    assert guard.evaluate(same_version, Decimal('100'), 4.1, sample=True)['recovery_valid_samples'] == 1
+    second = observation([own], bids=[(99, 100)], timestamp=1005, now=1005)
+    assert not guard.evaluate(second, Decimal('100'), 5)['ready']
+    assert guard.evaluate(second, Decimal('100'), 5, sample=True)['ready']
+
+
+@pytest.mark.parametrize('interruption', ['cold_start', 'stale_book', 'deviation', 'outside_resume_band'])
+def test_own_depth_skew_does_not_shorten_other_guard_recoveries(interruption):
+    guard = QuoteGuard(policy()) if interruption == 'cold_start' else ready_guard()
+    inconsistent = observation([order(price='100')], bids=[(99, 100)], timestamp=1003, now=1003)
+    assert not guard.evaluate(inconsistent, Decimal('100'), 3)['ready']
+    if interruption == 'stale_book':
+        guard.evaluate(observation(timestamp=980), Decimal('100'), 4)
+    elif interruption in ('deviation', 'outside_resume_band'):
+        reference = Decimal('110' if interruption == 'deviation' else '101.5')
+        assert not guard.evaluate(observation(timestamp=1004, now=1004), reference, 4)['ready']
+    assert not guard.evaluate(observation(timestamp=1005, now=1005), Decimal('100'), 5, sample=True)['ready']
+    assert not guard.evaluate(observation(timestamp=1006, now=1006), Decimal('100'), 6, sample=True)['ready']
+    assert guard.evaluate(observation(timestamp=1007, now=1007), Decimal('100'), 7, sample=True)['ready']
 
 
 def test_cached_fill_and_lost_orders_are_included_in_own_price_uncertainty():

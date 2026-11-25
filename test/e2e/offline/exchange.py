@@ -105,6 +105,8 @@ class Exchange:
         self.cleanup_hidden_status_reads = {}
         self.mutations = []
         self.connections = 0
+        self.reject_public_handshakes = False
+        self.rejected_public_handshakes = 0
         self.subscriptions = []
         self.hold_ack = False
         self.submission_busy = False
@@ -364,6 +366,9 @@ class Exchange:
             return (web.json_response(self.quote_activity.snapshot()) if self.quote_activity else
                     web.json_response({'error': 'quote_activity_not_enabled'}, status=404))
         if path.startswith("/ws/"):
+            if path.endswith('/public') and self.reject_public_handshakes:
+                self.rejected_public_handshakes += 1
+                return web.json_response({'error': 'public_handshake_unavailable'}, status=502)
             return await self.websocket(request)
         if path == "/market-metrics":
             return web.json_response({"market_update_count": self.market_update_count,
@@ -387,7 +392,8 @@ class Exchange:
                                       "suppressed_terminal_events": list(self.suppressed_terminal_events),
                                       "withheld_fill_reads": self.withheld_fill_reads,
                                       "private_keepalive_messages": self.private_keepalive_messages,
-                                      "connections": self.connections, "subscriptions": self.subscriptions})
+                                      "connections": self.connections, "subscriptions": self.subscriptions,
+                                      "rejected_public_handshakes": self.rejected_public_handshakes})
         if path == "/control":
             return await self.control(await request.json())
         raw = await request.text()
@@ -677,6 +683,15 @@ class Exchange:
             await asyncio.sleep(self.terminal_read_delay_seconds)
 
     async def control(self, data):
+        if 'disconnect_public_feeds' in data and type(data['disconnect_public_feeds']) is not bool:
+            return web.json_response({'error': 'invalid_public_disconnect_fault'}, status=400)
+        if 'reject_public_handshakes' in data:
+            if type(data['reject_public_handshakes']) is not bool:
+                return web.json_response({'error': 'invalid_public_handshake_fault'}, status=400)
+            self.reject_public_handshakes = data['reject_public_handshakes']
+        if data.get('disconnect_public_feeds'):
+            await asyncio.gather(*(socket.close(code=1012) for socket, channels in list(self.sockets.items())
+                                   if 'books' in channels))
         for name in ('suppress_terminal_ws_for', 'withhold_fills_for'):
             if name in data:
                 values = data[name]

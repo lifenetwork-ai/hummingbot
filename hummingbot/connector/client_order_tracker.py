@@ -13,7 +13,7 @@ from cachetools import TTLCache
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.trade_fee import TradeFeeBase
-from hummingbot.core.engine_diagnostics import observe_spot_sell_open, trace_runtime
+from hummingbot.core.engine_diagnostics import observe_spot_quote_open, trace_runtime
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
     BuyOrderCreatedEvent,
@@ -631,8 +631,8 @@ class ClientOrderTracker:
         )
 
     def _note_creation(self, order, new_state):
-        if order.trade_type is TradeType.SELL and new_state in (OrderState.OPEN, OrderState.PARTIALLY_FILLED):
-            observe_spot_sell_open(self._connector, order)
+        if new_state in (OrderState.OPEN, OrderState.PARTIALLY_FILLED):
+            observe_spot_quote_open(self._connector, order)
         self.logger().info(order.build_order_created_message())
 
     def _trigger_order_creation(self, tracked_order: InFlightOrder, previous_state: OrderState, new_state: OrderState):

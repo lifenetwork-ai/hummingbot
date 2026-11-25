@@ -45,10 +45,17 @@ def scenario(harness):
          description='failed recovery read is actually exercised')
     assert not working() and len(harness.ledger()['accepted']) == boundary
     assert not harness.state()['recovery_state'].get('halt')
+    # Require real handshake failures before allowing either data stream back.
+    harness.control(reject_public_handshakes=True, disconnect_public_feeds=True)
+    rejected = poll(lambda: count if (count := harness.ledger()['rejected_public_handshakes']) >= 2 else None,
+                    description='public WebSocket reconnects actually receive HTTP 502')
+    assert not working() and len(harness.ledger()['accepted']) == boundary
     # WS return wins even when REST is still failing.
-    harness.control(stale_instruments=[])
+    restored_at = time.monotonic()
+    harness.control(stale_instruments=[], reject_public_handshakes=False)
     harness.wait_running(port)
     poll(lambda: len(working()) == 8, description='fresh WS resumes admitted quotes')
+    restored_quotes_seconds = time.monotonic() - restored_at
     restored = harness.state()['mm_session']
     assert all(restored[field] == session[field] for field in ('id', 'anchors', 'expires_at'))
     assert json.loads(docker('inspect', bot).stdout)[0]['State']['StartedAt'] == started_at
@@ -59,4 +66,5 @@ def scenario(harness):
     harness.metrics['feed_recovery'] = dict(quiet_seconds=13, samples=len(samples), eth_snapshot_reads=reads.count('ETH-USDT'),
                                             healthy_btc_snapshot_reads=0, stale_rest_withdrawal=True,
                                             rest_failure_stays_blocked=True, ws_recovered_same_process=True,
+                                            public_handshake_502_count=rejected, restored_quotes_seconds=restored_quotes_seconds,
                                             session_and_deadline_preserved=True, stopped=True, simulated=True)

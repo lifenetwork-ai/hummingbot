@@ -170,10 +170,11 @@ async def test_profile_preparation_leaves_current_controller_admitted_until_prom
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('stop_while_preparing', [False, True])
-async def test_profile_preparation_overlaps_reference_books_and_volatility(monkeypatch, stop_while_preparing):
+async def test_profile_preparation_overlaps_reference_books_volatility_and_guard_sampling(monkeypatch, stop_while_preparing):
     host, _, provider = await setup_host()
     configs = host.mm_effective_config(host.mm_session)['controller_config_overrides']
     for config in configs:
+        config['quote_guards'] = dict(enabled=True, mode='strict', max_deviation_bps='200', resume_deviation_bps='100')
         config['spread_policy'] = {'volatility': {'enabled': True}}
     books_started, release_books, books_finished = asyncio.Event(), asyncio.Event(), asyncio.Event()
     indicator_started = asyncio.Event()
@@ -195,10 +196,18 @@ async def test_profile_preparation_overlaps_reference_books_and_volatility(monke
     provider.release_order_books = AsyncMock()
     provider.acquire_candle_feed.return_value = feed
     monkeypatch.setattr(profile_switch, 'prepare_natr', warm_indicator)
+    guard_sampled = asyncio.Event()
+
+    def sample_guard(controller):
+        guard_sampled.set()
+        return None
+
+    monkeypatch.setattr(LifeMMController, 'sample_profile_guard', sample_guard)
     preparation = profile_switch.ProfileSwitchPreparation(host.mm_session, provider, configs)
     try:
         await asyncio.wait_for(books_started.wait(), 2)
         await asyncio.wait_for(indicator_started.wait(), 2)
+        await asyncio.wait_for(guard_sampled.wait(), 2)
         assert provider.acquire_candle_feed.call_count == len(configs)
         assert not books_finished.is_set() and not preparation.ready
         if not stop_while_preparing:
@@ -245,6 +254,68 @@ async def test_random_preparation_is_local_until_the_db_step_deadline():
     missed = session.model_copy(deep=True)
     host.advance_profile(missed, 1031, reroll, prepared)
     assert missed.profile_id == 'follow_market' and missed.step_index == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('concurrent_control', [None, 'stop', 'new-version', 'pending-mutation'])
+async def test_random_cutover_keeps_the_feed_when_next_profile_preparation_is_still_running(monkeypatch, concurrent_control):
+    host, _, provider = await setup_host()
+    session = MMSession.create(host.mm_session.catalogue, MMSessionRequest(
+        market_mode='both', selection='random', profile_ids=['follow_market', 'sideways'],
+        step_duration_seconds=15, duration_seconds=600), rng=SimpleNamespace(choice=lambda pool: 'follow_market'))
+    session.ready(now=1000, anchors={name: {'life': '.1', 'sources': {'BTC-USDT': '100', 'ETH-USDT': '10'}}
+                                     for name in ('life_spot', 'life_perpetual')})
+    host.mm_session = session
+    host.applied_mm_identity = session.id, session.generation
+    host.running = host.owner.allow_new_orders = True
+    host.phase = 'running'
+    host.mm_startup_pending = MagicMock(return_value=False)
+    monkeypatch.setattr('hummingbot.core.order_submission_guard.install_guard', MagicMock())
+
+    async def acquire(*args):
+        await asyncio.Event().wait()
+
+    provider.acquire_order_books = AsyncMock(side_effect=acquire)
+    provider.release_order_books = AsyncMock()
+    row = dict(config_type='mm-session', desired_state='running', control_version=1, recovery_state={},
+               database_now=1010, mm_session=session.model_dump(mode='json'))
+    host.prepare_next_random_profile(row, session, SimpleNamespace(choice=lambda pool: 'sideways'))
+    preparation = host.profile_switch
+    assert not preparation.ready
+    next_session = session.model_copy(deep=True)
+    expired = {**row, 'database_now': 1015}
+
+    async def advance(**kwargs):
+        kwargs['change'](next_session, 1015)
+        return next_session
+
+    async def observe():
+        result = {**expired, 'mm_session': next_session.model_dump(mode='json')}
+        if next_session.generation != session.generation:
+            if concurrent_control == 'stop':
+                result['desired_state'] = 'stopped'
+            elif concurrent_control == 'new-version':
+                result['control_version'] += 1
+            elif concurrent_control == 'pending-mutation':
+                result['recovery_state'] = {'pending_mutations': {'operation': {}}}
+        return result
+
+    host.owner.observe_state = AsyncMock(side_effect=observe)
+    host._update_mm_session = AsyncMock(side_effect=advance)
+    host.stop_core = AsyncMock(return_value=False)
+    try:
+        with patch('random.SystemRandom', return_value=SimpleNamespace(choice=lambda pool: 'follow_market')):
+            with pytest.raises(RuntimeError, match='Service cleanup did not complete'):
+                await host.observe_once()
+        assert next_session.profile_id == 'sideways'
+        assert not session.permits(session_id=session.id, generation=session.generation, now=1015)
+        assert not next_session.permits(session_id=next_session.id, generation=next_session.generation, now=1015)
+        if concurrent_control is None:
+            host.stop_core.assert_awaited_once_with(keep_market_data=True)
+        else:
+            host.stop_core.assert_awaited_once_with()
+    finally:
+        await preparation.close()
 
 
 @pytest.mark.asyncio

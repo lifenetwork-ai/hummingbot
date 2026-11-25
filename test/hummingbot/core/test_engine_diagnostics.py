@@ -12,19 +12,19 @@ from sqlalchemy import create_engine, event, text
 from hummingbot.core.engine_diagnostics import EngineDiagnostics, trace_runtime
 
 
-def test_dispatch_p95_excludes_unsent_attempts_and_uses_the_recent_sample_window(monkeypatch):
+def test_dispatch_percentiles_exclude_unsent_attempts_and_use_the_recent_sample_window(monkeypatch):
     from hummingbot.core import engine_diagnostics
 
     now = 0
     tracer = EngineDiagnostics(clock=lambda: now)
     monkeypatch.setattr(engine_diagnostics, '_ACTIVE', tracer)
-    for elapsed_ms in range(270, 0, -1):
+    for elapsed_ms in range(1040, 0, -1):
         with engine_diagnostics.submission_timing('ready_to_dispatch_ms', finish_on_exit=False) as dispatched:
             now += elapsed_ms * 1_000_000
             dispatched()
     with engine_diagnostics.submission_timing('ready_to_dispatch_ms', finish_on_exit=False):
         now += 10_000_000_000  # An attempt that never reached the transport.
-    assert tracer.snapshot()['order_dispatch'] == dict(samples=256, p95_ms=244, max_ms=256)
+    assert tracer.snapshot()['order_dispatch'] == dict(samples=1024, p95_ms=973, p99_ms=1014, max_ms=1024)
 
 
 def test_shutdown_summary_is_bounded_redacted_and_cannot_fail_cleanup(monkeypatch):

@@ -110,7 +110,7 @@ async def test_spot_sell_trace_distinguishes_late_cash_from_report_publication(e
 
     fill(state.order, 'full-fill', '1')
     state.order.current_state = OrderState.FILLED
-    engine_diagnostics.observe_spot_sell_fill(state.executor, state.order.client_order_id)
+    engine_diagnostics.observe_spot_quote_fill(state.executor, state.order.client_order_id)
     state.strategy.notify_executor_entry_filled(state.executor)
     await asyncio.wait_for(state.controller.executors_update_event.wait(), .3)
     state.controller.executors_update_event.clear()
@@ -124,7 +124,7 @@ async def test_spot_sell_trace_distinguishes_late_cash_from_report_publication(e
     await asyncio.wait_for(state.controller.executors_update_event.wait(), .3)
     assert len(LifeMMController._completed_entry_actions(state.controller)) == 1
     now[0] += 50_000_000
-    lane = engine_diagnostics._spot_sell_lane(state.executor.config)
+    lane, _ = engine_diagnostics._spot_quote_lane(state.executor.config)
     tracer.record_quote_marker('quote.sell_send', 'replacement', lane=lane)
     replacement = tracer.record_quote_marker('quote.sell_open', 'replacement')
     assert replacement['fill_at_ns'] == replacement['fill_report_at_ns'] == replacement['account_wait_at_ns']

@@ -266,7 +266,7 @@ async def test_spot_sell_proposal_correlates_before_orchestrator_sets_config_con
     clock = [1_000_000_000]
     tracer = engine_diagnostics.EngineDiagnostics(clock=lambda: clock[0])
     monkeypatch.setattr(engine_diagnostics, '_ACTIVE', tracer)
-    engine_diagnostics.observe_spot_sell_fill(
+    engine_diagnostics.observe_spot_quote_fill(
         SimpleNamespace(config=previous, _completed_entry_fill_timestamp=lambda: 1), 'filled',
     )
     clock[0] += 40_000_000
@@ -279,9 +279,9 @@ async def test_spot_sell_proposal_correlates_before_orchestrator_sets_config_con
     )
     clock[0] += 20_000_000
     with order_submission_guard.session_order_scope('session', 2, executor=dispatch_config.model_dump()):
-        engine_diagnostics.observe_spot_sell_dispatch(request)
+        engine_diagnostics.observe_spot_quote_dispatch(request)
     clock[0] += 10_000_000
-    engine_diagnostics.observe_spot_sell_open(
+    engine_diagnostics.observe_spot_quote_open(
         SimpleNamespace(name='okx'),
         SimpleNamespace(client_order_id='replacement', exchange_order_id='native',
                         amount=dispatch_config.amount, executed_amount_base=Decimal('0')),

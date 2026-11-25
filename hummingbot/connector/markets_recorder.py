@@ -64,7 +64,8 @@ _ORDER_FENCE_RETRY_SECONDS = 4.0
 _ORDER_FENCE_RETRY_INTERVAL = 0.1
 _ORDER_FENCE_FIRST_WRITE_RETRY = 0.0125
 _ACK_RETRY_EXPIRED = object()
-MAX_OPEN_ACK_BATCH = 8
+# Take one full ready quote-side burst per commit without waiting for more ACKs.
+MAX_OPEN_ACK_BATCH = 10
 
 
 @dataclass

@@ -6,7 +6,11 @@ from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlsplit
 
 from hummingbot.core.api_throttler.async_throttler_base import AsyncThrottlerBase
-from hummingbot.core.engine_diagnostics import observe_spot_sell_dispatch, observe_spot_sell_response, submission_timing
+from hummingbot.core.engine_diagnostics import (
+    observe_spot_quote_dispatch,
+    observe_spot_quote_response,
+    submission_timing,
+)
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest, RESTResponse
 from hummingbot.core.web_assistant.connections.rest_connection import RESTConnection
@@ -120,10 +124,10 @@ class RESTAssistant:
         try:
             if context is not None:
                 timeout = min(timeout, 5) if timeout is not None else 5
-            dispatch = observe_spot_sell_dispatch(request)
+            dispatch = observe_spot_quote_dispatch(request)
             with submission_timing('wire_headers_ms') if trace_order else nullcontext():
                 resp = await wait_for(self._connection.call(request), timeout)
-            observe_spot_sell_response(dispatch)
+            observe_spot_quote_response(dispatch)
             resp = await self._post_process_response(resp)
             with submission_timing('transport_receipt_ms') if trace_order else nullcontext():
                 await after_rest(context, resp)

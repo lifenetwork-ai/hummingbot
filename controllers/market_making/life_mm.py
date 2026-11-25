@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_valid
 from controllers.market_making import pmm_simple
 from hummingbot.core.data_type.common import OrderType, PositionMode, PositionSide, PriceType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState
-from hummingbot.core.engine_diagnostics import observe_spot_sell_entry_stage, observe_spot_sell_handoff, trace_runtime
+from hummingbot.core.engine_diagnostics import observe_spot_quote_entry_stage, observe_spot_quote_handoff, trace_runtime
 from hummingbot.core.mm_readiness import MM_READINESS_REASONS
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
@@ -924,10 +924,10 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 continue
             stamp = info.get('entry_order_last_fill_timestamp')
             if not self._entry_account_covers_fill(executor, stamp):
-                observe_spot_sell_entry_stage(executor, 'account_wait_at_ns')
+                observe_spot_quote_entry_stage(executor, 'account_wait_at_ns')
                 continue
-            observe_spot_sell_entry_stage(executor, 'account_ready_at_ns')
-            observe_spot_sell_entry_stage(executor, 'handoff_requested_at_ns')
+            observe_spot_quote_entry_stage(executor, 'account_ready_at_ns')
+            observe_spot_quote_entry_stage(executor, 'handoff_requested_at_ns')
             self._stops_requested.add(executor.id)
             actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=executor.id, keep_position=True))
             self.logger().debug('Completed entry handed off for fresh quotes: executor_id=%s level=%s',
@@ -1145,7 +1145,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 pending_allocation += config.amount * config.entry_price
                 accepted.append(action)
                 if self.config.connector_name == "okx" and not is_buy:
-                    observe_spot_sell_handoff(config, 'first_proposal_at_ns', controller_id=action.controller_id)
+                    observe_spot_quote_handoff(config, 'first_proposal_at_ns', controller_id=action.controller_id)
                 self._quote_diagnostics['proposed'][config.side.name] += 1
             return accepted
         except (ValueError, ArithmeticError, TypeError) as error:
