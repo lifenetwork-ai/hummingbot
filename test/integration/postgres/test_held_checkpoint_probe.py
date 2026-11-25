@@ -96,7 +96,7 @@ def test_slow_held_checkpoint_preserves_live_and_only_publishes_durable_hold(own
     now = [1_000_000_000]
     tracer = engine_diagnostics.EngineDiagnostics(clock=lambda: now[0])
     monkeypatch.setattr(engine_diagnostics, '_ACTIVE', tracer)
-    lane = engine_diagnostics._spot_sell_lane(info.config)
+    lane, _ = engine_diagnostics._spot_quote_lane(info.config)
     tracer.record_quote_marker('quote.sell_fill', engine_diagnostics._identity('hold-probe-order'), lane=lane)
     entered, release = threading.Event(), threading.Event()
 
