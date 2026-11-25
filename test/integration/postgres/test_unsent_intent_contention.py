@@ -150,7 +150,8 @@ def test_duplicate_identity_does_not_become_a_transient_busy_admission(owned):  
     assert not owned.manager.persistence_healthy
 
 
-def test_batch_checks_existing_ids_and_takes_the_owner_fence_in_one_read(owned):  # noqa: F811
+@pytest.mark.parametrize('identities', ['new-a', ('new-a', 'new-b')])
+def test_worker_checks_existing_ids_and_takes_the_owner_fence_in_one_read(owned, identities):  # noqa: F811
     reads = []
 
     def observe(connection, cursor, statement, *args):
@@ -160,7 +161,7 @@ def test_batch_checks_existing_ids_and_takes_the_owner_fence_in_one_read(owned):
         pass  # Exclude initial connection setup from the recorder statement count.
     event.listen(owned.engine, 'before_cursor_execute', observe)
     try:
-        with owned.manager.order_intent_transaction(('new-a', 'new-b'), worker_owner=owned.owner):
+        with owned.manager.order_intent_transaction(identities, worker_owner=owned.owner):
             pass
     finally:
         event.remove(owned.engine, 'before_cursor_execute', observe)
@@ -169,12 +170,13 @@ def test_batch_checks_existing_ids_and_takes_the_owner_fence_in_one_read(owned):
     assert 'FROM orders' in checks[0] and 'FOR SHARE NOWAIT' in checks[0] and 'pg_locks' in checks[0]
 
 
-def test_batch_duplicate_identity_stays_fatal_even_when_owner_row_is_locked(owned):  # noqa: F811
+@pytest.mark.parametrize('identities', ['existing', ('new', 'existing')])
+def test_worker_duplicate_identity_stays_fatal_even_when_owner_row_is_locked(owned, identities):  # noqa: F811
     intent(owned, 'existing')
     with owned.engine.begin() as blocker:
         blocker.execute(text('SELECT bot_id FROM bot_state FOR UPDATE')).all()
         with pytest.raises(RuntimeError, match='identity already exists'):
-            with owned.manager.order_intent_transaction(('new', 'existing'), worker_owner=owned.owner):
+            with owned.manager.order_intent_transaction(identities, worker_owner=owned.owner):
                 pytest.fail('Duplicate identity reached the staging phase')
     assert not owned.manager.persistence_healthy
 

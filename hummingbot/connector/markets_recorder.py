@@ -1091,12 +1091,26 @@ class MarketsRecorder:
 
     @staticmethod
     def _read_tracking_basis(session, config_file_path, market_name, tracking_states, *, include_saved_state):
-        orders = MarketsRecorder._tracking_order_ids(config_file_path, market_name, tracking_states)
-        statement = select(MarketState, orders.c.admitted_ids, orders.c.pending_ids).select_from(orders).outerjoin(
-            MarketState, and_(MarketState.config_file_path == config_file_path, MarketState.market == market_name))
+        statement = MarketsRecorder._tracking_basis_query(config_file_path, market_name, tracking_states)
         if not include_saved_state:
             statement = statement.options(defer(MarketState.saved_state))
         return session.execute(statement).one()
+
+    @staticmethod
+    def _tracking_basis_query(config_file_path, market_name, tracking_states):
+        orders = MarketsRecorder._tracking_order_ids(config_file_path, market_name, tracking_states)
+        return select(MarketState, orders.c.admitted_ids, orders.c.pending_ids).select_from(orders).outerjoin(
+            MarketState, and_(MarketState.config_file_path == config_file_path, MarketState.market == market_name))
+
+    def _read_intent_basis(self, session, bot_id, record, tracking_states):
+        from hummingbot.model.runtime_journal import active_bindings_query
+
+        # Project only binding metadata in the same snapshot as the tracker.
+        bindings = active_bindings_query(bot_id).subquery()
+        current = select(func.jsonb_agg(func.to_jsonb(bindings.table_valued()))).scalar_subquery()
+        statement = self._tracking_basis_query(record.config_file_path, record.market, tracking_states)
+        row = session.execute(statement.add_columns(current).options(defer(MarketState.saved_state))).one()
+        return row[:3], row[3] or []
 
     @staticmethod
     def _tracking_order_ids(config_file_path, market_name, tracking_states):
@@ -1162,7 +1176,7 @@ class MarketsRecorder:
         """Commit a bounded set of already-authorized native intents together."""
         from hummingbot.core.bot_ownership import OwnershipLost
         from hummingbot.core.order_submission_guard import IntentAdmissionBusy, active_guard
-        from hummingbot.model.runtime_journal import bindings, mark_prepared_order, prepare_attempt
+        from hummingbot.model.runtime_journal import mark_prepared_order, prepare_attempt
 
         owner = active_guard()
         owner.require_owner_connection()
@@ -1186,14 +1200,16 @@ class MarketsRecorder:
                 identities = tuple(record.id for _, record, _ in records)
                 with self._sql_manager.order_intent_transaction(identities, worker_owner=owner) as session:
                     with session.no_autoflush:
-                        current_bindings = bindings(session, owner.store.bot_id)
+                        first = records[0][1]
+                        basis, current_bindings = self._read_intent_basis(session, owner.store.bot_id, first, tracking[first.market])
                         for _, record, attempt in records:
                             session.add(record)
                             prepare_attempt(session, record.id, attempt, current_bindings=current_bindings)
                             session.add(OrderStatus(order=record, timestamp=record.creation_timestamp, status=record.last_status))
                         for market, orders in by_market.items():
                             self._save_market_state_snapshot(session, self._config_file_path, market, tracking[market],
-                                                             orders[0].id, staged_orders=orders)
+                                                             orders[0].id, staged_orders=orders,
+                                                             tracking_basis=basis if market == first.market else None)
                     session.flush()
                     self._sql_manager.assert_persistence_healthy()
                     owner.fence_recorder_session(session)
@@ -1238,11 +1254,12 @@ class MarketsRecorder:
         session.add(record)
         if coalesce_snapshot and cleanup is None and attempt is not None:
             with session.no_autoflush:
-                prepare_attempt(session, record.id, attempt)
+                basis, current_bindings = self._read_intent_basis(session, attempt['bot_id'], record, tracking_states)
+                prepare_attempt(session, record.id, attempt, current_bindings=current_bindings)
                 # An intent transaction already proved this identity is new.
                 session.add(OrderStatus(order=record, timestamp=record.creation_timestamp, status=record.last_status))
                 self._save_market_state_snapshot(session, record.config_file_path, record.market, tracking_states, record.id,
-                                                 staged_orders=(record,))
+                                                 staged_orders=(record,), tracking_basis=basis)
             return
         if attempt is not None:
             # Binding metadata does not depend on the pending Order INSERT.

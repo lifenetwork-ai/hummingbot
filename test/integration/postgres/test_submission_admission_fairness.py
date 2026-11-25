@@ -14,7 +14,7 @@ import pytest
 from aiohttp import web
 from bidict import bidict
 from psycopg2 import OperationalError
-from sqlalchemy import event
+from sqlalchemy import event, func
 
 from hummingbot.cli.service import ServiceHost
 from hummingbot.cli.service_processes import probe_health
@@ -27,6 +27,7 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
 from hummingbot.core.order_submission_guard import session_order_scope
+from hummingbot.model.exchange_credential import ExchangeCredential
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.order import Order
 from hummingbot.model.ownership_lock_observation import observe_ownership_locks
@@ -257,20 +258,30 @@ def test_native_eight_quote_burst_allows_health_callback_between_admissions(nati
     assert not native.store.read()['recovery_state'].get('halt')
 
 
-def test_worker_intent_checks_ownership_at_row_lock_and_before_commit(native):
-    worker_fences = []
+@pytest.mark.parametrize('size', [1, 4])
+def test_worker_intent_coalesces_metadata_reads_under_both_owner_fences(native, size):
+    worker_fences, worker_reads = [], []
+    binding = dict(connector='okx', environment='demo', account_id='test-account', version=7)
+    with native.engine.begin() as connection:
+        connection.execute(ExchangeCredential.__table__.insert().values(
+            **binding, bot_id=native.store.bot_id, exchange='okx', state='active',
+            envelope={'test': True}, changed_by='test', changed_at=func.clock_timestamp()))
 
     def observe_fence(connection, cursor, statement, parameters, context, executemany):
-        if threading.current_thread() is not threading.main_thread() and (
-                'FOR SHARE NOWAIT' in statement or 'SELECT 1 FROM pg_locks' in statement):
+        if threading.current_thread() is threading.main_thread():
+            return
+        if 'FOR SHARE NOWAIT' in statement or 'SELECT 1 FROM pg_locks' in statement:
             worker_fences.append(statement)
+        elif statement.startswith('SELECT'):
+            worker_reads.append(statement)
 
     async def admit():
-        order = InFlightOrder('intent-round-trips', 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
-                              Decimal('5'), time.time(), Decimal('10'))
-        native.market._order_tracker.start_tracking_order(order)
+        orders = [InFlightOrder(f'intent-round-trips-{i}', 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
+                                Decimal('5'), time.time(), Decimal('10')) for i in range(size)]
+        for order in orders:
+            native.market._order_tracker.start_tracking_order(order)
         with session_order_scope(native.session.id, native.session.generation):
-            await native.owner.admit_order(native.market, order)
+            await asyncio.gather(*(native.owner.admit_order(native.market, order) for order in orders))
 
     event.listen(native.engine, 'before_cursor_execute', observe_fence)
     try:
@@ -281,10 +292,18 @@ def test_worker_intent_checks_ownership_at_row_lock_and_before_commit(native):
     assert len(worker_fences) == 2, worker_fences
     first, last = worker_fences
     assert 'FOR SHARE NOWAIT' in first and 'SELECT 1 FROM pg_locks' in first
+    assert 'existing_intent' in first and 'FROM orders' in first
     assert 'SELECT 1 FROM pg_locks' in last and 'FOR SHARE' not in last
+    read, = worker_reads
+    assert all(table in read for table in ('exchange_credentials', 'market_states', 'orders'))
+    assert 'exchange_credentials.envelope' not in read
+    assert 'market_states.saved_state' not in read
     with native.manager.get_new_session() as db:
-        assert db.get(Order, 'intent-round-trips').creation_pending
-        assert db.get(SubmissionAttempt, 'intent-round-trips').state == 'prepared'
+        assert all(order.creation_pending for order in db.query(Order))
+        attempts = db.query(SubmissionAttempt).all()
+        assert len(attempts) == size and all(attempt.state == 'prepared' for attempt in attempts)
+        assert all(attempt.context['bindings'] == [binding] for attempt in attempts)
+        assert set(db.query(MarketState).one().saved_state) == {attempt.order_id for attempt in attempts}
     native.transport.call.assert_not_awaited()
 
 

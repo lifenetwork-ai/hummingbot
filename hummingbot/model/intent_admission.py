@@ -98,11 +98,13 @@ def order_intent_transaction(manager, order_id, *, worker_owner=None):
     from hummingbot.model.order import Order
 
     postgres = manager.engine.dialect.name == 'postgresql'
-    batch_ids = order_id if postgres and worker_owner is not None and not isinstance(order_id, str) else None
+    worker_ids = None
+    if postgres and worker_owner is not None:
+        worker_ids = (order_id,) if isinstance(order_id, str) else order_id
     with manager.get_new_session() as session, prewrite_transaction(
             manager, session, IntentAdmissionBusy, 'Intent admission waits for the ownership row; no order was sent.'):
         # Contention must not excuse an existing durable order.
-        if batch_ids is None:
+        if worker_ids is None:
             existing = (session.get(Order, order_id) if isinstance(order_id, str) else
                         session.query(Order.id).filter(Order.id.in_(order_id)).first())
             if existing is not None:
@@ -118,5 +120,5 @@ def order_intent_transaction(manager, order_id, *, worker_owner=None):
                         guard.fence_session(session, nowait=True)
                     else:
                         session.info['worker_order_owner'] = worker_owner
-                        worker_owner.fence_recorder_session(session, nowait=True, intent_ids=batch_ids)
+                        worker_owner.fence_recorder_session(session, nowait=True, intent_ids=worker_ids)
         yield session

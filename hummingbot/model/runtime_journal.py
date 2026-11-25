@@ -66,12 +66,16 @@ def financial_hash(session):
     return digest(sorted(values))
 
 
-def bindings(session, bot_id):
+def active_bindings_query(bot_id):
     from hummingbot.model.exchange_credential import ExchangeCredential
-    return [dict(row) for row in session.execute(select(
+    return select(
         ExchangeCredential.connector, ExchangeCredential.environment, ExchangeCredential.account_id,
         ExchangeCredential.version).where(ExchangeCredential.bot_id == bot_id,
-                                          ExchangeCredential.state == 'active')).mappings()]
+                                          ExchangeCredential.state == 'active')
+
+
+def bindings(session, bot_id):
+    return [dict(row) for row in session.execute(active_bindings_query(bot_id)).mappings()]
 
 
 def retiring_bindings(session, state):
