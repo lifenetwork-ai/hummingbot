@@ -171,6 +171,59 @@ async def test_full_loop_replaces_filled_quote_after_both_cash_assets_cover_fill
 
 
 @pytest.mark.asyncio
+async def test_outflow_terminal_proof_wakes_spot_replacement_before_the_next_report_tick(monkeypatch):
+    from test.hummingbot.cli.test_service_availability import host
+
+    from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
+    from hummingbot.core.spot_outflow import SpotOutflowProjection
+    from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+
+    async with replay(monkeypatch, TradeType.BUY) as state:
+        service = host()
+        guard = SpotOutflowGuard(SimpleNamespace(), dict(trading_pair='LIFE-USDT', window_seconds=60,
+                                                         max_net_outflow_quote='10000', fee_allowance_rate='.01'))
+        service.owner = SimpleNamespace(spot_outflow=guard, allow_new_orders=True)
+        service.running = True
+        monkeypatch.setattr(service, '_mm_controllers', lambda: [state.controller])
+        guard.reason_code = None
+        guard.identity = lambda: {'account_id': 'offline'}
+        guard.binding = guard.identity()
+        guard.projection = SpotOutflowProjection(guard.config, 'LIFE-USDT', coverage_start_ms=0)
+        guard.projection.advance(1003000)
+        state.connector.name = 'okx'
+        state.connector.get_fee.return_value = AddedToCostTradeFee(percent=Decimal('.001'))
+        prior = InFlightOrder('prior-buy', 'LIFE-USDT', state.order.order_type, TradeType.BUY,
+                              Decimal('1'), 999, Decimal('.1'), exchange_order_id='venue-buy',
+                              initial_state=OrderState.CANCELED)
+        assert guard.projection.reserve(prior)
+        guard.orders[prior.client_order_id] = (state.connector, prior)
+        waiting_for_proof = asyncio.Event()
+
+        def preview(*args):
+            allowed = guard.preview(*args)
+            if not allowed and guard.terminal_pending:
+                waiting_for_proof.set()
+            return allowed
+
+        async def confirm(identity):
+            guard.projection.confirm_terminal(identity, Decimal(0))
+            return True
+
+        monkeypatch.setattr('hummingbot.core.order_submission_guard.spot_buy_preview', preview)
+        monkeypatch.setattr(guard, '_confirm', confirm)
+        account_observed(state, TradeType.BUY, initial=(2000, 0))
+        complete(state)
+        await asyncio.wait_for(waiting_for_proof.wait(), 5)
+        assert not state.creates and guard.terminal_pending
+        state.recorder.checkpoint_held_positions.assert_called_once()
+        service.poll_outflow()
+        await service.outflow_task
+        assert not guard.terminal_pending
+        await asyncio.wait_for(state.created.wait(), 1)
+        assert_replaced(state, TradeType.BUY)
+
+
+@pytest.mark.asyncio
 async def test_failed_hold_commit_keeps_level_until_native_report_retry_succeeds(monkeypatch):
     async with replay(monkeypatch, TradeType.BUY) as state:
         state.recorder.checkpoint_held_positions.side_effect = OSError('offline commit unavailable')

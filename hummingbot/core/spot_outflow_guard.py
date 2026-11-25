@@ -298,6 +298,7 @@ class SpotOutflowGuard:
                 self.mark_terminal_pending(client_id)
 
     async def reconcile_terminal(self, *, all_orders=False, deferred=()):
+        """Reconcile a bounded batch and report when it drains terminal work."""
         for client_id, (_, order) in self.orders.items():
             if order.is_done or all_orders:
                 self.mark_terminal_pending(client_id)
@@ -320,6 +321,7 @@ class SpotOutflowGuard:
             self._forget_terminal_order(client_id)
         if all_orders and set(self.terminal_pending) - set(deferred):
             raise SubmissionBlocked("spot_outflow terminal fill reconciliation is incomplete")
+        return bool(candidates and not self.terminal_pending)
 
     def _confirm_committed_fill(self, client_id):
         from hummingbot.connector.markets_recorder import MarketsRecorder

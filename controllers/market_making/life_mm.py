@@ -484,6 +484,13 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
     def revoke_session(self):
         self._session_admitted = False
 
+    def notify_spot_outflow_ready(self, trading_pair):
+        if (self._executor_progress is not None and self._session_admitted
+                and self.config.connector_name == "okx" and self.config.trading_pair == trading_pair
+                and self.executors_update_event.is_set()):
+            # Reevaluate the current report without manufacturing executor readiness.
+            self._executor_progress.set()
+
     def prepare_session_anchors(self, source_anchors=None):
         """Prepare a copied basket; the host persists all markets before admission."""
         self._life_anchor = None

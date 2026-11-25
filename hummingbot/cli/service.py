@@ -1188,7 +1188,7 @@ class ServiceHost:
             try:
                 if guard.projection is None:
                     await guard.initialize()
-                await guard.reconcile_terminal()
+                drained = await guard.reconcile_terminal()
                 if guard.reason_code == "spot_outflow_observation_unavailable":
                     guard.reason_code = None
                 terminal_failure = guard.terminal_reason_code()
@@ -1200,6 +1200,10 @@ class ServiceHost:
                     # arrivals during an awaited proof. Keep their reservations
                     # and ordinary polling cadence; backlog is not a read failure.
                     self.availability.clear("spot_outflow")
+                    if (drained and self.running and self.owner.allow_new_orders
+                            and self.owner.spot_outflow is guard and guard.reason_code is None):
+                        for controller in self._mm_controllers():
+                            controller.notify_spot_outflow_ready(guard.policy['trading_pair'])
             except Exception as error:
                 self.owner.check_owner()
                 self.hb.trading_core.trade_fill_db.assert_persistence_healthy()
