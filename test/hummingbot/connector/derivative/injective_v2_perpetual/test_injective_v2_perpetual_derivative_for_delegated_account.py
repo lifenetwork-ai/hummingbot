@@ -1248,100 +1248,45 @@ class InjectiveV2PerpetualDerivativeTests(AbstractPerpetualDerivativeTests.Perpe
 
     @aioresponses()
     async def test_create_buy_market_order_successfully(self, mock_api):
-        self._simulate_trading_rules_initialized()
-        request_sent_event = asyncio.Event()
-        self.exchange._set_current_timestamp(1640780000)
-
-        order_book = OrderBook()
-        self.exchange.order_book_tracker._order_books[self.trading_pair] = order_book
-        order_book.apply_snapshot(
-            bids=[],
-            asks=[OrderBookRow(price=5000, amount=20, update_id=1)],
-            update_id=1,
-        )
-
-        transaction_simulation_response = self._msg_exec_simulation_mock_response()
-        self.exchange._data_source._query_executor._simulate_transaction_responses.put_nowait(
-            transaction_simulation_response)
-
-        response = self.order_creation_request_successful_mock_response
-        mock_queue = AsyncMock()
-        mock_queue.get.side_effect = partial(
-            self._callback_wrapper_with_response,
-            callback=lambda args, kwargs: request_sent_event.set(),
-            response=response
-        )
-        self.exchange._data_source._query_executor._send_transaction_responses = mock_queue
-
-        order_amount = Decimal(1)
-        expected_price_for_volume = self.exchange.get_price_for_volume(
-            trading_pair=self.trading_pair,
-            is_buy=True,
-            volume=order_amount
-        ).result_price
-
-        order_id = self.place_buy_order(amount=order_amount, price=None, order_type=OrderType.MARKET)
-        await asyncio.wait_for(request_sent_event.wait(), timeout=1)
-
-        self.assertEqual(1, len(self.exchange.in_flight_orders))
-        self.assertIn(order_id, self.exchange.in_flight_orders)
-
-        order = self.exchange.in_flight_orders[order_id]
-
-        for i in range(3):
-            if not order.exchange_order_id_update_event.is_set():
-                await asyncio.sleep(0.5)
-
-        self.assertEqual(response["txhash"], order.creation_transaction_hash)
-        self.assertEqual(expected_price_for_volume, order.price)
+        await self._assert_market_order_transaction(TradeType.BUY)
 
     @aioresponses()
     async def test_create_sell_market_order_successfully(self, mock_api):
+        await self._assert_market_order_transaction(TradeType.SELL)
+
+    async def _assert_market_order_transaction(self, side: TradeType):
         self._simulate_trading_rules_initialized()
-        request_sent_event = asyncio.Event()
         self.exchange._set_current_timestamp(1640780000)
 
+        is_buy = side == TradeType.BUY
+        liquidity = [OrderBookRow(price=5000, amount=20, update_id=1)]
         order_book = OrderBook()
         self.exchange.order_book_tracker._order_books[self.trading_pair] = order_book
         order_book.apply_snapshot(
-            bids=[OrderBookRow(price=5000, amount=20, update_id=1)],
-            asks=[],
+            bids=[] if is_buy else liquidity,
+            asks=liquidity if is_buy else [],
             update_id=1,
         )
 
-        transaction_simulation_response = self._msg_exec_simulation_mock_response()
-        self.exchange._data_source._query_executor._simulate_transaction_responses.put_nowait(
-            transaction_simulation_response)
-
+        query_executor = self.exchange._data_source._query_executor
+        query_executor._simulate_transaction_responses.put_nowait(self._msg_exec_simulation_mock_response())
         response = self.order_creation_request_successful_mock_response
-        mock_queue = AsyncMock()
-        mock_queue.get.side_effect = partial(
-            self._callback_wrapper_with_response,
-            callback=lambda args, kwargs: request_sent_event.set(),
-            response=response
-        )
-        self.exchange._data_source._query_executor._send_transaction_responses = mock_queue
+        query_executor._send_transaction_responses.put_nowait(response)
 
         order_amount = Decimal(1)
         expected_price_for_volume = self.exchange.get_price_for_volume(
             trading_pair=self.trading_pair,
-            is_buy=False,
+            is_buy=is_buy,
             volume=order_amount
         ).result_price
 
-        order_id = self.place_sell_order(amount=order_amount, price=None, order_type=OrderType.MARKET)
-        await asyncio.wait_for(request_sent_event.wait(), timeout=1)
-
+        place_order = self.place_buy_order if is_buy else self.place_sell_order
+        order_id = place_order(amount=order_amount, price=None, order_type=OrderType.MARKET)
+        await wait_til(lambda: order_id in self.exchange.in_flight_orders)
         self.assertEqual(1, len(self.exchange.in_flight_orders))
-        self.assertIn(order_id, self.exchange.in_flight_orders)
-
         order = self.exchange.in_flight_orders[order_id]
-
-        for i in range(3):
-            if order.current_state == OrderState.PENDING_CREATE:
-                await asyncio.sleep(0.5)
-
-        self.assertEqual(response["txhash"], order.creation_transaction_hash)
+        self.assertEqual(side, order.trade_type)
+        self.assertEqual(response["txhash"], await order.get_creation_transaction_hash())
         self.assertEqual(expected_price_for_volume, order.price)
 
     @aioresponses()
