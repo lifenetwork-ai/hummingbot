@@ -34,17 +34,32 @@ class CoinCapRateSourceTest(IsolatedAsyncioWrapperTestCase):
         await super().asyncSetUp()
         self.log_records = []
         self.rate_source = CoinCapRateSource(assets_map={}, api_key="")
-        self.rate_source._coin_cap_data_feed.logger().setLevel(1)
-        self.rate_source._coin_cap_data_feed.logger().addHandler(self)
+        logger = self.rate_source._coin_cap_data_feed.logger()
+        self.addCleanup(logger.setLevel, logger.level)
+        self.addCleanup(logger.removeHandler, self)
+        logger.setLevel(1)
+        logger.addHandler(self)
         self.mocking_assistant = NetworkMockingAssistant()
         await self.mocking_assistant.async_init()
-        self.rate_source._coin_cap_data_feed._get_api_factory()
-        self._web_socket_mock = self.mocking_assistant.configure_web_assistants_factory(
-            web_assistants_factory=self.rate_source._coin_cap_data_feed._api_factory
-        )
+        self.addAsyncCleanup(self.rate_source._coin_cap_data_feed._get_api_factory().close)
 
     def handle(self, record):
         self.log_records.append(record)
+
+    def observe_websocket_reads(self, rate_source):
+        factory = rate_source._coin_cap_data_feed._get_api_factory()
+        websocket = self.mocking_assistant.configure_web_assistants_factory(web_assistants_factory=factory)
+        self.addAsyncCleanup(factory.close)
+        self.addAsyncCleanup(rate_source.stop_network)
+        reads = asyncio.Queue()
+        receive = websocket.receive.side_effect
+
+        async def observe_receive(*args, **kwargs):
+            reads.put_nowait(None)
+            return await receive(*args, **kwargs)
+
+        websocket.receive.side_effect = observe_receive
+        return websocket, reads
 
     def get_coin_cap_assets_data_mock(
         self,
@@ -141,10 +156,7 @@ class CoinCapRateSourceTest(IsolatedAsyncioWrapperTestCase):
             asset_data["symbol"]: asset_data["id"] for asset_data in data["data"]
         }
         rate_source = CoinCapRateSource(assets_map=assets_map, api_key="")
-        rate_source._coin_cap_data_feed._get_api_factory()
-        web_socket_mock = self.mocking_assistant.configure_web_assistants_factory(
-            web_assistants_factory=rate_source._coin_cap_data_feed._api_factory
-        )
+        web_socket_mock, reads = self.observe_websocket_reads(rate_source)
         url = f"{CONSTANTS.BASE_REST_URL}{CONSTANTS.ALL_ASSETS_ENDPOINT}"
         url_regex = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
         mock_api.get(
@@ -157,20 +169,20 @@ class CoinCapRateSourceTest(IsolatedAsyncioWrapperTestCase):
             repeat=True,
         )
 
-        await rate_source.start_network()
-
         prices = await rate_source.get_prices(quote_token=self.global_token)
 
         self.assertIn(self.trading_pair, prices)
         self.assertEqual(rest_rate, prices[self.trading_pair])
 
+        await rate_source.start_network()
+        await reads.get()
         streamed_rate = rest_rate + Decimal("1")
         stream_response = {self.target_asset_id: str(streamed_rate)}
         self.mocking_assistant.add_websocket_aiohttp_message(
             websocket_mock=web_socket_mock, message=json.dumps(stream_response)
         )
 
-        await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(websocket_mock=web_socket_mock)
+        await reads.get()  # The stream requests the next frame after applying this price.
 
         prices = await rate_source.get_prices(quote_token=self.global_token)
 
@@ -188,8 +200,10 @@ class CoinCapRateSourceTest(IsolatedAsyncioWrapperTestCase):
     @patch("hummingbot.data_feed.coin_cap_data_feed.coin_cap_data_feed.CoinCapDataFeed._sleep")
     async def test_ws_stream_logs_exceptions_and_restarts(self, mock_api: aioresponses, sleep_mock: AsyncMock):
         continue_event = asyncio.Event()
+        restarting = asyncio.Event()
 
         async def _continue_event_wait(*_, **__):
+            restarting.set()
             await continue_event.wait()
             continue_event.clear()
 
@@ -202,10 +216,7 @@ class CoinCapRateSourceTest(IsolatedAsyncioWrapperTestCase):
             asset_data["symbol"]: asset_data["id"] for asset_data in data["data"]
         }
         rate_source = CoinCapRateSource(assets_map=assets_map, api_key="")
-        rate_source._coin_cap_data_feed._get_api_factory()
-        web_socket_mock = self.mocking_assistant.configure_web_assistants_factory(
-            web_assistants_factory=rate_source._coin_cap_data_feed._api_factory
-        )
+        web_socket_mock, reads = self.observe_websocket_reads(rate_source)
         url = f"{CONSTANTS.BASE_REST_URL}{CONSTANTS.ALL_ASSETS_ENDPOINT}"
         url_regex = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
         mock_api.get(
@@ -219,6 +230,7 @@ class CoinCapRateSourceTest(IsolatedAsyncioWrapperTestCase):
         )
 
         await rate_source.start_network()
+        await reads.get()
 
         streamed_rate = rest_rate + Decimal("1")
         stream_response = {self.target_asset_id: str(streamed_rate)}
@@ -229,28 +241,25 @@ class CoinCapRateSourceTest(IsolatedAsyncioWrapperTestCase):
             websocket_mock=web_socket_mock, exception=Exception("test exception")
         )
 
-        await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(websocket_mock=web_socket_mock)
+        await reads.get()  # Read that raises the injected exception.
+        await restarting.wait()
 
         prices = await rate_source.get_prices(quote_token=self.global_token)
 
         self.assertIn(self.trading_pair, prices)
         self.assertEqual(streamed_rate, prices[self.trading_pair])
-        log_level = "NETWORK"
         message = "Unexpected error while streaming prices. Restarting the stream."
-        any(
-            record.levelname == log_level and message == record.getMessage() is not None
-            for record in self.log_records
-        )
+        self.assertTrue(any(record.getMessage() == message for record in self.log_records))
 
+        continue_event.set()
+        await reads.get()
         streamed_rate = rest_rate + Decimal("2")
         stream_response = {self.target_asset_id: str(streamed_rate)}
         self.mocking_assistant.add_websocket_aiohttp_message(
             websocket_mock=web_socket_mock, message=json.dumps(stream_response)
         )
 
-        continue_event.set()
-
-        await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(websocket_mock=web_socket_mock)
+        await reads.get()
 
         prices = await rate_source.get_prices(quote_token=self.global_token)
 
