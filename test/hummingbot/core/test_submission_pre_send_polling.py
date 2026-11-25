@@ -1,8 +1,6 @@
 import asyncio
-from contextlib import asynccontextmanager
 from decimal import Decimal
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -11,6 +9,7 @@ from hummingbot.connector.derivative.okx_perpetual.okx_perpetual_derivative impo
 from hummingbot.connector.exchange.okx.okx_exchange import OkxExchange
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core import order_submission_guard as gates
+from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
 
 PAIR = 'BTC-USDT'
@@ -32,12 +31,8 @@ async def connector(request, monkeypatch):
 
 @pytest.fixture
 def owner(monkeypatch):
-    @asynccontextmanager
-    async def order_write_scope():
-        yield
-
-    guard = SimpleNamespace(admit_order=AsyncMock(), order_failed=Mock(return_value=False),
-                            order_write_scope=order_write_scope, sent_intents=set())
+    guard = BotOwnership(None, 'test')
+    monkeypatch.setattr(guard, 'admit_order', AsyncMock())
     monkeypatch.setattr(gates, 'postgres_requested', lambda: True)
     monkeypatch.setattr(gates, '_guard', guard)
     return guard
@@ -78,6 +73,7 @@ async def test_waiting_for_admission_never_polls_or_loses_the_local_order(connec
         await asyncio.sleep(0)
         place.assert_not_awaited()
         assert order.is_failure and ORDER_ID not in connector.in_flight_orders
+        assert gates.proved_zero_fill_rejection(order)
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
