@@ -782,6 +782,31 @@ class BotOwnership:
             self.cleanup_intents[order.client_order_id] = cleanup
         return recorder
 
+    async def resolve_order_failure(self, connector, order, exception):
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+
+        identity = order.client_order_id
+        if (not isinstance(exception, MarketReadinessBlocked) or identity not in self.active_intents
+                or identity in self.sent_intents or identity in self._unresolved_intent_batch
+                or order.exchange_order_id or order.executed_amount_base or order.order_fills):
+            return self.order_failed(connector, order, exception)
+        recorder = MarketsRecorder.service_recorder_for(connector)
+        if recorder is None or recorder is not self._order_recorder():
+            return self.order_failed(connector, order, exception)
+
+        # The caller still holds the recorder slot. Keep the reservation and
+        # shutdown registration until the worker reports the durable result.
+        self.unsent_rejections[identity] = order
+        try:
+            cancelled = await recorder.reject_prepared_order(connector, identity)
+        except Exception:
+            self.require_recovery("An unsent order intent could not be resolved durably.")
+            return True
+        self._release_unsent_admission(identity)
+        if cancelled is not None:
+            raise cancelled
+        return False
+
     def order_failed(self, connector, order, exception=None):
         from hummingbot.connector.okx_order_status import OKXOrderRejection, OKXPriceLimitOrderRejection
         if order.client_order_id in self._unresolved_intent_batch:

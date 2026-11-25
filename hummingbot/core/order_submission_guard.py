@@ -216,7 +216,8 @@ async def resolve_order_failure(connector, order, exception=None) -> bool:
     async with guard.order_write_scope():
         if _guard is not guard:
             return True  # The next owner resolves any retained effects.
-        return order_failed(connector, order, exception)
+        unresolved = await guard.resolve_order_failure(connector, order, exception)
+        return _guard is not guard or unresolved
 
 
 def fill_committed(row) -> None:

@@ -1,6 +1,7 @@
 """The final native send fence must leave loop turns without skipping durable proof."""
 import asyncio
 import json
+import threading
 from copy import deepcopy
 from decimal import Decimal
 from test.integration.postgres.test_ownership import Throttler, assistant, intent, owned as owned_fixture
@@ -10,10 +11,13 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from aiohttp import web
 from psycopg2 import OperationalError
 from sqlalchemy import event, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 
+from hummingbot.cli.service import ServiceHost
+from hummingbot.cli.service_processes import probe_health
 from hummingbot.core.bot_ownership import ORDER_PATH, OwnershipLost
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import OrderState, OrderUpdate, TradeUpdate
@@ -548,6 +552,133 @@ def test_native_quote_remains_local_until_the_final_journal_write(native):
           patch.object(native.owner, '_record_send_attempt', side_effect=record_attempt) as gate):
         native.loop.run_until_complete(run())
         gate.assert_called_once()
+
+
+@pytest.mark.parametrize('cancel_during_commit', [False, True])
+def test_final_readiness_rejection_keeps_engine_live_until_durable_resolution(native, cancel_during_commit):
+    identity = 'readiness-rejected'
+    commit_entered, release_commit = threading.Event(), threading.Event()
+    ready, advance_to_final_gate = asyncio.Event(), asyncio.Event()
+    authorize = native.owner.authorize_rest
+
+    async def authorize_after_readiness_changes(request):
+        ready.set()
+        await advance_to_final_gate.wait()
+        return await authorize(request)
+
+    def locate_rejection(connection, cursor, statement, parameters, context, executemany):
+        if statement.startswith('UPDATE submission_attempts') and parameters.get('state') == 'rejected':
+            connection.info['test_hold_rejection'] = True
+
+    def hold_commit(connection):
+        if connection.info.pop('test_hold_rejection', False):
+            commit_entered.set()
+            release_commit.wait(2)
+
+    async def exercise():
+        host = SimpleNamespace(stop=asyncio.Event(), phase='running', observer_progress_at=None)
+        app = web.Application()
+        app.router.add_get('/live', ServiceHost.health.__get__(host))
+        server = web.AppRunner(app)
+        await server.setup()
+        await web.TCPSite(server, '127.0.0.1', 0).start()
+
+        def read_health():
+            assert commit_entered.wait(3)
+            return probe_health(server.addresses[0][1], '/live')
+
+        health = asyncio.create_task(asyncio.to_thread(read_health))
+        with session_order_scope(native.session.id, native.session.generation):
+            task = asyncio.create_task(native.market._create_order(
+                TradeType.BUY, identity, 'LIFE-USDT', Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10')))
+        try:
+            await asyncio.wait_for(ready.wait(), 2)
+            native.owner.mm_ready_check = lambda: False
+            advance_to_final_gate.set()
+            healthy, detail = await health
+            assert healthy, detail
+            native.transport.call.assert_not_awaited()
+            assert task in native.owner.submission_tasks
+            assert identity in native.owner.spot_outflow.orders
+            with native.manager.get_new_session() as db:
+                assert db.get(Order, identity).creation_pending
+                assert db.get(SubmissionAttempt, identity).state == 'prepared'
+            if cancel_during_commit:
+                task.cancel()
+                await asyncio.sleep(0)
+                assert not task.done()
+        finally:
+            release_commit.set()
+            advance_to_final_gate.set()
+            result, = await asyncio.gather(task, return_exceptions=True)
+            await asyncio.gather(health, return_exceptions=True)
+            await server.cleanup()
+        if cancel_during_commit:
+            assert isinstance(result, asyncio.CancelledError)
+        else:
+            assert result is None
+
+    event.listen(native.engine, 'before_cursor_execute', locate_rejection)
+    event.listen(native.engine, 'commit', hold_commit)
+    try:
+        with patch.object(native.owner, 'authorize_rest', side_effect=authorize_after_readiness_changes):
+            native.loop.run_until_complete(asyncio.wait_for(exercise(), 7))
+    finally:
+        event.remove(native.engine, 'before_cursor_execute', locate_rejection)
+        event.remove(native.engine, 'commit', hold_commit)
+    native.transport.call.assert_not_awaited()
+    assert identity not in native.owner.active_intents
+    assert identity not in native.owner.spot_outflow.orders
+    with native.manager.get_new_session() as db:
+        order = db.get(Order, identity)
+        assert not order.creation_pending and order.last_status == 'OrderFailure'
+        assert db.get(SubmissionAttempt, identity).state == ('rejected' if cancel_during_commit else 'terminal')
+    assert not native.store.read()['recovery_state'].get('halt')
+
+
+@pytest.mark.parametrize('committed', [False, True])
+def test_failed_local_rejection_commit_keeps_the_reservation_and_closes_admission(native, committed):
+    identity = 'uncertain-rejection'
+    authorize = native.owner.authorize_rest
+    commit_attempts = []
+
+    async def authorize_after_readiness_changes(request):
+        native.owner.mm_ready_check = lambda: False
+        return await authorize(request)
+
+    def locate_rejection(connection, cursor, statement, parameters, context, executemany):
+        if statement.startswith('UPDATE submission_attempts') and parameters.get('state') == 'rejected':
+            connection.info['test_fail_rejection'] = True
+
+    def fail_commit(connection):
+        if connection.info.pop('test_fail_rejection', False):
+            commit_attempts.append(connection)
+            if committed:
+                connection.connection.driver_connection.commit()
+            raise OperationalError('Synthetic lost COMMIT outcome')
+
+    async def exercise():
+        with session_order_scope(native.session.id, native.session.generation):
+            await native.market._create_order(TradeType.BUY, identity, 'LIFE-USDT', Decimal('5'),
+                                              OrderType.LIMIT_MAKER, Decimal('10'))
+
+    event.listen(native.engine, 'before_cursor_execute', locate_rejection)
+    event.listen(native.engine, 'commit', fail_commit)
+    try:
+        with patch.object(native.owner, 'authorize_rest', side_effect=authorize_after_readiness_changes):
+            native.loop.run_until_complete(asyncio.wait_for(exercise(), 5))
+    finally:
+        event.remove(native.engine, 'before_cursor_execute', locate_rejection)
+        event.remove(native.engine, 'commit', fail_commit)
+    assert len(commit_attempts) == 1
+    native.transport.call.assert_not_awaited()
+    assert identity in native.owner.active_intents and identity in native.owner.spot_outflow.orders
+    assert native.market.in_flight_orders[identity].is_pending_create
+    assert not native.manager.persistence_healthy and not native.owner.allow_new_orders
+    assert native.store.read()['recovery_state']['halt']
+    with native.manager.get_new_session() as db:
+        assert db.get(Order, identity).creation_pending is not committed
+        assert db.get(SubmissionAttempt, identity).state == ('rejected' if committed else 'prepared')
 
 
 @pytest.mark.parametrize('retirement', ['task_cancel', 'tracker_cancel', 'tracker_remove'])

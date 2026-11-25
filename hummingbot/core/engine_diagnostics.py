@@ -26,7 +26,7 @@ OPERATIONS = frozenset({
     'order.cancel', 'order.terminal', 'order.intent', 'order.intent_batch', 'order.created', 'order.receipt_write',
     'position.checkpoint', 'owner.read',
     'db.sql', 'db.commit', 'db.ping', 'service.observe', 'service.publication', 'service.checkpoint_write',
-    'executor.terminal', 'executor.archive', 'order.proof',
+    'executor.terminal', 'executor.archive', 'order.proof', 'order.reject',
     'startup.reconcile', 'startup.reference_books', 'startup.history',
     'shutdown.total', 'shutdown.core', 'shutdown.strategy', 'shutdown.hold',
     'shutdown.cancel', 'shutdown.proof_before', 'shutdown.proof_after',
@@ -36,7 +36,7 @@ SLOW_MS = {
     'controller.reference': 250, 'controller.proposals': 250, 'controller.actions': 250, 'controller.policy': 100,
     'order.submit': 1000, 'order.admission': 1000, 'order.place': 1000,
     'order.intent': 100, 'order.intent_batch': 100, 'order.created': 100, 'order.receipt_write': 100,
-    'order.cancel': 1000, 'order.proof': 1000,
+    'order.cancel': 1000, 'order.proof': 1000, 'order.reject': 100,
     'order.terminal': 250, 'executor.terminal': 250, 'executor.archive': 100, 'position.checkpoint': 250,
     'owner.read': 100, 'db.sql': 100, 'db.commit': 100, 'db.ping': 100, 'service.observe': 1000, 'service.publication': 500,
     'service.checkpoint_write': 100,
@@ -47,6 +47,7 @@ SLOW_MS = {
 }
 SUBMISSION_OPERATIONS = frozenset({
     'order.submit', 'order.admission', 'order.intent', 'order.intent_batch', 'order.place', 'order.created', 'order.receipt_write',
+    'order.reject',
 })
 _SUBMISSION_TIMING_OPERATIONS = {
     'admission_ms': 'order.submit',

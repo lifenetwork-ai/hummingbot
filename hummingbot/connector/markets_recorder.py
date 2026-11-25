@@ -1291,51 +1291,77 @@ class MarketsRecorder:
 
     def reject_unsent_order(self, market: ConnectorBase, order_id: str, *, require_existing: bool = False,
                             rejection_receipt=None, rejection_reason=None) -> None:
+        with self._sql_manager.get_new_session() as session, session.begin():
+            self._stage_unsent_rejection(session, market.display_name, order_id, require_existing=require_existing,
+                                         rejection_receipt=rejection_receipt, rejection_reason=rejection_reason)
+
+    @trace_runtime('order.reject', order_parameter='order_id')
+    async def reject_prepared_order(self, market: ConnectorBase, order_id: str):
+        def stage(session):
+            self._stage_unsent_rejection(session, market_name, order_id, require_existing=True, prepared_only=True)
+
+        market_name = market.display_name
+        _, cancelled = await self._run_native_write(stage)
+        return cancelled
+
+    def _stage_unsent_rejection(self, session, market_name, order_id, *, require_existing, prepared_only=False,
+                                rejection_receipt=None, rejection_reason=None):
         from hummingbot.connector.okx_order_status import order_rejection_reason
         from hummingbot.model.runtime_journal import SubmissionAttempt
-        with self._sql_manager.get_new_session() as session, session.begin():
+
+        if prepared_only:
+            proof = session.execute(select(Order, SubmissionAttempt).join(
+                SubmissionAttempt, SubmissionAttempt.order_id == Order.id
+            ).where(Order.id == order_id).with_for_update()).one_or_none()
+            if proof is None:
+                raise ValueError("Local rejection requires a durable submission intent.")
+            order, attempt = proof
+            if attempt.state != 'prepared' or attempt.payload_hash is not None or attempt.receipt is not None:
+                raise ValueError("Local rejection requires a prepared order with no durable transport attempt.")
+        else:
             order = session.get(Order, order_id, with_for_update=True)
             attempt = None
-            if rejection_receipt is not None or rejection_reason is not None:
-                from hummingbot.core.order_submission_guard import active_guard
-                guard = active_guard()
-                if guard is None or guard.engine is not self.sql_manager.engine:
-                    raise ValueError("Exchange rejection requires the current trading owner.")
-                guard.check_owner()
-                attempt = session.get(SubmissionAttempt, order_id, with_for_update=True)
-                reason = order_rejection_reason(attempt.receipt, order_id) if attempt is not None else None
-                if (not reason or (rejection_receipt is not None and attempt.receipt != rejection_receipt)
-                        or (rejection_reason is not None and reason != rejection_reason)
-                        or attempt.state not in ('possibly_sent', 'uncertain', 'rejected')
-                        or session.query(TradeFill.order_id).filter_by(order_id=order_id).first() is not None):
-                    raise ValueError("Exchange rejection conflicts with durable submission evidence.")
-            if order is None and (require_existing or attempt is not None):
-                raise ValueError("Rejected order has no durable submission intent.")
-            if order is not None:
-                already_rejected = (attempt is not None and attempt.state == 'rejected'
-                                    and order.last_status == MarketEvent.OrderFailure.name and not order.creation_pending)
-                if ((not order.creation_pending and not already_rejected) or order.exchange_order_id
-                        or order.market != market.display_name or order.config_file_path != self._config_file_path):
-                    raise ValueError("Unsent rejection conflicts with acknowledged order history.")
-                order.creation_pending = False
-                order.last_status = MarketEvent.OrderFailure.name
-                if attempt is not None:
-                    if not already_rejected:
-                        from hummingbot.core.admin_identity import Principal
-                        from hummingbot.model.admin_access import AdminAccessStore
-                        AdminAccessStore(guard.engine, guard.store.bot_id).audit(
-                            session.connection(), actor=Principal('owner:' + guard.owner_uuid, 'runtime', 'write'),
-                            action='automatic_recovery_order_rejected', outcome='succeeded',
-                            request_id='automatic:' + order_id, target_id=order_id,
-                            reason_code=reason, details={'order_id': order_id})
-                    attempt.state = 'rejected'
-                else:
-                    self._attempt_observation(session, order_id, 'rejected')
-            saved = self.get_market_states(self._config_file_path, market, session)
-            if saved is not None:
-                state = dict(saved.saved_state)
-                state.pop(order_id, None)
-                saved.saved_state = state
+        exchange_rejected = rejection_receipt is not None or rejection_reason is not None
+        if exchange_rejected:
+            from hummingbot.core.order_submission_guard import active_guard
+            guard = active_guard()
+            if guard is None or guard.engine is not self.sql_manager.engine:
+                raise ValueError("Exchange rejection requires the current trading owner.")
+            guard.check_owner()
+            attempt = session.get(SubmissionAttempt, order_id, with_for_update=True)
+            reason = order_rejection_reason(attempt.receipt, order_id) if attempt is not None else None
+            if (not reason or (rejection_receipt is not None and attempt.receipt != rejection_receipt)
+                    or (rejection_reason is not None and reason != rejection_reason)
+                    or attempt.state not in ('possibly_sent', 'uncertain', 'rejected')
+                    or session.query(TradeFill.order_id).filter_by(order_id=order_id).first() is not None):
+                raise ValueError("Exchange rejection conflicts with durable submission evidence.")
+        if order is None and (require_existing or attempt is not None):
+            raise ValueError("Rejected order has no durable submission intent.")
+        if order is not None:
+            already_rejected = (exchange_rejected and attempt.state == 'rejected'
+                                and order.last_status == MarketEvent.OrderFailure.name and not order.creation_pending)
+            if ((not order.creation_pending and not already_rejected) or order.exchange_order_id
+                    or order.market != market_name or order.config_file_path != self._config_file_path):
+                raise ValueError("Unsent rejection conflicts with acknowledged order history.")
+            order.creation_pending = False
+            order.last_status = MarketEvent.OrderFailure.name
+            if exchange_rejected and not already_rejected:
+                from hummingbot.core.admin_identity import Principal
+                from hummingbot.model.admin_access import AdminAccessStore
+                AdminAccessStore(guard.engine, guard.store.bot_id).audit(
+                    session.connection(), actor=Principal('owner:' + guard.owner_uuid, 'runtime', 'write'),
+                    action='automatic_recovery_order_rejected', outcome='succeeded',
+                    request_id='automatic:' + order_id, target_id=order_id,
+                    reason_code=reason, details={'order_id': order_id})
+            if attempt is not None:
+                attempt.state = 'rejected'
+            else:
+                self._attempt_observation(session, order_id, 'rejected')
+        saved = self._get_market_states(session, self._config_file_path, market_name)
+        if saved is not None:
+            state = dict(saved.saved_state)
+            state.pop(order_id, None)
+            saved.saved_state = state
 
     def restore_market_states(self, config_file_path: str, market: ConnectorBase):
         with self._sql_manager.get_new_session() as session:
