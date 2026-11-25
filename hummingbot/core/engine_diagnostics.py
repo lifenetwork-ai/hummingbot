@@ -487,7 +487,7 @@ class EngineDiagnostics:
         self._last_scheduler_sample_ns = -200_000_000
         self._last_emitted_ns = -30_000_000_000
         self._last_slow_emitted_ns = -30_000_000_000
-        self._slow, self._slow_dirty = deque(maxlen=8), False
+        self._slow, self._unpublished_slow = deque(maxlen=8), 0
         self._episode = None
         self._sample_episode = self._sampled_heartbeat = None
         self._last_stack_sample_ns = -5_000_000_000
@@ -551,7 +551,7 @@ class EngineDiagnostics:
                 stats['max_duration_ms'] = max(stats['max_duration_ms'], duration)
                 if duration >= SLOW_MS[row['operation']] or 'final_slot_wait_evidence' in row:
                     self._slow.append(dict(row, duration_ms=duration, end_ns=now, error=bool(error)))
-                    self._slow_dirty = True
+                    self._unpublished_slow = min(self._unpublished_slow + 1, len(self._slow))
         except Exception:
             pass
 
@@ -897,8 +897,10 @@ class EngineDiagnostics:
             self._publish_missed_heartbeat(now)
             if now - self._last_slow_emitted_ns >= 30_000_000_000:
                 with self.lock:
-                    slow = list(self._slow) if self._slow_dirty else []
-                    self._slow_dirty = False
+                    # Keep recent history for loop recovery while reporting each
+                    # retained completion only once in periodic slow warnings.
+                    slow = list(self._slow)[-self._unpublished_slow:] if self._unpublished_slow else []
+                    self._unpublished_slow = 0
                 if slow:
                     self._last_slow_emitted_ns = now
                     self._deliver(dict(event='engine_stage_slow', at_ns=now, wall_time_ns=time.time_ns(),

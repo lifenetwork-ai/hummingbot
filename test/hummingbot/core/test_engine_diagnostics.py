@@ -355,6 +355,29 @@ def test_slow_network_stage_is_visible_even_when_the_engine_heartbeat_is_healthy
     assert len(records) == 1
 
 
+def test_slow_stage_warning_reports_only_new_completions():
+    clock, records = [1_000_000_000], []
+    tracer = EngineDiagnostics(emit=records.append, clock=lambda: clock[0])
+    tracer._started = True
+    earlier = tracer.begin('order.cancel')
+    later = tracer.begin('service.observe')
+    clock[0] += 1_100_000_000
+    tracer.finish(later)
+    tracer._beat_ns = clock[0]
+    tracer.watch_once()
+
+    clock[0] += 30_000_000_000
+    tracer.finish(earlier)
+    tracer._beat_ns = clock[0]
+    tracer.watch_once()
+
+    clock[0] += 30_000_000_000
+    tracer._beat_ns = clock[0]
+    tracer.watch_once()
+    assert [record['event'] for record in records] == ['engine_stage_slow', 'engine_stage_slow']
+    assert [[row['id'] for row in record['slow']] for record in records] == [[later['id']], [earlier['id']]]
+
+
 @pytest.mark.asyncio
 async def test_internal_instrumentation_failure_cannot_mask_a_return_or_original_exception(monkeypatch):
     tracer = EngineDiagnostics(emit=lambda _: None)
