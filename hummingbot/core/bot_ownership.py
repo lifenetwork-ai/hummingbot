@@ -141,6 +141,7 @@ class BotOwnership:
         self._order_receipts = deque()
         self._order_receipt_writer = None
         self.account_lock = asyncio.Lock()
+        self._cancel_proof_lock = asyncio.Lock()
         self.account_token = None
         self.mm_ready_check = None
         self.mm_order_ready_check = None
@@ -338,19 +339,24 @@ class BotOwnership:
         return self._lose_ownership("The bot ownership session failed; submissions are closed.", code, **diagnostic)
 
     @trace_runtime('owner.read')
-    async def observe_state(self, *, halt_only=False):
+    async def observe_state(self, *, halt_only=False, identity_only=False):
         """Read current control state off-loop while proving the owner's physical lock."""
         physical = self.require_owner_connection()
         # A pooled read can see the advisory lock but does not reset the owning
         # backend's idle timer. Native authority reads already reset that timer.
-        if time.monotonic() - self._owner_last_read_at >= OWNER_SESSION_REFRESH_SECONDS:
+        if not identity_only and time.monotonic() - self._owner_last_read_at >= OWNER_SESSION_REFRESH_SECONDS:
             self._read_owner(identity_only=True)
-        columns = (BotState.recovery_state['halt'].label('halt'),) if halt_only else (
-            BotState.bot_id, BotState.config_file_path, BotState.config_type, BotState.desired_state,
-            BotState.control_version, BotState.acknowledged_version, BotState.owner_uuid, BotState.owner_generation,
-            BotState.heartbeat, BotState.revision, BotState.recovery_state, BotState.mm_session,
-            text('EXTRACT(EPOCH FROM clock_timestamp()) AS database_now'),
-        )
+        if identity_only:
+            columns = (text('1 AS owner_present'),)
+        elif halt_only:
+            columns = (BotState.recovery_state['halt'].label('halt'),)
+        else:
+            columns = (
+                BotState.bot_id, BotState.config_file_path, BotState.config_type, BotState.desired_state,
+                BotState.control_version, BotState.acknowledged_version, BotState.owner_uuid, BotState.owner_generation,
+                BotState.heartbeat, BotState.revision, BotState.recovery_state, BotState.mm_session,
+                text('EXTRACT(EPOCH FROM clock_timestamp()) AS database_now'),
+            )
         statement = select(*columns).where(
             BotState.bot_id == self.store.bot_id, BotState.owner_uuid == self.owner_uuid,
             BotState.owner_generation == self.generation, self._advisory_lock_exists())
@@ -374,8 +380,16 @@ class BotOwnership:
                 return select_state(connection)
 
         try:
-            row = await asyncio.to_thread(read)
+            if identity_only:
+                from hummingbot.connector.markets_recorder import MarketsRecorder
+                row, cancelled = await MarketsRecorder._drain_order_write(read)
+                if cancelled is not None:
+                    raise cancelled
+            else:
+                row = await asyncio.to_thread(read)
         except SQLAlchemyError:
+            if identity_only:
+                raise SubmissionBlocked('Could not verify ownership before cancelling an order.') from None
             # A pool error alone does not prove that the dedicated owner was lost.
             row = self.check_owner()
             return {'halt': (row['recovery_state'] or {}).get('halt')} if halt_only else row
@@ -1152,7 +1166,7 @@ class BotOwnership:
 
     async def authorize_rest(self, request):
         path = urlparse(request.url).path
-        if path != ORDER_PATH:
+        if path != ORDER_PATH and path not in CANCEL_PATHS:
             return await self._authorize_rest(request)
         from hummingbot.core.order_submission_guard import active_guard
 
@@ -1164,6 +1178,8 @@ class BotOwnership:
             self.submission_tasks.add(task)
         checkpoint_deadline = None
         try:
+            if path in CANCEL_PATHS:
+                return await self._authorize_rest(request)
             while True:
                 checkpoint_ready = self.position_checkpoint_ready
                 try:
@@ -1183,17 +1199,24 @@ class BotOwnership:
                     # There is a prepared intent, but no durable send yet.
                     checkpoint_deadline = await self._wait_for_position_checkpoint(checkpoint_deadline, error, checkpoint_ready)
         finally:
-            # Native create tasks retain their original lifetime tracking. A
-            # direct REST caller may be the long-lived service loop; retain it
-            # only while queued here, then transport_started/finished owns I/O.
+            # Native create tasks retain their original lifetime tracking.
+            # A direct caller is retained until its proof has settled, then
+            # transport_started/finished owns the network I/O.
             if temporary:
                 self.submission_tasks.discard(task)
 
     async def _authorize_rest(self, request, *, after_checkpoint_wait=False):
         path = urlparse(request.url).path
         if path in CANCEL_PATHS:
-            # A cancel needs fresh physical ownership even during Stop/HALT.
-            self._read_owner(identity_only=True)
+            from hummingbot.core.order_submission_guard import active_guard
+
+            # Read only the current owner row and its physical advisory lock.
+            # Bound pooled reads independently of the order writer so a cancel
+            # burst leaves capacity for commits, observation and shutdown.
+            async with self._cancel_proof_lock:
+                await self.observe_state(identity_only=True)
+                if active_guard() is not self:
+                    raise SubmissionBlocked('Trading owner changed before cancel authorization.')
             return None
         try:
             data = json.loads(getattr(request, "data", None) or "{}") if path == ORDER_PATH else {}

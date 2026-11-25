@@ -14,7 +14,7 @@ import pytest
 from aiohttp import web
 from psycopg2 import OperationalError
 from sqlalchemy import event, insert, select, text, update
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, TimeoutError as SQLTimeout
 
 from hummingbot.cli.service import ServiceHost
 from hummingbot.cli.service_processes import probe_health
@@ -41,6 +41,104 @@ async def send(rest, identity):
         url='https://offline.invalid' + ORDER_PATH, method=RESTMethod.POST,
         throttler_limit_id='order', is_auth_required=True,
         data=dict(clOrdId=identity, instId='BTC-USDT', side='buy', sz='0.1'))
+
+
+async def cancel_order(rest):
+    return await rest.execute_request(
+        url='https://offline.invalid/api/v5/trade/cancel-order', method=RESTMethod.POST,
+        throttler_limit_id='cancel', is_auth_required=True, data={'clOrdId': 'order-1'})
+
+
+def test_slow_cancel_owner_proof_leaves_live_probe_responsive(owned):
+    entered, release = threading.Event(), threading.Event()
+    rest, transport = assistant()
+
+    def pause(connection, cursor, statement, parameters, context, executemany):
+        if 'pg_locks' in statement and 'bot_state' in statement:
+            entered.set()
+            assert release.wait(2)
+
+    def probe(port):
+        try:
+            assert entered.wait(2)
+            return probe_health(port, '/live')
+        finally:
+            release.set()
+
+    async def exercise():
+        host = SimpleNamespace(stop=asyncio.Event(), phase='running', observer_progress_at=None)
+        app = web.Application()
+        app.router.add_get('/live', ServiceHost.health.__get__(host))
+        runner = web.AppRunner(app)
+        await runner.setup()
+        await web.TCPSite(runner, '127.0.0.1', 0).start()
+        port = runner.addresses[0][1]
+        try:
+            check = asyncio.create_task(asyncio.to_thread(probe, port))
+            cancel = asyncio.create_task(cancel_order(rest))
+            healthy, detail = await check
+            await cancel
+            assert healthy, detail
+        finally:
+            await runner.cleanup()
+
+    event.listen(owned.engine, 'before_cursor_execute', pause)
+    try:
+        owned.loop.run_until_complete(exercise())
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', pause)
+    transport.call.assert_awaited_once()
+
+
+def test_cancelled_owner_proof_drains_before_releasing_its_slot_without_transport(owned):
+    entered, release = threading.Event(), threading.Event()
+    rest, transport = assistant()
+
+    def pause(connection, cursor, statement, parameters, context, executemany):
+        if 'owner_present' in statement:
+            entered.set()
+            assert release.wait(3)
+
+    async def exercise():
+        task = asyncio.create_task(cancel_order(rest))
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            task.cancel()
+            await asyncio.sleep(0)
+            assert not task.done() and task in owned.owner.submission_tasks
+            assert owned.owner._cancel_proof_lock.locked()
+        finally:
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+        assert task.cancelled() and task not in owned.owner.submission_tasks
+        assert not owned.owner._cancel_proof_lock.locked()
+
+    event.listen(owned.engine, 'before_cursor_execute', pause)
+    try:
+        owned.loop.run_until_complete(exercise())
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', pause)
+    transport.call.assert_not_awaited()
+
+
+def test_pooled_cancel_proof_failure_closes_the_attempt_and_keeps_current_owner(owned):
+    rest, transport = assistant()
+
+    def fail(connection, cursor, statement, parameters, context, executemany):
+        if 'owner_present' in statement:
+            raise SQLTimeout('offline read timeout')
+
+    event.listen(owned.engine, 'before_cursor_execute', fail)
+    try:
+        with pytest.raises(SubmissionBlocked, match='Could not verify ownership'):
+            owned.loop.run_until_complete(cancel_order(rest))
+        transport.call.assert_not_awaited()
+        assert not owned.owner.lost and owned.owner.allow_new_orders
+        assert not owned.owner.submission_tasks and not owned.owner._cancel_proof_lock.locked()
+    finally:
+        event.remove(owned.engine, 'before_cursor_execute', fail)
+    owned.loop.run_until_complete(cancel_order(rest))
+    transport.call.assert_awaited_once()
 
 
 @pytest.mark.parametrize('blocked_attempts', [1, 5])

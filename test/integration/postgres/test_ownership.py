@@ -134,18 +134,18 @@ def test_cancel_reads_only_physical_ownership_even_when_halted(owned, path):
     owned.store.control(expected_version=1, desired_state='stopped')
     owned.owner.require_recovery('test halted owner')
     rest, transport = assistant()
-    selected_columns = []
+    proofs = []
 
     def capture(connection, cursor, statement, *args):
-        if connection is owned.owner.connection:
-            selected_columns.append(tuple(column.name for column in cursor.description))
+        if 'pg_locks' in statement:
+            proofs.append((connection is owned.owner.connection, tuple(column.name for column in cursor.description)))
 
     event.listen(owned.engine, 'after_cursor_execute', capture)
     try:
         owned.loop.run_until_complete(send(rest, path=path))
     finally:
         event.remove(owned.engine, 'after_cursor_execute', capture)
-    assert selected_columns == [('backend_pid',)]
+    assert proofs == [(False, ('owner_present',))]
     transport.call.assert_awaited_once()
 
     with owned.engine.begin() as connection:
