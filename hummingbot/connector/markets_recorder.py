@@ -1047,7 +1047,7 @@ class MarketsRecorder:
         # Ordinary checkpoints retain full reads and unchanged-JSON dirty checking.
         postgres = self._sql_manager.engine.dialect.name == "postgresql"
         pending_ids = None
-        if saved_state and postgres:
+        if postgres and (saved_state or tracking_basis is not None):
             # Tracking begins before queued creates pass the durable send gate.
             # A sibling intent must not checkpoint those never-admitted creates:
             # a later switch would restore them as nonexistent exchange orders.
@@ -1426,8 +1426,8 @@ class MarketsRecorder:
                 return order_record
         self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
 
-    @staticmethod
-    def _read_order_event_evidence(session, identity, timestamp, status, *, include_pending_intent=False):
+    def _read_order_event_evidence(self, session, identity, timestamp, status, *, include_pending_intent=False,
+                                   tracking=None, market_name=None):
         from hummingbot.model.runtime_journal import SubmissionAttempt
 
         history_recorded = select(OrderStatus.id).filter_by(order_id=identity, timestamp=timestamp, status=status).exists()
@@ -1439,7 +1439,16 @@ class MarketsRecorder:
             intent_recorded = select(OrderStatus.id).where(
                 OrderStatus.order_id == identity, OrderStatus.status.in_(("PendingBuy", "PendingSell"))).exists()
             statement = statement.add_columns(case((Order.creation_pending, intent_recorded), else_=False))
+        if tracking is not None:
+            statement = self._with_tracking_basis(statement, tracking, market_name)
         return session.execute(statement).one_or_none()
+
+    def _with_tracking_basis(self, statement, tracking, market_name):
+        orders = self._tracking_order_ids(self._config_file_path, market_name, tracking)
+        return (statement.add_columns(MarketState, orders.c.admitted_ids, orders.c.pending_ids)
+                .join(orders, true()).outerjoin(MarketState, and_(
+                    MarketState.config_file_path == self._config_file_path, MarketState.market == market_name))
+                .options(defer(MarketState.saved_state)))
 
     def _read_creation_evidence_batch(self, session, acknowledgements, *, tracking, market_name):
         from hummingbot.model.runtime_journal import SubmissionAttempt
@@ -1455,11 +1464,7 @@ class MarketsRecorder:
         if tracking is not None:
             # Every ACK shares one checkpoint basis. Defer the previous JSON
             # so only a missing unresolved order needs to load it.
-            orders = self._tracking_order_ids(self._config_file_path, market_name, tracking)
-            statement = (statement.add_columns(MarketState, orders.c.admitted_ids, orders.c.pending_ids)
-                         .join(orders, true()).outerjoin(MarketState, and_(
-                             MarketState.config_file_path == self._config_file_path, MarketState.market == market_name))
-                         .options(defer(MarketState.saved_state)))
+            statement = self._with_tracking_basis(statement, tracking, market_name)
         rows = session.execute(statement).all()
         tracking_basis = rows[0][3:] if tracking is not None else None
         return {row[0].id: row[:3] for row in rows if row[0] is not None}, tracking_basis
@@ -1718,14 +1723,15 @@ class MarketsRecorder:
                     self._stage_order_creation(session, tag.value, market, payload, tracking_states=tracking_states,
                                                coalesce_snapshot=len(events) == 1)
                 else:
-                    self._stage_order_status(session, tag.value, market, payload, tracking_states=tracking_states)
+                    self._stage_order_status(session, tag.value, market, payload, tracking_states=tracking_states,
+                                             coalesce_snapshot=len(events) == 1)
 
         _, cancelled = await self._run_native_write(
             stage, defer_contention=OrderAcknowledgementBusy if defer_ack_contention else None)
         return cancelled
 
     @trace_runtime('order.terminal', order_parameter='evt')
-    def _stage_order_status(self, session, event_tag, market, evt, *, tracking_states=None):
+    def _stage_order_status(self, session, event_tag, market, evt, *, tracking_states=None, coalesce_snapshot=False):
         timestamp: int = self.db_timestamp
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
         order_id: str = evt.order_id
@@ -1733,10 +1739,18 @@ class MarketsRecorder:
         has_cancel_identity = event_type == MarketEvent.OrderCancelled and isinstance(exchange_id, str) and bool(exchange_id)
 
         evidence = None
+        tracking_basis = None
         if self.durable_position_checkpoints:
+            coalesce_snapshot = coalesce_snapshot and self.cleanup_operation_id is None
+            if coalesce_snapshot and tracking_states is None:
+                tracking_states = market.tracking_states
             evidence = self._read_order_event_evidence(session, order_id, timestamp, event_type.name,
-                                                       include_pending_intent=has_cancel_identity)
+                                                       include_pending_intent=has_cancel_identity,
+                                                       tracking=tracking_states if coalesce_snapshot else None,
+                                                       market_name=market.display_name)
             order_record = evidence[0] if evidence is not None else None
+            if evidence is not None and coalesce_snapshot:
+                tracking_basis = evidence[-3:]
         else:
             order_record = session.query(Order).filter(Order.id == order_id).one_or_none()
 
@@ -1760,9 +1774,6 @@ class MarketsRecorder:
                     order_record.exchange_order_id = exchange_id
                     order_record.creation_pending = False
             self._record_latest_status(order_record, event_type.name, timestamp)
-            # Neither lookup needs the pending Order/attempt changes.
-            # Flush their terminal state and history together at the
-            # checkpoint read, retaining its fence and the commit fence.
             with session.no_autoflush:
                 if evidence is None:
                     self._add_order_status(session, order_record, timestamp, event_type.name)
@@ -1771,7 +1782,13 @@ class MarketsRecorder:
                     self._set_attempt_observation(attempt, 'terminal')
                     if not history_recorded:
                         session.add(OrderStatus(order=order_record, timestamp=timestamp, status=event_type.name))
-            self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
+                if tracking_basis is not None:
+                    # The read saw the order before this update. Exclude its
+                    # old pending snapshot only if the update resolved it.
+                    self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states,
+                                            staged_orders=(order_record,), tracking_basis=tracking_basis)
+            if tracking_basis is None:
+                self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
         elif self._sql_manager.engine.dialect.name == "postgresql" and event_type != MarketEvent.OrderFailure:
             raise RuntimeError("Order status arrived without a persisted order identity; reconciliation is required.")
 

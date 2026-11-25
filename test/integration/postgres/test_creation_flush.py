@@ -451,8 +451,11 @@ def test_worker_ack_reads_creation_evidence_together_under_both_fences(owned, pr
 
 
 @pytest.mark.parametrize('prior', ['pending_intent', 'fill_placeholder', 'open_uncertain'])
-def test_worker_cancel_reads_order_attempt_and_history_together(owned, prior):
+@pytest.mark.parametrize('missing_peer', [False, True])
+def test_worker_cancel_reads_order_and_checkpoint_together(owned, prior, missing_peer):
     intent(owned)
+    peer = intent(owned, 'missing-peer') if missing_peer else None
+    tracked = intent(owned, 'tracked-peer') if missing_peer else None
     if prior == 'open_uncertain':
         acknowledge(owned)
     with owned.manager.get_new_session() as db, db.begin():
@@ -464,16 +467,24 @@ def test_worker_cancel_reads_order_attempt_and_history_together(owned, prior):
             attempt.state = 'uncertain'
     cancelled = SimpleNamespace(order_id='order-1', exchange_order_id='exchange-order-1')
     events = [(MarketEvent.OrderCancelled, cancelled)]
+    tracking = {tracked.client_order_id: tracked.to_json()} if tracked else {}
     with patch.object(type(owned.recorder), 'db_timestamp', new_callable=PropertyMock, return_value=1700000002000):
         with queries(owned.engine) as statements:
-            owned.loop.run_until_complete(owned.recorder.persist_order_update(owned.market, events, {}))
-        owned.loop.run_until_complete(owned.recorder.persist_order_update(owned.market, events, {}))
+            owned.loop.run_until_complete(owned.recorder.persist_order_update(owned.market, events, tracking))
+        owned.loop.run_until_complete(owned.recorder.persist_order_update(owned.market, events, tracking))
 
     evidence = [sql for sql in statements if sql.startswith('SELECT') and (
         'FROM orders \nWHERE orders.id =' in sql or 'submission_attempts' in sql or 'order_statuses' in sql)]
     assert len(evidence) == 1, evidence
     assert all(table in evidence[0] for table in ('orders', 'submission_attempts', 'order_statuses'))
     assert all(column not in evidence[0] for column in ('submission_attempts.context', 'submission_attempts.receipt'))
+    assert 'JOIN market_states' in evidence[0] and 'array_agg(orders.id)' in evidence[0]
+    old_snapshot_needed = missing_peer or prior == 'fill_placeholder'
+    reads = [sql for sql in statements if sql.startswith('SELECT') and 'pg_locks' not in sql]
+    assert len(reads) == 1 + old_snapshot_needed, reads
+    assert 'market_states.saved_state' not in reads[0]
+    if old_snapshot_needed:
+        assert 'market_states.saved_state' in reads[1]
     fences = [sql for sql in statements if 'pg_locks' in sql]
     assert len(fences) == 2 and 'FOR SHARE' in fences[0] and 'FOR SHARE' not in fences[1]
     with owned.manager.get_new_session() as db:
@@ -486,6 +497,12 @@ def test_worker_cancel_reads_order_attempt_and_history_together(owned, prior):
         assert (attempt.state if attempt is not None else None) == {
             'pending_intent': 'terminal', 'fill_placeholder': None, 'open_uncertain': 'uncertain',
         }[prior]
+        saved = db.query(MarketState).one().saved_state
+        expected = {**tracking, peer.client_order_id: peer.to_json()} if peer is not None else tracking
+        if prior == 'fill_placeholder':
+            assert set(saved) == {*expected, order.id}
+            assert saved.pop(order.id)['exchange_order_id'] is None
+        assert saved == expected
 
 
 def test_creation_pipeline_paired_roundtrip_measurement(owned):
