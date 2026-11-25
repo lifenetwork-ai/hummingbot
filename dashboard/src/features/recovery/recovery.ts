@@ -16,8 +16,8 @@ export function recoveryEntry(input: {
 }): RecoveryDecision {
   if (!input.permission) return { allowed: false, reason: 'permission_required' }
   if (!input.overview) return { allowed: false, reason: 'recovery_unavailable' }
-  if (input.uncertainOrderScope ? input.overview.halted : !input.overview.halted) {
-    return { allowed: false, reason: input.uncertainOrderScope ? 'uncertain_order_scope_unavailable' : 'recovery_not_halted' }
+  if (!input.uncertainOrderScope && !input.overview.halted) {
+    return { allowed: false, reason: 'recovery_not_halted' }
   }
   if (input.operationPending) return { allowed: false, reason: 'recovery_in_progress' }
   if (!input.statusFresh || !input.status) return { allowed: false, reason: 'status_unavailable' }
@@ -42,7 +42,7 @@ export function reviewRecovery(input: {
 }): RecoveryDecision {
   const { operation } = input
   if (!input.permission) return { allowed: false, reason: 'permission_required' }
-  if (!input.overview || (input.uncertainOrderScope ? input.overview.halted : !input.overview.halted)) {
+  if (!input.overview || (!input.uncertainOrderScope && !input.overview.halted)) {
     return { allowed: false, reason: input.uncertainOrderScope ? 'uncertain_order_scope_unavailable' : 'recovery_not_halted' }
   }
   if (!input.statusFresh || !input.status || !input.overview.reset_available) return { allowed: false, reason: 'reset_unavailable' }

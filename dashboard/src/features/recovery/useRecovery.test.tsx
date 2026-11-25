@@ -215,7 +215,7 @@ describe('useRecovery', () => {
     expect(result.current.uncertainOrders.completionVerified).toBe(false)
   })
 
-  it('reviews one uncertain SELL and retries Reset without claiming completion before exact repair proof', async () => {
+  it.each([false, true])('reviews one uncertain SELL with scoped halted=%s and retries Reset until exact repair proof', async (halted) => {
     const sell = { id: 'Sell001', side: 'SELL', pair: 'BTC-USDT', amount: '0.5', price: '100', connector: 'okx', before: 'PendingSell', after: 'OrderFailure', deadline_ms: 10, evidence: 'expired_submission_and_reconciled_exchange' }
     const scopedCheck = { ...checkOperation, proposed_uncertain_order: sell }
     const scopedReset = { ...resetOperation, repaired_uncertain_order: null, repaired_uncertain_orders: [] }
@@ -225,7 +225,7 @@ describe('useRecovery', () => {
     server.use(
       http.get(`${baseUrl}/status`, () => HttpResponse.json(status)),
       http.get(`${baseUrl}/recovery`, ({ request }) => HttpResponse.json({
-        halted: !new URL(request.url).searchParams.has('uncertain_order_id'), control_version: 7,
+        halted: halted || !new URL(request.url).searchParams.has('uncertain_order_id'), control_version: 7,
         check_available: true, reset_available: true, blockers: [], operation: null,
       })),
       http.get(`${baseUrl}/recovery/operations/:id`, ({ params }) => HttpResponse.json(params.id === 'reset-1'
