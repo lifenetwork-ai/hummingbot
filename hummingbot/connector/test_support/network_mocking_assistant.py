@@ -12,6 +12,10 @@ import aiohttp
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.logger import HummingbotLogger
 
+# Full-suite CI can delay mocked frames by more than a second. Keep a finite
+# deadline for consumers that stop reading.
+_WEBSOCKET_DELIVERY_TIMEOUT = 5
+
 
 def get_stable_key(ws: AsyncMock) -> uuid.UUID:
     """
@@ -272,19 +276,19 @@ class NetworkMockingAssistant:
         key: uuid.UUID = get_stable_key(websocket_mock)
         return self._sent_websocket_text_messages[key]
 
-    async def run_until_all_text_messages_delivered(self, websocket_mock, timeout: int = 1):
+    async def run_until_all_text_messages_delivered(self, websocket_mock, timeout: int = _WEBSOCKET_DELIVERY_TIMEOUT):
         self.verify_async_init()
         key: uuid.UUID = get_stable_key(websocket_mock)
         all_delivered = self._all_incoming_websocket_text_delivered_event[key]
         await asyncio.wait_for(all_delivered.wait(), timeout)
 
-    async def run_until_all_json_messages_delivered(self, websocket_mock, timeout: int = 1):
+    async def run_until_all_json_messages_delivered(self, websocket_mock, timeout: int = _WEBSOCKET_DELIVERY_TIMEOUT):
         self.verify_async_init()
         key: uuid.UUID = get_stable_key(websocket_mock)
         all_delivered = self._all_incoming_websocket_json_delivered_event[key]
         await asyncio.wait_for(all_delivered.wait(), timeout)
 
-    async def run_until_all_aiohttp_messages_delivered(self, websocket_mock, timeout: int = 1):
+    async def run_until_all_aiohttp_messages_delivered(self, websocket_mock, timeout: int = _WEBSOCKET_DELIVERY_TIMEOUT):
         self.verify_async_init()
         key: uuid.UUID = get_stable_key(websocket_mock)
         all_delivered = self._all_incoming_websocket_aiohttp_delivered_event[key]
