@@ -264,7 +264,7 @@ class BotOwnership:
         return connection
 
     @trace_runtime('owner.read')
-    def _read_owner(self, *, identity_only=False, include_pending=False, order_authority=False):
+    def _read_owner(self, *, identity_only=False, include_pending=False, order_authority=False, isolated_order_id=None):
         """Fresh proof on the physical owner session; writes need no state JSON."""
         connection = self.require_owner_connection()
         try:
@@ -302,6 +302,23 @@ class BotOwnership:
                     FROM (SELECT id, market FROM public.orders
                           WHERE creation_pending IS true LIMIT :pending_limit) p) AS pending_intents"""
                 parameters["pending_limit"] = MAX_ATTEMPTS + 1
+            if order_authority and self.scoped_recovery_enabled and self.automatic_recovery.active:
+                # The same statement must see the owner, both bounded attempt
+                # sets and the active credential basis. Keep receipt evidence
+                # on quarantined attempts for the reconciliation worker.
+                for states, name in (("'uncertain'", 'scoped_pending'), ("'uncertain', 'possibly_sent'", 'scoped_sends')):
+                    columns += f""", (SELECT COALESCE(jsonb_agg(to_jsonb(a) ORDER BY a.order_id), '[]'::jsonb)
+                        FROM (SELECT * FROM public.submission_attempts WHERE state IN ({states})
+                              ORDER BY order_id LIMIT :pending_limit) a) AS {name}"""
+                columns += """,
+                    (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                        'connector', c.connector, 'environment', c.environment,
+                        'account_id', c.account_id, 'version', c.version)), '[]'::jsonb)
+                        FROM public.exchange_credentials c WHERE c.bot_id=b.bot_id AND c.state='active') AS scoped_bindings,
+                    b.recovery_state #>> '{spot_outflow,policy,max_net_outflow_quote}' AS scoped_outflow_cap,
+                    (SELECT context->'order' FROM public.submission_attempts
+                        WHERE order_id=:isolated_order_id) AS scoped_original_order"""
+                parameters["isolated_order_id"] = isolated_order_id
             with _ownership_read(connection):
                 row = connection.execute(text(f"""
                     SELECT {columns} FROM public.bot_state b
@@ -400,11 +417,11 @@ class BotOwnership:
     async def observe_halt(self):
         return bool((await self.observe_state(halt_only=True))['halt'])
 
-    def check_owner(self, *, new_risk=False, allow_setup=False, include_pending=False, order_authority=False):
+    def check_owner(self, *, new_risk=False, allow_setup=False, include_pending=False, order_authority=False, isolated_order_id=None):
         if new_risk:
             self._check_shutdown()
         if order_authority:
-            row = self._read_owner(include_pending=True, order_authority=True)
+            row = self._read_owner(include_pending=True, order_authority=True, isolated_order_id=isolated_order_id)
         else:
             row = self._read_owner(include_pending=True) if include_pending else self._read_owner()
         # A signal can arrive while the synchronous database check is in flight.
@@ -774,7 +791,7 @@ class BotOwnership:
             raise SubmissionBlocked("The active recorder/configuration does not match the service owner.")
         self._check_intents(recorder, admitting=True, staged=staged, pending=row['pending_intents'])
         if cleanup is None and self.scoped_recovery_enabled and self.automatic_recovery.active:
-            self.automatic_recovery.authorize_isolated_order(connector, order)
+            self.automatic_recovery.authorize_isolated_order(connector, order, authority=row)
         try:
             if cleanup is None and self.listing_bootstrap is not None:
                 self.listing_bootstrap.before_order(connector, order, row)
@@ -1224,16 +1241,17 @@ class BotOwnership:
                 raise ValueError
         except (TypeError, ValueError):
             raise SubmissionBlocked("Order submission requires a valid object payload.") from None
-        cleanup = self.cleanup_intents.get(data.get("clOrdId")) if path == ORDER_PATH else None
+        client_id = data.get("clOrdId")
+        cleanup = self.cleanup_intents.get(client_id) if path == ORDER_PATH else None
         order_authority = path == ORDER_PATH and cleanup is None
         with submission_timing('final_owner_read_ms'):
             row = self.check_owner(new_risk=order_authority, include_pending=path == ORDER_PATH,
-                                   order_authority=order_authority)
+                                   order_authority=order_authority,
+                                   isolated_order_id=client_id if isinstance(client_id, str) else None)
         if path == ORDER_PATH:
             if cleanup is not None:
                 from hummingbot.connector.markets_recorder import MarketsRecorder
                 from hummingbot.core.cleanup_authority import validate_close, validate_payload
-                client_id = data.get("clOrdId")
                 connector, order = next(((connector, connector.in_flight_orders[client_id]) for connector in self.connectors.values()
                                          if client_id in connector.in_flight_orders), (None, None))
                 if order is None:
@@ -1253,7 +1271,6 @@ class BotOwnership:
                 return None
             if self.runtime_ready_check is not None and not self.runtime_ready_check():
                 raise SubmissionBlocked("A required runtime task is not healthy.")
-            client_id = data.get("clOrdId")
             connector, order = next(((connector, connector.in_flight_orders[client_id])
                                      for connector in self.connectors.values() if client_id in connector.in_flight_orders), (None, None))
             if (client_id in self.active_intents and client_id not in self.sent_intents
@@ -1275,7 +1292,7 @@ class BotOwnership:
                 if order is None:
                     raise MarketReadinessBlocked('uncertain_order_tracking_unavailable')
                 # This gate is after throttling/authentication, before transport.
-                self.automatic_recovery.authorize_isolated_order(connector, order, payload=data)
+                self.automatic_recovery.authorize_isolated_order(connector, order, payload=data, authority=row)
             bootstrap_deadline = self.listing_bootstrap.authorize(data, row) if self.listing_bootstrap is not None else None
             if self.spot_outflow is not None:
                 self.spot_outflow.authorize(data, row)

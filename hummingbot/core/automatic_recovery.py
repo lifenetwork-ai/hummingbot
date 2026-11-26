@@ -205,11 +205,12 @@ class AutomaticOrderRecovery:
         return bool(getattr(self.owner, 'scoped_recovery_enabled', False) is True and self.active and self.quarantined
                     and self.status.get('cold_recovery_supported') is True)
 
-    def _bound_attempts(self, pending, row, *, retiring=False):
+    def _bound_attempts(self, pending, row, *, retiring=False, bindings=None):
         if (not 0 < len(pending) <= MAX_ATTEMPTS or self.owner.scoped_recovery_enabled is not True
                 or self.status.get('cold_recovery_supported') is not True):
             return None
-        bindings = self._bindings(retiring=retiring)
+        if bindings is None:
+            bindings = self._bindings(retiring=retiring)
         if bindings is None:
             return None
         current = sorted(bindings, key=digest)
@@ -225,7 +226,7 @@ class AutomaticOrderRecovery:
                 return None
         return current
 
-    def _isolate(self, pending, *, retiring=False):
+    def _isolate(self, pending, *, retiring=False, authority=None):
         """Opt-in eligibility is never proof of an order's terminal outcome."""
         self.quarantined = {}
         self.status.update(isolated=False, quarantined_orders=0, admission_mode='paused',
@@ -233,10 +234,14 @@ class AutomaticOrderRecovery:
         if getattr(self.owner, 'scoped_recovery_enabled', False) is not True or self.status.get('cold_recovery_supported') is not True:
             return False
         from hummingbot.core.uncertain_order_reservations import cohort
-        row = self.owner.check_owner()
-        maximum = (((row.get('recovery_state') or {}).get('spot_outflow') or {}).get('policy') or {}).get('max_net_outflow_quote')
+        row = self.owner.check_owner() if authority is None else authority
+        if authority is None:
+            maximum = (((row.get('recovery_state') or {}).get('spot_outflow') or {}).get('policy') or {}).get('max_net_outflow_quote')
+            bindings = None
+        else:
+            maximum, bindings = row['scoped_outflow_cap'], row['scoped_bindings']
         try:
-            current = self._bound_attempts(pending, row, retiring=retiring)
+            current = self._bound_attempts(pending, row, retiring=retiring, bindings=bindings)
             if current is None:
                 return False
             normalized = deepcopy(pending)
@@ -253,20 +258,20 @@ class AutomaticOrderRecovery:
                            order_id=pending[0]['order_id'])
         return True
 
-    def authorize_isolated_order(self, connector, order, *, payload=None):
+    def authorize_isolated_order(self, connector, order, *, payload=None, authority=None):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         from hummingbot.core.uncertain_order_reservations import authorize_cash_sell, cohort
-        self.owner.check_owner(new_risk=True)
-        recorder = MarketsRecorder._shared_instance
-        self._terminal_fence(recorder)
-        pending = self._pending()  # Fresh durable scope immediately before each send.
-        if not self._isolate(pending):
+        if authority is None:
+            authority = self.owner.check_owner(new_risk=True, order_authority=True,
+                                               isolated_order_id=order.client_order_id if payload is not None else None)
+        self._require_terminal_recorder(MarketsRecorder._shared_instance)
+        if 'scoped_pending' not in authority or not self._isolate(authority['scoped_pending'], authority=authority):
             self.owner.allow_new_orders = False
             raise MarketReadinessBlocked('uncertain_reservation_unavailable')
         # Other live POSTs may have crossed transport before their callback
         # marks them uncertain. Reserve those effects too, without letting the
         # proof worker race the still-running submission coroutine.
-        sends = [attempt for attempt in self._pending(all_sends=True) if attempt['order_id'] != order.client_order_id]
+        sends = [attempt for attempt in authority['scoped_sends'] if attempt['order_id'] != order.client_order_id]
         normalized = deepcopy(sends)
         for attempt in normalized:
             current_connector = self.owner.connectors.get(attempt['context']['executor'].get('connector_name'))
@@ -275,24 +280,16 @@ class AutomaticOrderRecovery:
                     or attempt['context'].get('credential_fingerprint') != credential_fingerprint(current_connector)):
                 raise MarketReadinessBlocked('uncertain_reservation_scope')
             attempt['context']['bindings'] = sorted(attempt['context']['bindings'], key=digest)
-        row = self.owner.check_owner(new_risk=True)
-        maximum = row['recovery_state']['spot_outflow']['policy']['max_net_outflow_quote']
-        holds, _ = cohort(normalized, bindings=sorted(self._bindings(), key=digest), environment=environment_identity(),
-                          config_file_path=self.owner.config_file_path, max_quote=maximum)
+        holds, _ = cohort(normalized, bindings=sorted(authority['scoped_bindings'], key=digest),
+                          environment=environment_identity(), config_file_path=self.owner.config_file_path,
+                          max_quote=authority['scoped_outflow_cap'])
         if order.client_order_id in self.quarantined:
             raise MarketReadinessBlocked('uncertain_identity_reserved')
         if payload is not None:
-            from hummingbot.core.bot_ownership import _ownership_read
-
             expected = dict(clOrdId=order.client_order_id, tdMode='cash', ordType='post_only', side='sell',
                             instId=order.trading_pair)
             try:
-                connection = self.owner.require_owner_connection()
-                # Release the read scope before the same session journals the send.
-                with _ownership_read(connection):
-                    attempt = connection.execute(select(SubmissionAttempt.context).where(
-                        SubmissionAttempt.order_id == order.client_order_id)).scalar_one()
-                original = attempt['order']
+                original = authority['scoped_original_order']
                 if (set(payload) != {*expected, 'px', 'sz'} or any(payload.get(k) != v for k, v in expected.items())
                         or original['trade_type'] != 'SELL' or original['trading_pair'] != order.trading_pair
                         or Decimal(original['amount']) != order.amount or Decimal(original['price']) != order.price
@@ -302,7 +299,8 @@ class AutomaticOrderRecovery:
                 raise MarketReadinessBlocked('uncertain_transport_identity_mismatch') from None
         unsent = {identity: native for identity, native in self.owner.unsent_rejections.items()
                   if identity not in self.owner.sent_intents}
-        authorize_cash_sell(connector, order, holds, now=float(row['database_now']), max_age=5, proven_unsent=unsent)
+        authorize_cash_sell(connector, order, holds, now=float(authority['database_now']), max_age=5, proven_unsent=unsent)
+        self.owner._check_shutdown()
 
     @property
     def active(self):
@@ -363,10 +361,10 @@ class AutomaticOrderRecovery:
         self.next_poll = 0
         return True
 
-    def _pending(self, *, all_sends=False):
+    def _pending(self):
         with self.owner.engine.connect() as connection:
             return [dict(row) for row in connection.execute(select(SubmissionAttempt).where(
-                SubmissionAttempt.state.in_(('uncertain', 'possibly_sent') if all_sends else ('uncertain',)))
+                SubmissionAttempt.state == 'uncertain')
                 .order_by(SubmissionAttempt.order_id).limit(MAX_ATTEMPTS + 1)).mappings()]
 
     def _bindings(self, *, retiring=False):
@@ -471,8 +469,12 @@ class AutomaticOrderRecovery:
         return status, trades
 
     def _terminal_fence(self, recorder):
-        from hummingbot.connector.markets_recorder import MarketsRecorder
         self.owner.check_owner()
+        self._require_terminal_recorder(recorder)
+
+    def _require_terminal_recorder(self, recorder):
+        from hummingbot.connector.markets_recorder import MarketsRecorder
+
         if (recorder is None or MarketsRecorder._shared_instance is not recorder
                 or recorder.sql_manager.engine is not self.owner.engine):
             raise SubmissionBlocked('Terminal proof has no matching recorder')

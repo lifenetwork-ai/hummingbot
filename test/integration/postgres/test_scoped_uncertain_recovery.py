@@ -157,13 +157,15 @@ def test_cold_restore_returns_with_unknown_reservation_instead_of_waiting_foreve
         install_guard(context.owner)
 
 
-@pytest.mark.parametrize('changed_after_auth', [False, True, 'payload', 'stale_balance', 'fee', 'bound', 'stop', 'risk', 'key'])
+@pytest.mark.parametrize('changed_after_auth', [False, True, 'payload', 'stale_balance', 'fee', 'bound', 'stop', 'risk', 'key', 'binding'])
 def test_native_sell_rechecks_reservations_after_auth_before_transport(managed_native, changed_after_auth):
     import asyncio
     import json
     from test.integration.postgres.test_automatic_recovery import executor_info
+    from test.integration.postgres.test_performance import queries
 
     from hummingbot.core.order_submission_guard import session_order_scope
+    from hummingbot.model.exchange_credential import ExchangeCredential
     from hummingbot.model.order import Order
 
     context, exchange, recorder, transport = managed_native
@@ -199,6 +201,12 @@ def test_native_sell_rechecks_reservations_after_auth_before_transport(managed_n
             context.owner.require_recovery('drawdown_controller_limit')
         elif changed_after_auth == 'key':
             exchange.okx_api_key = 'changed-account-key'
+        elif changed_after_auth == 'binding':
+            with context.engine.begin() as db:
+                db.execute(ExchangeCredential.__table__.insert().values(
+                    bot_id=context.store.bot_id, exchange='okx', connector='okx', environment='live',
+                    account_id='www:changed-account', version=1, state='active', envelope={'test': True},
+                    changed_by='test', changed_at=text('clock_timestamp()')))
         return request
 
     config = executor_info('sale').config.model_copy(update={
@@ -210,9 +218,26 @@ def test_native_sell_rechecks_reservations_after_auth_before_transport(managed_n
                                          OrderType.LIMIT_MAKER, Decimal('100'))
         await asyncio.sleep(0)
 
-    with patch.object(assistant._auth, 'rest_authenticate', authenticate):
+    recovery = context.owner.automatic_recovery
+    authorize = recovery.authorize_isolated_order
+    validation_reads = []
+
+    def record_validation(*args, **kwargs):
+        with queries(context.engine) as statements:
+            try:
+                return authorize(*args, **kwargs)
+            finally:
+                validation_reads.append(statements)
+
+    with (patch.object(assistant._auth, 'rest_authenticate', authenticate),
+          patch.object(recovery, 'authorize_isolated_order', record_validation), queries(context.engine) as statements):
         context.loop.run_until_complete(create())
     assert transport.call.await_count == (1 if changed_after_auth else 2)
+    if changed_after_auth is False:
+        assert [len(reads) for reads in validation_reads] == [0, 0]
+        authority = [sql for sql in statements if 'pg_locks' in sql and 'AS pending_intents' in sql]
+        assert len(authority) == 2
+        assert all('submission_attempts' in sql and 'exchange_credentials' in sql for sql in authority)
     with context.manager.get_new_session() as db:
         original_order = db.get(Order, 'auto-order')
         assert original_order.creation_pending and original_order.exchange_order_id is None
