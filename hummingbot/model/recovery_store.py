@@ -561,7 +561,8 @@ class RecoveryStore:
             self.access.audit(connection, actor=actor, action='recovery_order_repaired', outcome='succeeded',
                               operation_id=row['id'], request_id=row['result']['_private']['request_id'],
                               target_id=change['id'], connector='okx', exchange='okx', environment=environment,
-                              reason_code=reason,
+                              reason_code=('operator_reviewed_transport_absence'
+                                           if candidate.get('transport_receipt_missing') else reason),
                               details=dict(order_id=change['id'], pair=change['pair'], amount=change['amount'],
                                            stage='uncertain_submission_retired'))
         recovery = deepcopy(state['recovery_state'])

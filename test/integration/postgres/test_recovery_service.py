@@ -12,18 +12,22 @@ from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.runtime_journal import SubmissionAttempt
 
 
-@pytest.mark.parametrize('checkpoint_history,terminal_metadata,uncertain_count,pending_fills,sell_last,rollover_halt,price_rejected,failed_start', [
-    (False, False, 0, False, False, False, False, False), (True, False, 0, False, False, False, False, False),
-    (True, True, 0, False, False, False, False, False), (True, False, 1, False, False, False, False, False),
-    (True, True, 0, True, False, False, False, False), (True, False, 2, False, False, False, False, False),
-    (True, False, 1, False, True, False, False, False), (True, False, 2, False, True, False, False, False),
-    pytest.param(True, False, 1, False, True, True, False, False, id='halted-spot-sell-rollover'),
-    pytest.param(True, False, 1, False, True, False, True, False, id='spot-sell-price-limit'),
-    pytest.param(True, False, 1, False, True, False, True, True, id='halted-price-limit-after-failed-start'),
-])
+@pytest.mark.parametrize(
+    'checkpoint_history,terminal_metadata,uncertain_count,pending_fills,sell_last,rollover_halt,price_rejected,failed_start,lost_buy_receipt',
+    [
+        (False, False, 0, False, False, False, False, False, False), (True, False, 0, False, False, False, False, False, False),
+        (True, True, 0, False, False, False, False, False, False), (True, False, 1, False, False, False, False, False, False),
+        (True, True, 0, True, False, False, False, False, False), (True, False, 2, False, False, False, False, False, False),
+        (True, False, 1, False, True, False, False, False, False), (True, False, 2, False, True, False, False, False, False),
+        pytest.param(True, False, 1, False, True, True, False, False, False, id='halted-spot-sell-rollover'),
+        pytest.param(True, False, 1, False, True, False, True, False, False, id='spot-sell-price-limit'),
+        pytest.param(True, False, 1, False, True, False, True, True, False, id='halted-price-limit-after-failed-start'),
+        pytest.param(True, False, 1, False, False, False, False, False, True, id='spot-buy-lost-receipt'),
+    ],
+)
 def test_supervised_review_confirm_retry_and_restart_stay_stopped(
         pg_engine, tmp_path, monkeypatch, checkpoint_history, terminal_metadata, uncertain_count, pending_fills, sell_last,
-        rollover_halt, price_rejected, failed_start):
+        rollover_halt, price_rejected, failed_start, lost_buy_receipt):
     uncertain = bool(uncertain_count)
     batch = uncertain_count > 1
     halted_review = rollover_halt or failed_start
@@ -38,7 +42,7 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
         orders_path = tmp_path / 'native-terminal-orders.json'
         orders_path.write_text('{}')
         monkeypatch.setenv('HBOT_OFFLINE_RECOVERY_ORDERS', str(orders_path))
-    if pending_fills or sell_last:
+    if pending_fills or sell_last or lost_buy_receipt:
         fills_path = tmp_path / 'native-fills.json'
         fills_path.write_text('[]')
         monkeypatch.setenv('HBOT_OFFLINE_RECOVERY_FILLS', str(fills_path))
@@ -67,7 +71,8 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             if uncertain:
                 from test.integration.postgres.test_recovery_uncertain import seed_failed_replacement, seed_uncertain
                 seeded = seed_uncertain(RecoveryStore(state), existing_binding=True, api_key='RECOVERY-CANARY-API',
-                                        count=uncertain_count, sell_last=sell_last, lost_receipt=sell_last and not batch)
+                                        count=uncertain_count, sell_last=sell_last,
+                                        lost_receipt=lost_buy_receipt or sell_last and not batch)
                 reviewed_ids = seeded if batch else [seeded]
                 if failed_start:
                     seed_failed_replacement(RecoveryStore(state), seeded)
@@ -174,9 +179,11 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             if halted_review:
                 assert state.read()['recovery_state']['halt']
             orders_path.write_text('{}')
-            if sell_last:
+            if sell_last or lost_buy_receipt:
                 fill = dict(billId='1', tradeId='2', ordId='3', clOrdId=identity, instId='BTC-USDT',
-                            side='sell', ts=str(int(time.time() * 1000) - 1000))
+                            side='sell' if sell_last else 'buy', ts=str(int(time.time() * 1000) - 1000))
+                if lost_buy_receipt:
+                    fill.pop('clOrdId')  # The account scan must detect even unattributed fills.
                 fills_path.write_text(json.dumps([fill]))
                 code, late_fill = call(port, '/recovery/reset', key='late-fill', body=payload)
                 assert code == 202, late_fill
@@ -230,8 +237,9 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
             repairs = [event for event in audit['items'] if event['action'] == 'recovery_order_repaired']
             assert sorted(event['target_id'] for event in repairs) == reviewed_ids
             assert all(event['actor_role'] == 'admin' for event in repairs)
-            if rollover_halt:
+            if rollover_halt or lost_buy_receipt:
                 assert repairs[0]['reason_code'] == 'operator_reviewed_transport_absence'
+            if rollover_halt:
                 assert any(event['action'] == 'recovery_reset_completed'
                            and event['reason_code'] == 'exchange_reconciliation_incomplete' for event in audit['items'])
             if failed_start:
@@ -246,6 +254,9 @@ def test_supervised_review_confirm_retry_and_restart_stay_stopped(
         eventually(lambda: state.read()['owner_uuid'] and state.read()['status'].get('phase') == 'stopped')
         assert state.read()['control_version'] == 2 and state.read()['desired_state'] == 'stopped'
         assert not state.read()['recovery_state'].get('halt') and not state.read()['status']['running']
+        if lost_buy_receipt:
+            status_code, status = call(port, '/status')
+            assert status_code == 200 and status['actions']['start']['allowed'], status
         if pending_fills:
             assert_pending_applied(store, identities)
     finally:

@@ -1586,12 +1586,13 @@ same `uncertain_order_id` to Check and Reset.
 
 This scope covers managed OKX cash post-only BUY and SELL orders with an expired
 authenticated request deadline and a durable 50013 response without an order
-acknowledgment. A SELL with a durable send attempt and no transport receipt can
-also be reviewed under the same evidence requirements. The service
+acknowledgment. A BUY or SELL with a durable send attempt and no transport
+receipt can also be reviewed in its original stopped session. The service
 requires a reviewed financial checkpoint predating the send, waits through a
 60-second settlement grace period, and limits the attempt age to less than
 six days. Check and Reset each verify open orders, journaled fills, exposure,
-the exchange order history and the exact order ID. Existing or conflicting
+the exchange order history and the exact order ID. A missing response or a
+not-found lookup alone leaves the order unresolved. Existing or conflicting
 evidence, incomplete pages, different credentials, active runtime work and
 risk stops block the operation. Operators can use Swagger to review and
 confirm this scope.

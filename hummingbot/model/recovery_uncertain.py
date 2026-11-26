@@ -123,7 +123,9 @@ def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, r
     if supports_halted_order_review(state, (identity,)):
         _require(side == 'SELL' and receipt is None)
     statuses = (200, 429, 500, 503) if side == 'SELL' else (429, 500, 503)
-    _require(price_rejected or (side == 'SELL' and receipt is None) or (isinstance(receipt, dict)
+    # A missing response leaves either side uncertain. The journaled send window
+    # and independent venue proof must still establish that no effects remain.
+    _require(price_rejected or receipt is None or (isinstance(receipt, dict)
              and receipt.get('code') == '50013' and receipt.get('http_status') in statuses and not receipt.get('order')))
     created, deadline = order['creation_timestamp'], attempt['deadline_ms']
     now = int(state['database_now'].timestamp() * 1000)
@@ -159,9 +161,12 @@ def _candidate(db, state, bindings, checkpoint, anchor, identity, tracker_row, r
     _require(not db.execute(select(TradeFill.order_id).where(TradeFill.order_id == identity).limit(1)).first())
     timeline = db.execute(select(OrderStatus.status).where(OrderStatus.order_id == identity).limit(2)).scalars().all()
     _require(timeline == [PENDING_STATUS[side]])
-    return dict(id=identity, pair=pair, side=side, amount=str(amount), price=str(price), created_ms=created,
-                deadline_ms=deadline, market_state_id=tracker_row['id'], tracker_digest=digest(raw),
-                credential_fingerprint=context['credential_fingerprint'])
+    candidate = dict(id=identity, pair=pair, side=side, amount=str(amount), price=str(price), created_ms=created,
+                     deadline_ms=deadline, market_state_id=tracker_row['id'], tracker_digest=digest(raw),
+                     credential_fingerprint=context['credential_fingerprint'])
+    if side == 'BUY' and receipt is None:
+        candidate['transport_receipt_missing'] = True
+    return candidate
 
 
 def change_for(candidate):

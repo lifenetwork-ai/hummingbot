@@ -49,7 +49,7 @@ def seed_uncertain(store, *, existing_binding=False, api_key='offline', count=1,
             db.execute(OrderStatus.__table__.insert().values(order_id=identity, timestamp=created, status=status))
             db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == identity).values(
                 state='uncertain', context=context, deadline_ms=created + 5000,
-                receipt=null() if sell and lost_receipt else dict(code='50013', http_status=429),
+                receipt=null() if lost_receipt and identity == identities[-1] else dict(code='50013', http_status=429),
                 payload_hash=digest(dict(clOrdId=identity, instId='BTC-USDT', tdMode='cash', ordType='post_only',
                                          side=side.lower(), sz='1', px='100'))))
             tracker[identity].update(trade_type=side, last_state=str(OrderState.PENDING_CANCEL.value), exchange_order_id=None)
@@ -158,12 +158,13 @@ def test_scoped_sell_review_requires_exact_price_rejection_receipt(recovering, m
         assert db.scalar(select(Order.creation_pending).where(Order.id == identity))
 
 
-@pytest.mark.parametrize('fault', [None, 'current_step', 'different_session', 'future_generation', 'expired_step', 'missing_step', 'fixed_sell'])
+@pytest.mark.parametrize('fault', [None, 'current_step', 'different_session', 'future_generation', 'expired_step',
+                                   'missing_step', 'fixed_sell', 'buy_transport_loss'])
 def test_uncertain_batch_from_earlier_random_step_requires_its_original_send_window(recovering, monkeypatch, fault):
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
     monkeypatch.setenv('OKX_SITE', 'www')
     store, owner = recovering
-    identities = seed_uncertain(store, count=2, sell_last=fault == 'fixed_sell')
+    identities = seed_uncertain(store, count=2, sell_last=fault == 'fixed_sell', lost_receipt=fault == 'buy_transport_loss')
     with store.engine.begin() as db:
         scope = db.scalar(select(BotState.mm_session))
         created = db.scalar(select(Order.creation_timestamp).where(Order.id == identities[0]))
@@ -188,7 +189,7 @@ def test_uncertain_batch_from_earlier_random_step_requires_its_original_send_win
     store.state.update_mm_session(owner_uuid=owner.owner_uuid, owner_generation=owner.generation, version=1,
                                   session_id=scope['id'], generation=stopped['generation'],
                                   change=lambda session, _: setattr(session, 'status', 'stopped'))
-    if fault not in (None, 'current_step', 'fixed_sell'):
+    if fault not in (None, 'current_step', 'fixed_sell', 'buy_transport_loss'):
         with pytest.raises(RecoveryBlocked, match='recovery_uncertain_order_scope'):
             store.operation_snapshot({'uncertain_order_ids': identities})
     else:
@@ -196,12 +197,13 @@ def test_uncertain_batch_from_earlier_random_step_requires_its_original_send_win
         assert [item['id'] for item in snapshot['uncertain_orders']] == identities
 
 
-@pytest.mark.parametrize('fault', ['wrong_id', 'changed_ack', 'changed_payload', 'missing_checkpoint', 'active_runtime', 'risk_stop'])
+@pytest.mark.parametrize('fault', ['wrong_id', 'changed_ack', 'changed_payload', 'missing_checkpoint', 'active_runtime',
+                                   'risk_stop', 'buy_missing_send_deadline'])
 def test_unproven_uncertain_order_stays_blocked(recovering, monkeypatch, fault):
     monkeypatch.setenv('OKX_TRADING_ENV', 'demo')
     monkeypatch.setenv('OKX_SITE', 'www')
     store, owner = recovering
-    identity = seed_uncertain(store)
+    identity = seed_uncertain(store, lost_receipt=fault == 'buy_missing_send_deadline')
     with store.engine.begin() as db:
         if fault == 'changed_ack':
             db.execute(update(Order).where(Order.id == identity).values(exchange_order_id='42'))
@@ -209,6 +211,8 @@ def test_unproven_uncertain_order_stays_blocked(recovering, monkeypatch, fault):
             db.execute(update(SubmissionAttempt).values(payload_hash='0' * 64))
         if fault == 'missing_checkpoint':
             db.execute(RuntimeCheckpoint.__table__.delete())
+        if fault == 'buy_missing_send_deadline':
+            db.execute(update(SubmissionAttempt).values(deadline_ms=None))
     if fault == 'active_runtime':
         owner._mutate_recovery(lambda state: state.update(runtime_active=True))
     elif fault == 'risk_stop':
