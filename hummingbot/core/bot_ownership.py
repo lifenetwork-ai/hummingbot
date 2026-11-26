@@ -1117,7 +1117,7 @@ class BotOwnership:
         self._read_owner(identity_only=True)
         self.lock_owner_row(session, nowait=nowait)
 
-    def fence_recorder_session(self, session, *, nowait=False, intent_ids=None):
+    def fence_recorder_session(self, session, *, nowait=False, intent_ids=None, evidence=None):
         # The recorder holds this row until it commits. Check the original
         # owner's advisory lock from the same PostgreSQL transaction, without
         # accessing the dedicated owner connection from the worker thread.
@@ -1132,7 +1132,7 @@ class BotOwnership:
             publication = self.store.publication_fence
             held = publication.acquire(timeout=.1)
             try:
-                self.lock_owner_row(session, nowait=True, verify_advisory=True, intent_ids=intent_ids)
+                return self.lock_owner_row(session, nowait=True, verify_advisory=True, intent_ids=intent_ids, evidence=evidence)
             finally:
                 if held:
                     publication.release()
@@ -1152,7 +1152,7 @@ class BotOwnership:
             )
         """).bindparams(pid=self.backend_pid, namespace=OWNER_NAMESPACE, key=OWNER_KEY)
 
-    def lock_owner_row(self, session, *, nowait=False, verify_advisory=False, intent_ids=None):
+    def lock_owner_row(self, session, *, nowait=False, verify_advisory=False, intent_ids=None, evidence=None):
         transaction = session.get_transaction()
         if transaction is not None and session.info.get("ownership_fenced_transaction") is transaction:
             return
@@ -1162,9 +1162,17 @@ class BotOwnership:
         if verify_advisory:
             statement = statement.where(self._advisory_lock_exists())
         locked_owner = statement.with_for_update(read=True, nowait=nowait)
+        rows = None
         with submission_timing('ownership_row_check_ms') if nowait else nullcontext():
             connection = session.connection()
-            if intent_ids is None:
+            if evidence is not None:
+                # ACKs need existing orders, history and checkpoint identity
+                # before they can stage any write. Obtain that evidence with
+                # the same NOWAIT row lock that would otherwise precede flush.
+                rows = session.execute(evidence.add_columns(
+                    locked_owner.scalar_subquery().label('recorder_owner_generation'))).all()
+                generation = rows[0][-1] if rows else None
+            elif intent_ids is None:
                 generation = connection.execute(locked_owner).scalar_one_or_none()
             else:
                 # Evaluate the duplicate proof once, before attempting the row
@@ -1180,6 +1188,7 @@ class BotOwnership:
             raise OwnershipLost("A stale process cannot write trading/recovery state.",
                                 reason_code='ownership_identity_mismatch')
         session.info["ownership_fenced_transaction"] = session.get_transaction()
+        return rows
 
     async def authorize_rest(self, request):
         path = urlparse(request.url).path

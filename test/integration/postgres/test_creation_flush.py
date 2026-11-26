@@ -2,6 +2,7 @@
 import asyncio
 import json
 import time
+from contextlib import nullcontext
 from dataclasses import replace
 from decimal import Decimal
 from test.integration.postgres.test_ownership import intent, owned as _owned
@@ -40,13 +41,13 @@ def acknowledge(context, identity='order-1'):
         price=order.price, creation_timestamp=order.creation_timestamp))
 
 
-@pytest.mark.parametrize('outcome', ['committed', 'cancelled', 'rejected', 'reply_lost'])
+@pytest.mark.parametrize('outcome', ['committed', 'uncontended', 'cancelled', 'leader_cancelled', 'rejected', 'reply_lost', 'owner_lost'])
 def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeypatch, outcome):
     tracker = native.market._order_tracker
     identities = {f'burst-ack-{i}' for i in range(6)}
     existing_history = min(identities)
     flushes, published, ack_connections = [], [], []
-    ack_reads = []
+    ack_reads, ack_fences = [], []
     publish = native.recorder.publish_recorded_order_event
     acquire = native.recorder.order_writes.acquire
     queued = asyncio.Event()
@@ -54,6 +55,7 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
     track_waiters = False
     reject_commit = outcome == 'rejected'
     reply_lost = outcome == 'reply_lost'
+    owner_lost = outcome == 'owner_lost'
 
     if reject_commit:
         with native.engine.begin() as connection:
@@ -78,6 +80,13 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
         if track_waiters and statement.startswith('SELECT') and (
                 'JOIN submission_attempts' in statement or 'array_agg(orders.id)' in statement):
             ack_reads.append(statement)
+        if track_waiters and 'pg_locks' in statement:
+            ack_fences.append(statement)
+
+    def lose_owner_after_read(connection, cursor, statement, parameters, context, executemany):
+        if track_waiters and owner_lost and 'requested_acks' in statement and 'FOR SHARE NOWAIT' in statement:
+            with native.engine.begin() as killer:
+                assert killer.scalar(text('SELECT pg_terminate_backend(:pid, 3000)'), {'pid': native.owner.backend_pid})
 
     if reply_lost:
         driver_class = type(native.owner.connection.connection.driver_connection)
@@ -122,11 +131,14 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
         with native.engine.begin() as connection:
             connection.execute(OrderStatus.__table__.insert().values(
                 order_id=existing_history, timestamp=int(created_at * 1e3), status='BuyOrderCreated'))
-        async with native.recorder.order_writes:
+        slot = nullcontext() if outcome in ('uncontended', 'leader_cancelled') else native.recorder.order_writes
+        async with slot:
             track_waiters = True
             tasks = [asyncio.create_task(tracker._process_order_update(OrderUpdate(
                 'LIFE-USDT', time.time(), OrderState.OPEN, order.client_order_id, f'venue-{order.client_order_id}')))
                 for order in orders]
+            if outcome == 'leader_cancelled':
+                asyncio.get_running_loop().call_soon(tasks[0].cancel)
             await asyncio.wait_for(queued.wait(), 2)
             if outcome == 'cancelled':
                 tasks[2].cancel()
@@ -136,23 +148,28 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
     monkeypatch.setattr(native.recorder.order_writes, 'acquire', observe_acquire)
     event.listen(native.manager._session_cls, 'before_flush', inspect_flush)
     event.listen(native.engine, 'before_cursor_execute', inspect_read)
+    event.listen(native.engine, 'after_cursor_execute', lose_owner_after_read)
     try:
         with queries(native.engine) as statements:
             orders, outcomes = native.loop.run_until_complete(exercise())
     finally:
         event.remove(native.manager._session_cls, 'before_flush', inspect_flush)
         event.remove(native.engine, 'before_cursor_execute', inspect_read)
+        event.remove(native.engine, 'after_cursor_execute', lose_owner_after_read)
     assert flushes == [identities - {existing_history}]
     evidence_reads = [statement for statement in statements if statement.startswith('SELECT')
                       and 'JOIN submission_attempts' in statement and 'FROM order_status' in statement]
     assert len(evidence_reads) == 1
     assert len(ack_reads) == 1
     assert 'JOIN submission_attempts' in ack_reads[0] and 'array_agg(orders.id)' in ack_reads[0]
+    assert 'FOR SHARE NOWAIT' in ack_reads[0] and 'pg_locks' in ack_reads[0]
+    assert len(ack_fences) == 2 and ack_fences[0] == ack_reads[0] and 'FOR SHARE NOWAIT' not in ack_fences[1]
+    rolled_back = reject_commit or owner_lost
     with native.manager.get_new_session() as db:
         history = db.scalars(select(OrderStatus.order_id).where(OrderStatus.status == 'BuyOrderCreated')).all()
-        assert sorted(history) == ([existing_history] if reject_commit else sorted(identities))
-        assert {row.state for row in db.query(SubmissionAttempt)} == {'possibly_sent' if reject_commit else 'acknowledged'}
-        assert all(row.creation_pending is reject_commit for row in db.query(Order))
+        assert sorted(history) == ([existing_history] if rolled_back else sorted(identities))
+        assert {row.state for row in db.query(SubmissionAttempt)} == {'possibly_sent' if rolled_back else 'acknowledged'}
+        assert all(row.creation_pending is rolled_back for row in db.query(Order))
         snapshot = db.query(MarketState).one().saved_state
         if reply_lost:
             assert set(snapshot) == identities
@@ -160,13 +177,17 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
             assert all(state['exchange_order_id'] == f'venue-{identity}' for identity, state in snapshot.items())
         else:
             assert snapshot == {order.client_order_id: order.to_json() for order in orders}
-    if reject_commit or reply_lost:
+    if owner_lost:
+        assert all(isinstance(result, OwnershipLost) for result in outcomes)
+        assert not published and native.owner.lost and not native.manager.persistence_healthy
+    elif reject_commit or reply_lost:
         assert all(isinstance(result, OperationalError) for result in outcomes)
         assert not published and not native.manager.persistence_healthy
     else:
-        if outcome == 'cancelled':
-            assert isinstance(outcomes[2], asyncio.CancelledError)
-            outcomes[2] = None
+        if outcome in ('cancelled', 'leader_cancelled'):
+            index = 2 if outcome == 'cancelled' else 0
+            assert isinstance(outcomes[index], asyncio.CancelledError)
+            outcomes[index] = None
         assert outcomes == [None] * len(orders)
         assert set(published) == {(identity, len(identities)) for identity in identities}
     assert not native.owner.terminal_tasks and not native.recorder.order_writes.locked()

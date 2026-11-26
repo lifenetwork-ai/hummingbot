@@ -264,7 +264,14 @@ class MarketsRecorder:
 
         peers = []
         results = [None]
+        cancelled = None
         try:
+            # Let ACKs already runnable join this turn even if the slot was
+            # idle. Do not add a timed wait to an isolated acknowledgement.
+            try:
+                await asyncio.sleep(0)
+            except asyncio.CancelledError as error:
+                cancelled = error
             if (active_guard() is not work.owner or work.owner.engine is not self._sql_manager.engine
                     or self.service_recorder_for(work.market) is not self):
                 raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
@@ -289,7 +296,8 @@ class MarketsRecorder:
                     if plan is not None:
                         prepared.append((index, item.context, plan))
             if prepared:
-                cancelled = await self._persist_open_acknowledgements(work.market, prepared)
+                write_cancelled = await self._persist_open_acknowledgements(work.market, prepared)
+                cancelled = write_cancelled or cancelled
                 for index, context, plan in prepared:
                     try:
                         context.run(plan.apply)
@@ -302,10 +310,12 @@ class MarketsRecorder:
                         context.run(plan.publish)
                     except Exception as error:
                         results[index] = error
-                if cancelled is not None and results[0] is None:
-                    results[0] = cancelled
+            if cancelled is not None and results[0] is None:
+                results[0] = cancelled
         except BaseException as error:
             results = [error if result is None else result for result in results]
+            if cancelled is not None and results[0] is error and isinstance(error, OrderAcknowledgementBusy):
+                results[0] = OrderAcknowledgementBusy(error.error, cancelled)
         finally:
             for (_, future), result in zip(peers, results[1:]):
                 future.set_result(result)
@@ -1495,6 +1505,7 @@ class MarketsRecorder:
                 .options(defer(MarketState.saved_state)))
 
     def _read_creation_evidence_batch(self, session, acknowledgements, *, tracking, market_name):
+        from hummingbot.model.intent_admission import capture_prewrite_lock_failure
         from hummingbot.model.runtime_journal import SubmissionAttempt
 
         requested = values(column('order_id', Order.id.type), column('timestamp', OrderStatus.timestamp.type),
@@ -1509,8 +1520,10 @@ class MarketsRecorder:
             # Every ACK shares one checkpoint basis. Defer the previous JSON
             # so only a missing unresolved order needs to load it.
             statement = self._with_tracking_basis(statement, tracking, market_name)
-        rows = session.execute(statement).all()
-        tracking_basis = rows[0][3:] if tracking is not None else None
+        owner = session.info['worker_order_owner']
+        with capture_prewrite_lock_failure(session):
+            rows = owner.fence_recorder_session(session, nowait=True, evidence=statement)
+        tracking_basis = rows[0][3:-1] if tracking is not None else None
         return {row[0].id: row[:3] for row in rows if row[0] is not None}, tracking_basis
 
     def finish_recorded_order_creation(self, market, evt):
