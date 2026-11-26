@@ -18,6 +18,8 @@ from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core import bot_ownership
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee
+from hummingbot.core.event.event_forwarder import EventForwarder
+from hummingbot.core.event.events import MarketEvent
 from hummingbot.core.order_submission_guard import QuoteRefreshRequired
 from hummingbot.model.order import Order
 from hummingbot.model.runtime_journal import SubmissionAttempt
@@ -94,11 +96,18 @@ def test_native_shutdown_fence_retires_one_queued_entry_without_send_or_retry(ow
     caplog.set_level(logging.INFO)
 
     async def run():
-        with patch.object(exchange._web_assistants_factory, 'get_rest_assistant', AsyncMock(return_value=rest)):
-            for _ in range(12):
-                if not executor.is_closed:
-                    await executor.control_task()
-                await asyncio.sleep(.01)  # Drain native failure events, not a mocked executor callback.
+        failure = asyncio.get_running_loop().create_future()
+        listener = EventForwarder(failure.set_result)
+        exchange.add_listener(MarketEvent.OrderFailure, listener)
+        try:
+            with patch.object(exchange._web_assistants_factory, 'get_rest_assistant', AsyncMock(return_value=rest)):
+                await executor.control_task()
+                # The recorder publishes the native failure after its durable write.
+                event = await asyncio.wait_for(failure, timeout=5)
+                assert event.order_id == identities[0]
+                await executor.control_task()
+        finally:
+            exchange.remove_listener(MarketEvent.OrderFailure, listener)
 
     if stage == 'before_intent':
         shutdown_fence()
