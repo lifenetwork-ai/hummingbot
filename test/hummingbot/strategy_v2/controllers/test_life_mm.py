@@ -128,7 +128,7 @@ async def test_spot_outflow_rejection_skips_buy_proposals_but_keeps_funded_sells
     await controller.update_processed_data()
     import hummingbot.core.order_submission_guard as gates
     monkeypatch.setattr(gates, "postgres_requested", lambda: True)
-    preview = MagicMock(return_value=False)
+    preview = MagicMock(return_value=None)
     monkeypatch.setattr(gates, "_guard", SimpleNamespace(spot_outflow=SimpleNamespace(preview=preview)))
     actions = controller.create_actions_proposal()
     assert actions and all(action.executor_config.side == TradeType.SELL for action in actions)

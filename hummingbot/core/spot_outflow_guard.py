@@ -254,8 +254,8 @@ class SpotOutflowGuard:
         self.last_buy_denial = None
         self.orders[order.client_order_id] = (connector, order)
 
-    def preview(self, connector, amount, price, quote_scope=None):
-        """A cheap proposal filter; pre-intent/final-send remain authoritative."""
+    def preview(self, connector, amount, price, quote_scope=None, *, planned_quote=ZERO):
+        """Return the cost of a feasible proposal without creating a reservation."""
         self._mark_terminal_orders()
         if not self._identity_matches() or self.projection is None or self.reason_code:
             reason = self.reason_code or 'spot_outflow_initializing'
@@ -264,24 +264,24 @@ class SpotOutflowGuard:
         if reason is not None:
             if quote_scope is not None:
                 observe_spot_buy_outflow(*quote_scope, reason)
-            return False
+            return None
         order = SimpleNamespace(trading_pair=self.policy["trading_pair"], amount=amount, price=price,
                                 order_type=OrderType.LIMIT_MAKER, trade_type=TradeType.BUY)
         try:
             required = amount * price * (1 + self.config.fee_allowance_rate) + self._flat_fee(connector, order)
-            used = max(ZERO, self.projection.net) + self.projection.reserved()
+            used = max(ZERO, self.projection.net) + self.projection.reserved() + planned_quote
             allowed = used + required <= self.config.max_net_outflow_quote
         except (ValueError, TypeError, ArithmeticError):
             self.last_buy_denial = "spot_outflow_fee_unavailable"
             if quote_scope is not None:
                 observe_spot_buy_outflow(*quote_scope, self.last_buy_denial)
-            return False
+            return None
         self.last_buy_denial = None if allowed else "spot_outflow_limit"
         if quote_scope is not None:
             observe_spot_buy_outflow(
                 *quote_scope, self.last_buy_denial, used=used, cap=self.config.max_net_outflow_quote, required=required,
             )
-        return allowed
+        return required if allowed else None
 
     def authorize(self, data, row):
         self._require_bound_identity(spot_order=data.get('instId') == self.policy['trading_pair'])

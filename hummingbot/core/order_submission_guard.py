@@ -7,6 +7,7 @@ enabled for the service. Legacy tests/tooling without PG retain existing behavio
 import logging
 from contextlib import contextmanager
 from contextvars import ContextVar
+from decimal import Decimal
 
 from hummingbot.client.config.runtime_config import postgres_requested
 from hummingbot.core.engine_diagnostics import trace_runtime
@@ -231,10 +232,11 @@ def spot_outflow_terminal_committed(connector, order):
         outflow.terminal_committed(connector, order)
 
 
-def spot_buy_preview(connector, amount, price, quote_scope=None):
+def spot_buy_preview(connector, amount, price, quote_scope=None, *, planned_quote=Decimal(0)):
+    """Return proposed quote cost, or None when the spot cashflow limit blocks it."""
     if not postgres_requested() or _guard is None or _guard.spot_outflow is None:
-        return True
-    return _guard.spot_outflow.preview(connector, amount, price, quote_scope)
+        return Decimal(0)
+    return _guard.spot_outflow.preview(connector, amount, price, quote_scope, planned_quote=planned_quote)
 
 
 def fence_session(session) -> None:

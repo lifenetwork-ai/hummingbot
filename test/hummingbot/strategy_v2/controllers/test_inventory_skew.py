@@ -132,7 +132,7 @@ def test_skew_cannot_reallocate_blocked_buy_or_ignore_partial_active_quote_budge
     item, _, _ = controller(base='100', cash='100', runtime_config_managed=True)
     import hummingbot.core.order_submission_guard as gates
     monkeypatch.setattr(gates, 'postgres_requested', lambda: True)
-    monkeypatch.setattr(gates, '_guard', SimpleNamespace(spot_outflow=SimpleNamespace(preview=lambda *args: False)))
+    monkeypatch.setattr(gates, '_guard', SimpleNamespace(spot_outflow=SimpleNamespace(preview=lambda *args, **kwargs: None)))
     assert all(a.executor_config.side == TradeType.SELL for a in item.create_actions_proposal())
     pending = SimpleNamespace(is_active=True, is_trading=True, status=RunnableStatus.RUNNING,
                               custom_info={'level_id': 'buy_0'},

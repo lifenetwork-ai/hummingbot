@@ -527,6 +527,7 @@ class EngineDiagnostics:
         self._slow_quotes = {side: deque(maxlen=8) for side in _QUOTE_SIDES}
         self._dropped_slow_quotes = dict.fromkeys(_QUOTE_SIDES, 0)
         self._last_quote_warning_ns = dict.fromkeys(_QUOTE_SIDES, -_QUOTE_WARNING_INTERVAL_NS)
+        self._last_outflow_blocked_ns = -_QUOTE_WARNING_INTERVAL_NS
         self._submission_completed = self._submission_published = 0
         self._last_submission_emitted_ns = -2_000_000_000
         self.sequence = self.dropped_spans = self.sink_errors = 0
@@ -555,7 +556,8 @@ class EngineDiagnostics:
     @staticmethod
     def _log(payload):
         level = (logging.INFO if payload['event'] in
-                 ('order_submission_stages', 'engine_loop_sample', 'engine_loop_sample_recovered') else logging.WARNING)
+                 ('order_submission_stages', 'engine_loop_sample', 'engine_loop_sample_recovered',
+                  'spot_buy_replacement_blocked') else logging.WARNING)
         logging.getLogger(__name__).log(level, 'Engine diagnostic %s', json.dumps(payload, separators=(',', ':')),
                                         extra={'event': payload['event'], 'scope': 'runtime'})
 
@@ -899,11 +901,21 @@ class EngineDiagnostics:
             with self.lock:
                 self._submission_published = last
 
+    @staticmethod
+    def _waiting_on_spot_outflow(timings, filled_at, now):
+        waits, previews = timings.get('proposal_waits'), timings.get('outflow_preview')
+        return (waits and previews and waits[-1]['reason_code'] == 'spot_outflow_blocked'
+                and previews[-1]['reason_code'] == 'spot_outflow_limit'
+                and waits[-1]['at_ns'] - filled_at < _QUOTE_SLOW_NS
+                and now - waits[-1].get('last_observed_at_ns', waits[-1]['at_ns']) < _QUOTE_PENDING_WARNING_NS)
+
     def _publish_slow_quotes(self, now):
         sides = {side for side, last in self._last_quote_warning_ns.items() if now - last >= _QUOTE_WARNING_INTERVAL_NS}
-        if not sides or (not self._quote_fills and not any(self._slow_quotes.values())):
+        report_blocked = now - self._last_outflow_blocked_ns >= _QUOTE_WARNING_INTERVAL_NS
+        if (not sides and not report_blocked) or (not self._quote_fills and not any(self._slow_quotes.values())):
             return
         pending = {side: [] for side in sides}
+        blocked = []
         with self.lock:
             for lane, (order, filled_at, timings, _) in list(self._quote_fills.items()):
                 side = timings['side']
@@ -911,11 +923,16 @@ class EngineDiagnostics:
                 if age > _QUOTE_LINK_TTL_NS:
                     del self._quote_fills[lane]
                     self._quote_counts[side]['expired'] += 1
-                if age >= _QUOTE_PENDING_WARNING_NS and side in sides:
+                if age >= _QUOTE_PENDING_WARNING_NS:
                     waiting_for = ('open' if 'last_sent_at_ns' in timings else
                                    'dispatch' if 'first_proposal_at_ns' in timings else 'proposal')
-                    pending[side].append(dict(lane=lane, order=order, fill_at_ns=filled_at, age_ms=age / 1e6, waiting_for=waiting_for,
-                                              expired=age > _QUOTE_LINK_TTL_NS, **timings))
+                    if waiting_for == 'proposal' and self._waiting_on_spot_outflow(timings, filled_at, now):
+                        destination = blocked if report_blocked else None
+                    else:
+                        destination = pending.get(side)
+                    if destination is not None:
+                        destination.append(dict(lane=lane, order=order, fill_at_ns=filled_at, age_ms=age / 1e6,
+                                                waiting_for=waiting_for, expired=age > _QUOTE_LINK_TTL_NS, **timings))
             batches = []
             for side in sides:
                 if self._slow_quotes[side] or pending[side]:
@@ -926,6 +943,11 @@ class EngineDiagnostics:
                     self._last_quote_warning_ns[side] = now
                     self._slow_quotes[side].clear()
                     self._dropped_slow_quotes[side] = 0
+            if blocked:
+                items = sorted(blocked, key=lambda row: row['age_ms'], reverse=True)
+                batches.append(dict(event='spot_buy_replacement_blocked', at_ns=now, wall_time_ns=time.time_ns(),
+                                    process_id=os.getpid(), pending=items[:8], pending_count=len(items)))
+                self._last_outflow_blocked_ns = now
         for payload in batches:
             self._deliver(payload)
 

@@ -204,10 +204,10 @@ async def test_outflow_terminal_proof_wakes_spot_replacement_before_the_next_rep
         finish_proof = asyncio.Event()
 
         def preview(*args, **kwargs):
-            allowed = guard.preview(*args, **kwargs)
-            if not allowed and guard.terminal_pending:
+            cost = guard.preview(*args, **kwargs)
+            if cost is None and guard.terminal_pending:
                 waiting_for_proof.set()
-            return allowed
+            return cost
 
         async def confirm(identity):
             await finish_proof.wait()

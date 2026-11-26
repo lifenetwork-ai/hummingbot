@@ -53,7 +53,7 @@ async def test_outflow_block_is_observed_without_a_second_preview_or_execution(m
     controller, _ = make_controller(configuration(runtime_config_managed=True))
     await controller.update_processed_data()
     import hummingbot.core.order_submission_guard as guard
-    preview = MagicMock(return_value=False)
+    preview = MagicMock(return_value=None)
     monkeypatch.setattr(guard, 'spot_buy_preview', preview)
     actions = controller.create_actions_proposal()
     assert len(actions) == 1 and preview.call_count == 1

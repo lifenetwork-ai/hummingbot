@@ -1128,6 +1128,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 self._quote_reason('account_balance_unavailable')
                 return []
             accepted = []
+            planned_buy_quote = Decimal("0")
             pending_allocation = sum((executor.config.amount * executor.config.entry_price for executor in self.executors_info
                                       if executor.is_active or executor.status == RunnableStatus.SHUTTING_DOWN), Decimal("0")) \
                 if self.config.inventory_skew.enabled or self._spread_policy.defense is not None else Decimal("0")
@@ -1152,9 +1153,12 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 proposed_long = long + config.amount if is_buy else long
                 proposed_short = short + config.amount if not is_buy and self.config.connector_name == "okx_perpetual" else short
                 required_quote = config.amount * config.entry_price / config.leverage
+                buy_cost = None
                 if self.config.runtime_config_managed and self.config.connector_name == "okx" and is_buy:
                     from hummingbot.core.order_submission_guard import spot_buy_preview
-                    if not spot_buy_preview(connector, config.amount, config.entry_price, (config, action.controller_id)):
+                    buy_cost = spot_buy_preview(connector, config.amount, config.entry_price, (config, action.controller_id),
+                                                planned_quote=planned_buy_quote)
+                    if buy_cost is None:
                         self._quote_reason('spot_outflow_blocked', config.side, level_id=config.level_id)
                         continue
                 if not self._within_caps(proposed_long, proposed_short):
@@ -1172,6 +1176,8 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                     available_quote -= required_quote
                 long, short = proposed_long, proposed_short
                 pending_allocation += config.amount * config.entry_price
+                if buy_cost is not None:
+                    planned_buy_quote += buy_cost
                 accepted.append(action)
                 self._quote_diagnostics['proposed'][config.side.name] += 1
             if self.config.connector_name == "okx":

@@ -307,6 +307,45 @@ async def test_spot_proposal_correlates_before_orchestrator_sets_config_controll
 
 
 @pytest.mark.asyncio
+async def test_spot_buy_proposal_budgets_all_levels_and_their_fees(monkeypatch):
+    from hummingbot.core.spot_outflow import SpotOutflowProjection
+    from hummingbot.core.spot_outflow_guard import SpotOutflowGuard
+
+    controller, _ = make_controller(configuration(
+        runtime_config_managed=True, mm_session_id='session', mm_generation=2,
+        buy_spreads=[.01, .02], buy_amounts_pct=[Decimal(1), Decimal(1)],
+    ))
+    connector = controller.market_data_provider.get_connector_with_fallback.return_value
+    connector.get_fee.return_value = AddedToCostTradeFee(
+        percent=Decimal('.001'), flat_fees=[TokenAmount('USDT', Decimal('1'))],
+    )
+    connector.quantize_order_price.side_effect = lambda pair, value: value
+    connector.quantize_order_amount.side_effect = lambda pair, value: value
+    connector.trading_rules['LIFE-USDT'] = SimpleNamespace(min_order_size=Decimal('.001'), min_notional_size=Decimal(0))
+    await controller.update_processed_data()
+    controller.admit_session('session', 2)
+
+    terms = [controller.get_price_and_amount(level) for level in ('buy_0', 'buy_1')]
+    total_before_flat_fees = sum(price * amount * Decimal('1.01') for price, amount in terms)
+    guard = SpotOutflowGuard(None, dict(
+        trading_pair='LIFE-USDT', window_seconds=60, fee_allowance_rate='.01', max_net_outflow_quote=total_before_flat_fees + 1,
+    ))
+    guard.identity = lambda: {'account_id': 'offline'}
+    guard.binding, guard.reason_code = guard.identity(), None
+    guard.projection = SpotOutflowProjection(guard.config, 'LIFE-USDT', coverage_start_ms=0)
+    guard.projection.advance(1000000)
+    monkeypatch.setattr(order_submission_guard, '_guard', SimpleNamespace(spot_outflow=guard))
+    monkeypatch.setattr(order_submission_guard, 'postgres_requested', lambda: True)
+
+    for _ in range(2):
+        actions = controller.create_actions_proposal()
+        assert [action.executor_config.level_id for action in actions if action.executor_config.side == TradeType.BUY] == ['buy_0']
+        assert any(action.executor_config.side == TradeType.SELL for action in actions)
+        assert controller.quote_diagnostics['reasons']['BUY'] == ['spot_outflow_blocked']
+        assert not guard.projection.reservations
+
+
+@pytest.mark.asyncio
 async def test_spot_outflow_trace_correlates_only_the_blocked_buy_level(monkeypatch):
     from test.hummingbot.core.test_spot_outflow import fill
 

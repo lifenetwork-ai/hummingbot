@@ -265,7 +265,7 @@ def test_percent_skew_keeps_outflow_fence_and_partial_active_budget(monkeypatch,
     item, _, _ = percent_controller(runtime_config_managed=True)
     import hummingbot.core.order_submission_guard as gates
     monkeypatch.setattr(gates, 'postgres_requested', lambda: True)
-    monkeypatch.setattr(gates, '_guard', SimpleNamespace(spot_outflow=SimpleNamespace(preview=lambda *args: False)))
+    monkeypatch.setattr(gates, '_guard', SimpleNamespace(spot_outflow=SimpleNamespace(preview=lambda *args, **kwargs: None)))
     funded_sells = item.create_actions_proposal()
     assert funded_sells and all(a.executor_config.side == TradeType.SELL for a in funded_sells)
     pending = SimpleNamespace(is_active=True, is_trading=True, status=RunnableStatus.RUNNING,

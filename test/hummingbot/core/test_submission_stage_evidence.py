@@ -317,6 +317,39 @@ def test_spot_replacement_reports_an_unfinished_gap_and_then_end_to_end_time(mon
     assert summary['completed'] == summary['samples'] == 1 and summary['max_ms'] == 6000
 
 
+@pytest.mark.parametrize('continued_evaluation,release_ms,policy_wait', [
+    (False, 200, False), (True, 200, True), (True, 1500, False),
+])
+def test_outflow_limit_reports_policy_wait_only_with_prompt_and_recent_evaluation(continued_evaluation, release_ms, policy_wait):
+    now, records = [10_000_000_000], []
+    tracer = EngineDiagnostics(clock=lambda: now[0], emit=records.append)
+    tracer._started = True
+    tracer.record_quote_marker('quote.buy_fill', 'order', lane='level', controller='controller')
+    now[0] += release_ms * 1_000_000
+    tracer.record_quote_handoff('level', 'release_report_at_ns', 'order')
+    tracer.record_spot_buy_outflow('level', 'spot_outflow_limit', used=492, cap=500, required=32)
+    tracer.record_quote_controller('controller', 'wait', lane='level', reason='spot_outflow_blocked')
+    now[0] += 6_000_000_000
+    if continued_evaluation:
+        tracer.record_quote_controller('controller', 'wait', lane='level', reason='spot_outflow_blocked')
+    tracer._beat_ns = now[0]
+    tracer.watch_once()
+    warnings = [row for row in records if row['event'] == 'spot_buy_replacement_slow']
+    blocked = [row for row in records if row['event'] == 'spot_buy_replacement_blocked']
+    if policy_wait:
+        assert not warnings
+        event, = blocked
+        sample, = event['pending']
+        assert sample['outflow_preview'][-1]['reason_code'] == 'spot_outflow_limit'
+        assert sample['waiting_for'] == 'proposal'
+        now[0] += 6_000_000_000
+        tracer._beat_ns = now[0]
+        tracer.watch_once()
+        assert len([row for row in records if row['event'] == 'spot_buy_replacement_slow']) == 1
+    else:
+        assert not blocked and len(warnings) == 1
+
+
 def test_eight_order_burst_retains_all_five_phases_before_next_batch():
     now, records = [10_000_000_000], []
     tracer = EngineDiagnostics(clock=lambda: now[0], emit=records.append)
