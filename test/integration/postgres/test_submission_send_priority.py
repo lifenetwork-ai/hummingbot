@@ -42,7 +42,7 @@ class FIFOAdmission(asyncio.Lock):
     def intent_write(self):
         return self
 
-    def write(self, operation, *, observe_wait=False):
+    def write(self, operation, *, final=False, observe_wait=False, respect_queued_writes=False):
         return self
 
 

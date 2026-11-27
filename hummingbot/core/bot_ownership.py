@@ -1210,8 +1210,11 @@ class BotOwnership:
                 checkpoint_ready = self.position_checkpoint_ready
                 try:
                     recorder = self._order_recorder()
-                    slot = (recorder.order_writes.write('final_authority', observe_wait=True) if recorder is not None
-                            else self.submission_admission.final_send())
+                    if recorder is None:
+                        slot = self.submission_admission.final_send()
+                    else:
+                        slot = recorder.order_writes.write(
+                            'final_authority', final=True, observe_wait=True, respect_queued_writes=True)
                     async with timed_submission_lock(slot, 'final_slot_wait_ms'):
                         await asyncio.sleep(0)
                         if active_guard() is not self:

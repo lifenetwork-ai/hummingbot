@@ -9,7 +9,7 @@ import pytest
 from hummingbot.core import bot_ownership, order_submission_guard as gates
 from hummingbot.core.bot_ownership import BotOwnership
 from hummingbot.core.engine_diagnostics import EngineDiagnostics
-from hummingbot.core.submission_admission import SubmissionAdmission
+from hummingbot.core.submission_admission import MAX_READY_SENDS, SubmissionAdmission
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 
 
@@ -200,6 +200,36 @@ async def test_final_gate_rechecks_recorder_identity_after_its_turn(owner, monke
         await task
     owner._authorize_rest.assert_not_awaited()
     assert not owner.submission_tasks and not original.order_writes.locked()
+
+
+@pytest.mark.asyncio
+async def test_ready_send_burst_leaves_turns_for_checkpoint_and_intent_writes(owner, monkeypatch):
+    from hummingbot.connector.markets_recorder import MarketsRecorder
+
+    recorder = SubmissionAdmission()
+    monkeypatch.setattr(MarketsRecorder, '_shared_instance', SimpleNamespace(
+        sql_manager=SimpleNamespace(engine=owner.engine), order_writes=recorder))
+    turns = []
+
+    async def authorize(request):
+        turns.append(request.index)
+
+    async def write(scope, label):
+        async with scope:
+            turns.append(label)
+
+    owner._authorize_rest = authorize
+    count = MAX_READY_SENDS * 2 + 1
+    async with recorder:
+        sends = [asyncio.create_task(owner.authorize_rest(SimpleNamespace(
+            url='https://offline.invalid/api/v5/trade/order', index=i))) for i in range(count)]
+        checkpoint = asyncio.create_task(write(recorder.write('position_checkpoint'), 'checkpoint'))
+        intent = asyncio.create_task(write(recorder.intent_write(), 'intent'))
+        await asyncio.sleep(0)
+    await asyncio.gather(checkpoint, intent, *sends)
+    assert turns == [*range(MAX_READY_SENDS), 'checkpoint', *range(MAX_READY_SENDS, 2 * MAX_READY_SENDS),
+                     'intent', count - 1]
+    assert not recorder.locked() and not owner.submission_tasks
 
 
 @pytest.mark.asyncio

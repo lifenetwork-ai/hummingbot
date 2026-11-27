@@ -28,10 +28,12 @@ def test_ready_to_dispatch_p95_includes_a_quote_burst_waiting_behind_an_ack(nati
         nonlocal offset
         first_reply, allow_reply, ack_entered, allow_ack = (asyncio.Event() for _ in range(4))
         prepared, enter_final = asyncio.Event(), asyncio.Event()
-        prepared_count = 0
+        final_waiting = asyncio.Event()
+        prepared_count = queued_count = 0
         venue = native.transport.call.side_effect
         persist_ack = native.recorder._persist_open_acknowledgements
         authorize = native.owner.authorize_rest
+        acquire = native.recorder.order_writes.acquire
 
         async def reply(request):
             if '"burst-0"' in request.data:
@@ -54,6 +56,14 @@ def test_ready_to_dispatch_p95_includes_a_quote_burst_waiting_behind_an_ack(nati
                 await enter_final.wait()
             return await authorize(request)
 
+        async def observe_queue(**kwargs):
+            nonlocal queued_count
+            if kwargs.get('operation') == 'final_authority' and enter_final.is_set():
+                queued_count += 1
+                if queued_count == 7:
+                    final_waiting.set()
+            return await acquire(**kwargs)
+
         async def quote(index):
             with session_order_scope(native.session.id, native.session.generation):
                 await native.market._create_order(TradeType.BUY, f'burst-{index}', 'LIFE-USDT', Decimal('1'),
@@ -62,6 +72,7 @@ def test_ready_to_dispatch_p95_includes_a_quote_burst_waiting_behind_an_ack(nati
         monkeypatch.setattr(native.transport.call, 'side_effect', reply)
         monkeypatch.setattr(native.recorder, '_persist_open_acknowledgements', hold_ack)
         monkeypatch.setattr(native.owner, 'authorize_rest', final_authority)
+        monkeypatch.setattr(native.recorder.order_writes, 'acquire', observe_queue)
         tasks = [asyncio.create_task(quote(0))]
         try:
             async with asyncio.timeout(5):
@@ -71,8 +82,7 @@ def test_ready_to_dispatch_p95_includes_a_quote_burst_waiting_behind_an_ack(nati
                 allow_reply.set()
                 await ack_entered.wait()
                 enter_final.set()
-                while len(native.recorder.order_writes._admissions) < 7:
-                    await asyncio.sleep(0)
+                await final_waiting.wait()
                 assert native.transport.call.await_count == 1
                 offset += 300_000_000
         finally:

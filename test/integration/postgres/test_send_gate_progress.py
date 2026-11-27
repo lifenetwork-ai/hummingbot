@@ -360,6 +360,53 @@ def test_received_transport_evidence_passes_queued_recorder_work(owned):
     assert observed == [{'http_status': 200, 'code': '0'}]
 
 
+def test_later_receipt_does_not_pass_an_already_waiting_send(owned, monkeypatch):
+    intent(owned, 'ready')
+    intent(owned, 'in-flight')
+    owned.owner._record_send_attempt('in-flight', {'clOrdId': 'in-flight'}, 123456, {})
+    request = SimpleNamespace(url='https://offline.invalid' + ORDER_PATH, data='{"clOrdId":"in-flight"}')
+    response = SimpleNamespace(status=200, json=AsyncMock(return_value={'code': '0'}))
+    rest, transport = assistant()
+    send_queued, receipt_queued = asyncio.Event(), asyncio.Event()
+    observed = []
+    acquire = owned.recorder.order_writes.acquire
+    write_receipts = owned.owner._write_order_receipts
+    record_attempt = owned.owner._record_send_attempt
+
+    async def observe_queue(**kwargs):
+        operation = kwargs.get('operation')
+        if operation == 'final_authority':
+            send_queued.set()
+        elif operation == 'transport_receipt':
+            receipt_queued.set()
+        return await acquire(**kwargs)
+
+    def record(identity, *args):
+        record_attempt(identity, *args)
+        observed.append(identity)
+
+    def receipts(batch):
+        write_receipts(batch)
+        observed.extend(batch)
+
+    async def exercise():
+        async with owned.recorder.order_writes:
+            placement = asyncio.create_task(send(rest, 'ready'))
+            await asyncio.wait_for(send_queued.wait(), 2)
+            receipt = asyncio.create_task(owned.owner.record_transport_receipt(request, response))
+            await asyncio.wait_for(receipt_queued.wait(), 2)
+        await asyncio.gather(placement, receipt)
+
+    monkeypatch.setattr(owned.recorder.order_writes, 'acquire', observe_queue)
+    monkeypatch.setattr(owned.owner, '_write_order_receipts', receipts)
+    monkeypatch.setattr(owned.owner, '_record_send_attempt', record)
+    owned.loop.run_until_complete(asyncio.wait_for(exercise(), 6))
+    assert observed == ['ready', 'in-flight', 'ready']
+    transport.call.assert_awaited_once()
+    with owned.manager.get_new_session() as db:
+        assert all(row.state == 'possibly_sent' and row.receipt['http_status'] == 200 for row in db.query(SubmissionAttempt))
+
+
 def test_cancelled_transport_waits_until_its_received_evidence_is_durable(owned):
     intent(owned)
     response = SimpleNamespace(status=200, json=AsyncMock(return_value={'code': '0'}))

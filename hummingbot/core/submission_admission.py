@@ -168,9 +168,13 @@ class SubmissionAdmission:
         return self.write('intent', intent_write=True)
 
     @asynccontextmanager
-    async def write(self, operation, *, final=False, intent_write=False, observe_wait=False, receipt=False):
+    async def write(self, operation, *, final=False, intent_write=False, observe_wait=False, receipt=False,
+                    respect_queued_writes=False):
         timing = self._write_timing if observe_wait else None
         wait = timing.begin_wait() if timing is not None else None
+        # An earlier ordinary write can retire a prepared order in the tracker.
+        if respect_queued_writes and self._admissions:
+            final = False
         await self.acquire(final=final, intent_write=intent_write, operation=operation, receipt=receipt)
         try:
             if wait is not None:
