@@ -352,33 +352,23 @@ def test_managed_cancel_waits_for_postgres_commit_without_blocking_live(owned, c
                 assert session.get(TradeFill, ('okx', 'order-2', 'trade-2')) is not None
 
     owned.market.trigger_event.side_effect = dispatch
-    with owned.engine.begin() as connection:
-        connection.execute(text("""
-            CREATE FUNCTION delay_cancel_commit() RETURNS trigger LANGUAGE plpgsql AS $$
-            BEGIN
-                PERFORM pg_sleep(.45);
-                RETURN NEW;
-            END
-            $$
-        """))
-        connection.execute(text("""
-            CREATE CONSTRAINT TRIGGER delay_cancel_commit
-            AFTER INSERT ON order_statuses DEFERRABLE INITIALLY DEFERRED
-            FOR EACH ROW WHEN (NEW.status = 'OrderCancelled')
-            EXECUTE FUNCTION delay_cancel_commit()
-        """))
-
     committing = threading.Event()
+    release_commit = threading.Event()
+    engine_thread = threading.get_ident()
 
-    def watch_flush(session, context, instances):
-        if any(isinstance(value, OrderStatus) and value.status == 'OrderCancelled' for value in session.new):
+    def hold_cancel_commit(session):
+        # The cancellation is the only worker transaction started before this
+        # barrier. Both the ORM and batched writes reach it after their SQL.
+        if session.info.get('worker_order_owner') is owned.owner and not committing.is_set():
+            assert threading.get_ident() != engine_thread
             committing.set()
+            assert release_commit.wait(5), 'Probe did not release the cancellation commit'
 
-    event.listen(owned.manager._session_cls, 'before_flush', watch_flush)
+    event.listen(owned.manager._session_cls, 'before_commit', hold_cancel_commit)
 
     async def exercise():
         host = SimpleNamespace(stop=asyncio.Event(), phase='running', observer_progress_at=None)
-        fill_started = threading.Event()
+        fill_started = asyncio.Event()
 
         async def live(request):
             return await ServiceHost.health(host, request)
@@ -390,19 +380,16 @@ def test_managed_cancel_waits_for_postgres_commit_without_blocking_live(owned, c
         await web.TCPSite(runner, '127.0.0.1', 0).start()
         port = runner.addresses[0][1]
 
-        def probe():
-            assert fill_started.wait(2)
-            return probe_health(port, '/live')
-
         async def apply_fill():
             fill_started.set()
             await tracker.apply_trade_update(trade)
 
+        tasks = []
         try:
-            probe_job = asyncio.get_running_loop().run_in_executor(None, probe)
             update = OrderUpdate('BTC-USDT', 1700000001, OrderState.CANCELED, 'order-1', 'exchange-1')
             cancel = tracker.process_order_update(update)
-            assert await asyncio.to_thread(committing.wait, 2)
+            tasks.append(cancel)
+            assert await asyncio.to_thread(committing.wait, 2), 'Cancellation did not reach commit'
             if concurrent == 'cancelled-waiter':
                 cancel.cancel()
             fill_task = asyncio.create_task(apply_fill())
@@ -411,18 +398,24 @@ def test_managed_cancel_waits_for_postgres_commit_without_blocking_live(owned, c
             request = SimpleNamespace(url='https://offline.invalid/api/v5/trade/order', data='{"clOrdId":"order-1"}')
             response = SimpleNamespace(status=200, json=AsyncMock(return_value={'code': '0'}))
             receipt_task = asyncio.create_task(owned.owner.record_transport_receipt(request, response))
+            tasks.extend([fill_task, receipt_task])
             if stop_requested:
                 stop = asyncio.create_task(owned.owner.shutdown_core(core, timeout=2))
+                tasks.append(stop)
                 await asyncio.sleep(0)
                 assert not owned.owner.allow_new_orders
                 rest, transport = assistant()
             admit = asyncio.create_task(owned.owner.admit_order(owned.market, next_order))
-            healthy, detail = await probe_job
+            tasks.append(admit)
+            await asyncio.wait_for(fill_started.wait(), 2)
+            healthy, detail = await asyncio.to_thread(probe_health, port, '/live')
             assert healthy and detail['elapsed_ms'] < 300, detail
             report(f'managed_recorder_probe_{concurrent}', {'elapsed_ms': detail['elapsed_ms'], 'status': detail['status']})
             assert order.current_state is OrderState.OPEN
+            assert not cancel.done()
             assert not peer.executed_amount_base
             owned.market.trigger_event.assert_not_called()
+            release_commit.set()
 
             if stop_requested:
                 send_task = asyncio.create_task(send(rest))
@@ -447,12 +440,14 @@ def test_managed_cancel_waits_for_postgres_commit_without_blocking_live(owned, c
             await tracker.process_order_update(update)
             await tracker.apply_trade_update(trade)
         finally:
+            release_commit.set()
+            await asyncio.gather(*tasks, return_exceptions=True)
             await runner.cleanup()
 
     try:
         owned.loop.run_until_complete(exercise())
     finally:
-        event.remove(owned.manager._session_cls, 'before_flush', watch_flush)
+        event.remove(owned.manager._session_cls, 'before_commit', hold_cancel_commit)
     assert [call.args[0] for call in owned.market.trigger_event.call_args_list] == [
         MarketEvent.OrderCancelled, MarketEvent.OrderFilled]
     assert order.current_state is OrderState.CANCELED
