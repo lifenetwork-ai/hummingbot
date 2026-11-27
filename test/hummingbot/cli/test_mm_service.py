@@ -773,3 +773,39 @@ async def test_mm_start_uses_the_existing_trading_core_and_runner():
     assert args[0] == "v2_with_controllers"
     assert args[2] == "life_mm_profiles.yaml"
     assert len(args[1]["controller_config_overrides"]) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('changed', [None, 'generation', 'provider', 'unpromoted'])
+async def test_only_matching_profile_startup_claims_final_history_once(changed):
+    host, _, provider = await setup_host()
+    session = host.mm_session
+    preparation = profile_switch.ProfileSwitchPreparation(session, provider, [], history_scope=['life_spot'])
+    host.profile_switch = preparation
+    preparation.promoted = changed != 'unpromoted'
+    if changed == 'generation':
+        preparation.identity = session.id, session.generation + 1
+    core = host.hb.trading_core
+    core.retained_market_data_provider = object() if changed == 'provider' else provider
+    core.start_strategy = AsyncMock(return_value=True)
+    history = SimpleNamespace(task=asyncio.create_task(asyncio.sleep(0)))
+    preparation.history = history
+    row = dict(config_type='mm-session', config_file_path='life_mm_profiles.yaml', mm_session=session.model_dump())
+    try:
+        assert await host.start_strategy(row)
+        assert core.start_strategy.await_args.kwargs.get('prepared_history') is (None if changed else history)
+        assert await host.start_strategy(row)
+        assert core.start_strategy.await_args.kwargs.get('prepared_history') is None
+    finally:
+        await preparation.close()
+
+
+@pytest.mark.asyncio
+async def test_close_discards_handoff_after_ownership_connection_loss():
+    host, _, _ = await setup_host()
+    pending = SimpleNamespace(close=AsyncMock())
+    host.profile_switch = pending
+    host.owner.connection = None
+    assert await host.close()
+    pending.close.assert_awaited_once_with()
+    assert host.profile_switch is None

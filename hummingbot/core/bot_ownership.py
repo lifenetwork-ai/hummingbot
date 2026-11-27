@@ -1828,7 +1828,7 @@ class BotOwnership:
                 connection.close()
 
     @trace_runtime('shutdown.total')
-    async def shutdown_core(self, core, timeout=8.0, *, keep_market_data=False) -> bool:
+    async def shutdown_core(self, core, timeout=8.0, *, keep_market_data=False, after_executor_checkpoint=None) -> bool:
         """Retain ownership until tasks stop; preserve uncertainty before cleanup.
 
         False means the host must exit without returning ownership to standby while
@@ -2019,6 +2019,8 @@ class BotOwnership:
         core.after_order_cancellation = confirm_cancellations
         core.KILL_TIMEOUT = min(core.KILL_TIMEOUT, max(0.1, timeout / 3))
         market_data = {'keep_market_data': True} if keep_market_data else {}
+        if keep_market_data and after_executor_checkpoint is not None:
+            market_data['after_executor_checkpoint'] = after_executor_checkpoint
         shutdown = asyncio.create_task(core.shutdown(keep_positions=True, shutdown_timeout=timeout / 3, **market_data))
         done, pending = await asyncio.wait({shutdown}, timeout=max(0, deadline - asyncio.get_running_loop().time()))
         if pending:

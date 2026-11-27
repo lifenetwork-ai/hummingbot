@@ -644,9 +644,13 @@ class ServiceHost:
             from hummingbot.core.mm_session import MMSession
             self.hb.strategy_file_name = row["config_file_path"]
             self.hb.trading_core.strategy_name = "v2_with_controllers"
+            session = MMSession.model_validate(row["mm_session"])
+            preparation = self.profile_switch
+            options = {}
+            if preparation is not None:
+                options['prepared_history'] = preparation.claim_history(session, self.hb.trading_core.retained_market_data_provider)
             success = await self.hb.trading_core.start_strategy(
-                "v2_with_controllers", self.mm_effective_config(MMSession.model_validate(row["mm_session"])),
-                row["config_file_path"])
+                "v2_with_controllers", self.mm_effective_config(session), row["config_file_path"], **options)
         else:
             success = await load_and_start_strategy(
                 self.hb, headless=True, read_only_configuration=True,
@@ -705,7 +709,8 @@ class ServiceHost:
         try:
             if keep_market_data:
                 self.profile_switch.retain_valuation_books(strategy)
-                return await self.owner.shutdown_core(core, keep_market_data=True)
+                return await self.owner.shutdown_core(core, keep_market_data=True,
+                                                      after_executor_checkpoint=self.profile_switch.start_history)
             return await self.owner.shutdown_core(core)
         finally:
             self.observer_wait_until = None
@@ -717,7 +722,8 @@ class ServiceHost:
         config = self.mm_effective_config(target)
         provider = self.hb.trading_core.strategy.market_data_provider
         self.profile_switch = ProfileSwitchPreparation(
-            target, provider, config['controller_config_overrides'], automatic=automatic)
+            target, provider, config['controller_config_overrides'], automatic=automatic,
+            history_scope=config.get('mm_drawdown_scope') or ())
 
     async def observe_profile_switch(self, row):
         from hummingbot.cli.profile_switch import PREPARE_SECONDS
@@ -1546,6 +1552,10 @@ class ServiceHost:
             except Exception:
                 self.log.error("Service cleanup incomplete; ownership retained until process exit.")
                 return False
+        # Ownership loss skips stop_core. Drain any handoff reader before disposing its pool.
+        if self.profile_switch is not None:
+            preparation, self.profile_switch = self.profile_switch, None
+            await preparation.close()
         install_guard(None)
         if self.managed_credentials is not None:
             await self.managed_credentials.close()

@@ -1,8 +1,8 @@
 import asyncio
+import logging
 import os
-from contextvars import copy_context
+import time
 from decimal import Decimal
-from threading import Event
 from typing import Dict, List, Optional
 
 from pydantic import Field, model_validator
@@ -13,6 +13,7 @@ from hummingbot.core.event.events import MarketOrderFailureEvent
 from hummingbot.core.listing_bootstrap import BootstrapMarketPolicy
 from hummingbot.core.mm_drawdown import MMDrawdownMarket, checkpoint_stop_triggered, drawdown_policy
 from hummingbot.core.spot_outflow import SpotOutflowPolicy
+from hummingbot.core.startup_history import StartupHistoryRead
 from hummingbot.core.utils.read_retry import retry_delay, transient_read
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base, StrategyV2ConfigBase
 from hummingbot.strategy_v2.models.base import RunnableStatus
@@ -64,7 +65,7 @@ class V2WithControllers(StrategyV2Base):
     performance_report_interval: int = 1
 
     @classmethod
-    async def create_with_async_history(cls, connectors, config, *, market_data_provider=None):
+    async def create_with_async_history(cls, connectors, config, *, market_data_provider=None, prepared_history=None):
         """Read managed history before constructing any native strategy/tasks."""
         market_data = {} if market_data_provider is None else {'market_data_provider': market_data_provider}
         if not config.mm_drawdown_scope:
@@ -73,30 +74,17 @@ class V2WithControllers(StrategyV2Base):
         recorder = MarketsRecorder.get_instance()
         recorder.sql_manager.assert_persistence_healthy()
         identities = tuple(config.mm_drawdown_scope)
-        cancelled = Event()
-
-        def read_history():
-            # The cold executor import loads several native modules before any history I/O.
-            from hummingbot.strategy_v2.executors.executor_orchestrator import ExecutorOrchestrator
-            return ExecutorOrchestrator.read_startup_performance(
-                recorder, identities, cancelled=cancelled, compact=getattr(recorder, 'durable_position_checkpoints', False) is True)
-
-        job = asyncio.get_running_loop().run_in_executor(None, copy_context().run, read_history)
-        try:
-            snapshot = await asyncio.shield(job)
-        except asyncio.CancelledError:
-            # Drain the worker during Stop/SIGTERM, including any open history cursor.
-            cancelled.set()
-            while not job.done():
-                try:
-                    await asyncio.shield(job)
-                except asyncio.CancelledError:
-                    continue
-                except BaseException:
-                    break
-            if job.done() and not job.cancelled():
-                job.exception()
-            raise
+        if (prepared_history is not None and prepared_history.recorder is recorder
+                and prepared_history.identities == identities):
+            started = time.monotonic()
+            ready = prepared_history.task.done()
+            snapshot = await prepared_history.task
+            logging.getLogger(__name__).info(
+                "Read executor history for the promoted profile",
+                extra={"event": "mm_profile_history_handoff", "history_ready_at_start": ready,
+                       "history_wait_ms": round((time.monotonic() - started) * 1000)})
+        else:
+            snapshot = await StartupHistoryRead(recorder, identities).task
         if MarketsRecorder.get_instance() is not recorder:
             raise RuntimeError('Startup history recorder changed')
         recorder.sql_manager.assert_persistence_healthy()

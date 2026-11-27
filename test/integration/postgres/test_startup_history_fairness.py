@@ -240,3 +240,122 @@ def test_managed_history_never_hides_invalid_rows(recording, pg_engine, invalid)
         asyncio.run(V2WithControllers.create_with_async_history.__func__(
             build, {}, SimpleNamespace(mm_drawdown_scope={'life': None})))
     assert pg_engine.pool.checkedout() == 0
+
+
+def test_profile_handoff_reads_the_final_archive_during_venue_proof(recording, pg_engine):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from hummingbot.cli.profile_switch import ProfileSwitchPreparation
+    from hummingbot.core.trading_core import TradingCore
+    from hummingbot.model.position import Position
+    from hummingbot.strategy.strategy_v2_base import StrategyV2Base
+
+    recorder = recording[0]
+    scope = ('selected-0', 'selected-1')
+    benchmark = bool(os.getenv('HBOT_PERFORMANCE_REPORT'))
+    rows = 220000 if benchmark else 12000
+    proof_seconds = .4 if benchmark else .1
+    config = SimpleNamespace(mm_drawdown_scope={
+        name: SimpleNamespace(connector_name='okx', trading_pair=pair)
+        for name, pair in zip(scope, ('BTC-USDT', 'ETH-USDT'))})
+    with pg_engine.begin() as db, bootstrap_io_budget(db, time.monotonic() + 30):
+        db.exec_driver_sql("SET LOCAL statement_timeout = '30s'")
+        db.execute(text("""
+            INSERT INTO executors (id, timestamp, type, close_type, status, config, net_pnl_pct, net_pnl_quote,
+                        cum_fees_quote, filled_amount_quote, is_active, is_trading, custom_info, controller_id)
+            SELECT 'executor-' || n, n, 'position_executor', 3, 3, '{}', 0,
+                   CASE WHEN n % 10 = 1 THEN -.3 ELSE 0 END, 0, CASE WHEN n % 10 = 1 THEN 10.1 ELSE 0 END,
+                   false, false, '{}', 'selected-' || (n % 2) FROM generate_series(1, :rows) n
+        """), {'rows': rows})
+        db.execute(Position.__table__.insert().values(
+            id='late-position', controller_id=scope[0], connector_name='okx', trading_pair='BTC-USDT',
+            side='BUY', timestamp=1, amount=1, breakeven_price=1, volume_traded_quote=1,
+            realized_pnl_quote=0, unrealized_pnl_quote=0, cum_fees_quote=0))
+    reads = []
+    entered = threading.Event()
+
+    def fetching(connection, cursor, statement, *args):
+        if 'FROM executors' in statement:
+            reads.append(threading.get_ident())
+            entered.set()
+
+    async def run(prepared):
+        provider = SimpleNamespace(connectors={})
+        preparation = ProfileSwitchPreparation(SimpleNamespace(id='session', generation=2), provider, [],
+                                               history_scope=scope)
+        core = object.__new__(TradingCore)
+        core.strategy = MagicMock(spec=StrategyV2Base)
+        core.strategy.market_data_provider = provider
+        core.markets_recorder = recorder
+        core.before_position_checkpoint = None
+        core._strategy_running = True
+
+        async def final_archive(**_):
+            assert not entered.is_set()
+            with pg_engine.begin() as db:
+                db.execute(text("UPDATE executors SET net_pnl_quote=13, filled_amount_quote=17, close_type=3 "
+                                "WHERE id='executor-20'"))
+                db.execute(Position.__table__.update().values(amount=7))
+
+        async def stop():
+            core.strategy = None
+            return True
+
+        async def venue_proof():
+            if prepared:
+                seen, _ = await asyncio.gather(asyncio.to_thread(entered.wait, 5), asyncio.sleep(proof_seconds))
+                assert seen, 'History did not overlap terminal proof'
+            else:
+                await asyncio.sleep(proof_seconds)
+
+        core.strategy.on_stop = AsyncMock(side_effect=final_archive)
+        core.stop_strategy = stop
+        core.cancel_outstanding_orders = AsyncMock(return_value=True)
+        core.after_order_cancellation = venue_proof
+
+        class TargetStrategy(V2WithControllers):
+            markets = {}
+
+            def __init__(self, connectors, config, *, startup_performance, market_data_provider):
+                assert market_data_provider is provider
+                self.config, self.controllers = config, {}
+                self.snapshot = startup_performance
+                orchestrator = ExecutorOrchestrator(self, startup_performance=startup_performance)
+                assert orchestrator.positions_held[scope[0]][0].net_amount_base == 7
+
+        core.strategy_name = 'v2_with_controllers'
+        core.connector_manager = SimpleNamespace(get_all_connectors=lambda: provider.connectors)
+        core.load_v2_class = lambda _: (TargetStrategy, config)
+        preparation.promoted = True
+        options = {'after_executor_checkpoint': preparation.start_history} if prepared else {}
+        started = time.perf_counter()
+        try:
+            assert await core.shutdown(keep_positions=True, keep_market_data=True, **options)
+            assert core.retained_market_data_provider is provider
+            history = preparation.claim_history(preparation.session, core.retained_market_data_provider)
+            await core._initialize_v2_strategy(prepared_history=history)
+            assert len(reads) == 1 and reads[0] != threading.get_ident()
+            return core.strategy.snapshot, (time.perf_counter() - started) * 1000
+        finally:
+            await preparation.close()
+
+    results, durations = {}, {False: [], True: []}
+    event.listen(pg_engine, 'after_cursor_execute', fetching)
+    try:
+        for prepared in ((False, True, True, False) * 3 if benchmark else (False, True)):
+            with pg_engine.begin() as db:
+                db.execute(text("UPDATE executors SET net_pnl_quote=0, filled_amount_quote=0 WHERE id='executor-20'"))
+                db.execute(Position.__table__.update().values(amount=1))
+            reads.clear()
+            entered.clear()
+            results[prepared], elapsed = asyncio.run(run(prepared))
+            durations[prepared].append(elapsed)
+    finally:
+        event.remove(pg_engine, 'after_cursor_execute', fetching)
+    assert results[True] == results[False]
+    assert dict((key, (pnl, volume)) for key, pnl, volume, _ in results[True].totals)['selected-0'] == (13, 17)
+    assert pg_engine.pool.checkedout() == 0
+    report('profile_history_handoff', {
+        'rows': rows, 'venue_proof_ms': proof_seconds * 1000,
+        'sequential_ms': durations[False], 'overlap_ms': durations[True],
+    })

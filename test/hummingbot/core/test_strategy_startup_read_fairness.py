@@ -235,3 +235,71 @@ async def test_cancellation_closes_current_batch_without_scanning_remaining_hist
     await asyncio.gather(task, return_exceptions=True)
     assert consumed == [True], 'Stop drained the whole historical scan instead of closing its current read'
     assert task.cancelled() and closed and not constructed
+
+
+@pytest.mark.asyncio
+async def test_abandoned_handoff_drains_its_open_reader(monkeypatch):
+    from hummingbot.cli.profile_switch import ProfileSwitchPreparation
+
+    _, entered, release, waits, threads, closed, constructed = setup(monkeypatch)
+    preparation = ProfileSwitchPreparation(SimpleNamespace(id='session', generation=2), object(), [], history_scope=['a'])
+    try:
+        preparation.start_history(MarketsRecorder.get_instance())
+        await wait_entered(entered)
+        closing = asyncio.create_task(preparation.close())
+        await asyncio.sleep(0)
+        assert not closing.done()
+        release.set()
+        await closing
+        assert preparation.history.task.cancelled() and closed == threads and not constructed
+        assert waits == [True]
+    finally:
+        release.set()
+        await preparation.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mismatch', ['recorder', 'scope'])
+async def test_mismatched_prepared_history_reads_the_current_scope_again(monkeypatch, mismatch):
+    core, _, release, _, threads, _, _ = setup(monkeypatch)
+    recorder = MarketsRecorder.get_instance()
+    _, config = core.load_v2_class(core.strategy_name)
+    stale = SimpleNamespace(recorder=object() if mismatch == 'recorder' else recorder,
+                            identities=('other',) if mismatch == 'scope' else ('a',))
+    release.set()
+    result = await V2WithControllers.create_with_async_history.__func__(
+        lambda *a, startup_performance: startup_performance, {}, config, prepared_history=stale)
+    assert len(threads) == 1 and result.controller_ids == ('a',)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('ready', [False, True])
+async def test_cloud_log_reports_how_long_startup_actually_waited(monkeypatch, caplog, ready):
+    import json
+    import logging
+
+    from hummingbot.core.startup_history import StartupHistoryRead
+    from hummingbot.logger.service_logging import ServiceFormatter
+
+    core, entered, release, _, threads, _, _ = setup(monkeypatch)
+    _, config = core.load_v2_class(core.strategy_name)
+    read = StartupHistoryRead(MarketsRecorder.get_instance(), tuple(config.mm_drawdown_scope))
+    try:
+        await wait_entered(entered)
+        if ready:
+            release.set()
+            await read.task
+        with caplog.at_level(logging.INFO):
+            startup = asyncio.create_task(V2WithControllers.create_with_async_history.__func__(
+                lambda *a, **kw: True, {}, config, prepared_history=read))
+            await asyncio.sleep(0)
+            assert startup.done() is ready
+            release.set()
+            assert await startup
+    finally:
+        release.set()
+        await asyncio.gather(read.task, return_exceptions=True)
+    event = next(r for r in caplog.records if getattr(r, 'event', None) == 'mm_profile_history_handoff')
+    payload = json.loads(ServiceFormatter('json', {}).format(event))
+    assert payload['history_ready_at_start'] is ready and payload['history_wait_ms'] >= 0
+    assert len(threads) == 1

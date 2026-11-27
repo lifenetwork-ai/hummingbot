@@ -1,18 +1,21 @@
-"""Warm public dependencies while the current MM session still owns its orders."""
+"""Prepare public feeds before cutover and executor history after the final archive."""
 import asyncio
 
 from controllers.market_making.life_mm import LifeMMConfig, LifeMMController
+from hummingbot.core.startup_history import StartupHistoryRead
 from hummingbot.strategy_v2.utils.mm_spread import prepare_natr
 
 PREPARE_SECONDS = 20
 
 
 class ProfileSwitchPreparation:
-    def __init__(self, session, provider, configs, *, automatic=False):
+    def __init__(self, session, provider, configs, *, automatic=False, history_scope=()):
         self.session = session
         self.identity = session.id, session.generation
         self.automatic = automatic
         self.provider = provider
+        self.history_scope = tuple(history_scope)
+        self.history = None
         self.controllers = [LifeMMController(LifeMMConfig.model_validate(config), provider, asyncio.Queue())
                             for config in configs]
         self.strict_guards = [controller for controller in self.controllers if controller.config.quote_guards.enabled
@@ -27,6 +30,18 @@ class ProfileSwitchPreparation:
         self.guard_task = asyncio.create_task(self.sample_guards()) if self.strict_guards else None
         self.task = asyncio.create_task(self.prepare())
         self.promoted = False
+
+    def start_history(self, recorder):
+        if self.history_scope and self.history is None and recorder is not None:
+            self.history = StartupHistoryRead(recorder, self.history_scope)
+
+    def claim_history(self, session, provider):
+        # Only the first startup of the promoted target can use this checkpoint.
+        scope, self.history_scope = self.history_scope, ()
+        if (scope and self.promoted and self.identity == (session.id, session.generation)
+                and self.provider is provider):
+            return self.history
+        return None
 
     @property
     def ready(self):
@@ -99,12 +114,15 @@ class ProfileSwitchPreparation:
             self.references.setdefault(name, set()).add(pair)
 
     async def close(self):
-        if not self.task.done():
-            self.task.cancel()
-        await asyncio.gather(self.task, return_exceptions=True)
+        self.history_scope = ()
+        tasks = [self.task]
         if self.guard_task is not None:
-            self.guard_task.cancel()
-            await asyncio.gather(self.guard_task, return_exceptions=True)
+            tasks.append(self.guard_task)
+        if self.history is not None:
+            tasks.append(self.history.task)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         for config in self.candles:
             self.provider.release_candle_feed(config, self)
         for name, pairs in self.references.items():

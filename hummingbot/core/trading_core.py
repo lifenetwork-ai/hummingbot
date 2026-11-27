@@ -451,7 +451,7 @@ class TradingCore:
     async def start_strategy(self,
                              strategy_name: str,
                              strategy_config: Optional[Union[BaseStrategyConfigMap, Dict[str, Any], str]] = None,
-                             strategy_file_name: Optional[str] = None) -> bool:
+                             strategy_file_name: Optional[str] = None, *, prepared_history=None) -> bool:
         """
         Start a trading strategy.
 
@@ -484,7 +484,7 @@ class TradingCore:
             self._resolved_strategy_type = (strategy_name, strategy_type)
 
             if strategy_type == StrategyType.V2:
-                await self._initialize_v2_strategy()
+                await self._initialize_v2_strategy(prepared_history=prepared_history)
             else:
                 await self._initialize_regular_strategy()
 
@@ -506,7 +506,7 @@ class TradingCore:
             self.logger().error(f"Failed to start strategy {strategy_name}: {e}")
             return False
 
-    async def _initialize_v2_strategy(self):
+    async def _initialize_v2_strategy(self, *, prepared_history=None):
         """Initialize a V2 strategy using consolidated approach."""
         v2_strategy_class, config = self.load_v2_class(self.strategy_name)
 
@@ -520,7 +520,8 @@ class TradingCore:
                     or set(self.markets) != {name for name, _ in markets_list}
                     or any(not set(pairs) <= set(self.markets[name].trading_pairs) for name, pairs in markets_list)):
                 raise RuntimeError('Prepared MM profile requires the current trading connectors')
-            self.strategy = await factory(self.markets, config, market_data_provider=provider)
+            options = {'prepared_history': prepared_history} if prepared_history is not None else {}
+            self.strategy = await factory(self.markets, config, market_data_provider=provider, **options)
         else:
             await self.initialize_markets(markets_list)
             self.strategy = (await factory(self.markets, config) if factory is not None
@@ -813,7 +814,8 @@ class TradingCore:
 
     @trace_runtime('shutdown.core')
     async def shutdown(self, skip_order_cancellation: bool = False, *, keep_positions: bool = False,
-                       shutdown_timeout: Optional[float] = None, keep_market_data: bool = False) -> bool:
+                       shutdown_timeout: Optional[float] = None, keep_market_data: bool = False,
+                       after_executor_checkpoint: Optional[Callable] = None) -> bool:
         """
         Shutdown the trading core completely.
 
@@ -845,6 +847,11 @@ class TradingCore:
             if self._strategy_running:
                 if not await self.stop_strategy() and keep_market_data:
                     return False
+
+            # The old strategy is off the clock and its final executor archive has committed.
+            # A read may overlap venue proof. The new strategy still waits for the full handoff.
+            if provider is not None and self.strategy is None and after_executor_checkpoint is not None:
+                after_executor_checkpoint(self.markets_recorder)
 
             # Cancel outstanding orders
             if not skip_order_cancellation:
