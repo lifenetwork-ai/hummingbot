@@ -1166,7 +1166,7 @@ class BotOwnership:
         with submission_timing('ownership_row_check_ms') if nowait else nullcontext():
             connection = session.connection()
             if evidence is not None:
-                # ACKs need existing orders, history and checkpoint identity
+                # ACKs need existing orders and their checkpoint identity
                 # before they can stage any write. Obtain that evidence with
                 # the same NOWAIT row lock that would otherwise precede flush.
                 rows = session.execute(evidence.add_columns(

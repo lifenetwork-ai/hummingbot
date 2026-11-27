@@ -308,14 +308,19 @@ def test_worker_intent_coalesces_metadata_reads_under_both_owner_fences(native, 
 
 
 def test_native_intent_and_ack_flush_each_snapshot_with_its_order(native):
-    flushed = []
+    flushed, observation_transactions = [], []
     queued = InFlightOrder('queued-sibling', 'LIFE-USDT', OrderType.LIMIT_MAKER, TradeType.BUY,
                            Decimal('5'), time.time(), Decimal('10'))
     native.market._order_tracker.start_tracking_order(queued)
 
     def observe_flush(session, *_):
         if session.info.get('worker_order_owner') is native.owner:
-            flushed.append({type(row).__name__ for row in set(session.new) | set(session.dirty)})
+            rows = {type(row).__name__ for row in set(session.new) | set(session.dirty)}
+            flushed.append((rows, session.connection().get_transaction()))
+
+    def observe_metadata(connection, cursor, statement, *_):
+        if 'UPDATE submission_attempts' in statement and 'INSERT INTO order_statuses' in statement:
+            observation_transactions.append(connection.get_transaction())
 
     async def send():
         with session_order_scope(native.session.id, native.session.generation):
@@ -323,13 +328,18 @@ def test_native_intent_and_ack_flush_each_snapshot_with_its_order(native):
                                               Decimal('5'), OrderType.LIMIT_MAKER, Decimal('10'))
 
     event.listen(native.manager._session_cls, 'before_flush', observe_flush)
+    event.listen(native.engine, 'after_cursor_execute', observe_metadata)
     try:
         native.loop.run_until_complete(send())
     finally:
         event.remove(native.manager._session_cls, 'before_flush', observe_flush)
+        event.remove(native.engine, 'after_cursor_execute', observe_metadata)
 
     assert len(flushed) == 2, flushed
-    assert all({'Order', 'OrderStatus', 'SubmissionAttempt', 'MarketState'} <= rows for rows in flushed)
+    (intent_rows, _), (ack_rows, ack_transaction) = flushed
+    assert {'Order', 'OrderStatus', 'SubmissionAttempt', 'MarketState'} <= intent_rows
+    assert {'Order', 'MarketState'} <= ack_rows
+    assert ack_transaction is not None and observation_transactions == [ack_transaction]
     native.transport.call.assert_awaited_once()
     with native.manager.get_new_session() as db:
         order = db.get(Order, 'combined-snapshot')

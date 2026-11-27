@@ -64,6 +64,7 @@ _ORDER_FENCE_RETRY_SECONDS = 4.0
 _ORDER_FENCE_RETRY_INTERVAL = 0.1
 _ORDER_FENCE_FIRST_WRITE_RETRY = 0.0125
 _ACK_RETRY_EXPIRED = object()
+_ACK_PROTECTED_ATTEMPT_STATES = ('uncertain', 'terminal', 'rejected')
 # Take one full ready quote-side burst per commit without waiting for more ACKs.
 MAX_OPEN_ACK_BATCH = 10
 
@@ -333,17 +334,21 @@ class MarketsRecorder:
                 tracking[fresh_order] = plan.tracking_state
 
         def stage(session):
+            acknowledgements = [(plan.event.order_id, int(plan.event.creation_timestamp * 1e3), plan.tag.name)
+                                for _, _, plan in prepared]
             with session.no_autoflush:
-                evidence, tracking_basis = self._read_creation_evidence_batch(session, [
-                    (plan.event.order_id, int(plan.event.creation_timestamp * 1e3), plan.tag.name)
-                    for _, _, plan in prepared
-                ], tracking=tracking if fresh_order is not None else None, market_name=market.display_name)
+                existing, tracking_basis = self._read_creation_orders(
+                    session, [identity for identity, _, _ in acknowledgements],
+                    tracking=tracking if fresh_order is not None else None, market_name=market.display_name)
                 orders = [context.run(self._stage_order_creation, session, plan.tag.value, market, plan.event,
-                                      coalesce_snapshot=True, defer_snapshot=True,
-                                      evidence=evidence.get(plan.event.order_id))
+                                      batch_orders=existing)
                           for _, context, plan in prepared]
                 self.save_market_states(self._config_file_path, market, session, new_order_id=fresh_order,
                                         tracking_states=tracking, staged_orders=orders, tracking_basis=tracking_basis)
+            # An OPEN can reconstruct a missing Order. Its row must exist
+            # before the history insert checks the foreign key.
+            session.flush()
+            self._write_creation_observations(session, acknowledgements)
 
         _, cancelled = await self._run_native_write(stage, defer_contention=OrderAcknowledgementBusy)
         return cancelled
@@ -1413,14 +1418,18 @@ class MarketsRecorder:
 
     @trace_runtime('order.created', order_parameter='evt')
     def _stage_order_creation(self, session, event_tag, market, evt, *, tracking_states=None, coalesce_snapshot=False,
-                              defer_snapshot=False, evidence=None):
+                              batch_orders=None):
         base_asset, quote_asset = evt.trading_pair.split("-")
         timestamp = int(evt.creation_timestamp * 1e3)
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
 
-        if coalesce_snapshot and evidence is None:
-            evidence = self._read_order_event_evidence(session, evt.order_id, timestamp, event_type.name)
-        order_record = evidence[0] if evidence is not None else session.get(Order, evt.order_id)
+        evidence = None
+        if batch_orders is not None:
+            order_record = batch_orders.get(evt.order_id)
+        else:
+            if coalesce_snapshot:
+                evidence = self._read_order_event_evidence(session, evt.order_id, timestamp, event_type.name)
+            order_record = evidence[0] if evidence is not None else session.get(Order, evt.order_id)
         config_file_path, strategy_name = self._event_configuration(session, market, order_record)
         if order_record is not None and (
             order_record.market != market.display_name or order_record.symbol != evt.trading_pair
@@ -1462,6 +1471,8 @@ class MarketsRecorder:
                 order_record.last_status = event_type.name
             if order_record.last_status in (MarketEvent.BuyOrderCreated.name, MarketEvent.SellOrderCreated.name):
                 order_record.last_update_timestamp = max(order_record.last_update_timestamp, timestamp)
+        if batch_orders is not None:
+            return order_record  # The batch records observations and the shared snapshot together.
         # These lookups need only the persisted attempt and history. An
         # isolated worker ACK can overlay its own change on the fresh snapshot.
         with session.no_autoflush:
@@ -1474,9 +1485,8 @@ class MarketsRecorder:
                 if not history_recorded:
                     session.add(OrderStatus(order=order_record, timestamp=timestamp, status=event_type.name))
             if coalesce_snapshot:
-                if not defer_snapshot:
-                    self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states,
-                                            new_order_id=evt.order_id, staged_orders=(order_record,))
+                self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states,
+                                        new_order_id=evt.order_id, staged_orders=(order_record,))
                 return order_record
         self.save_market_states(config_file_path, market, session=session, tracking_states=tracking_states)
 
@@ -1504,18 +1514,12 @@ class MarketsRecorder:
                     MarketState.config_file_path == self._config_file_path, MarketState.market == market_name))
                 .options(defer(MarketState.saved_state)))
 
-    def _read_creation_evidence_batch(self, session, acknowledgements, *, tracking, market_name):
+    def _read_creation_orders(self, session, identities, *, tracking, market_name):
         from hummingbot.model.intent_admission import capture_prewrite_lock_failure
-        from hummingbot.model.runtime_journal import SubmissionAttempt
 
-        requested = values(column('order_id', Order.id.type), column('timestamp', OrderStatus.timestamp.type),
-                           column('status', OrderStatus.status.type), name='requested_acks').data(acknowledgements)
-        history_recorded = select(OrderStatus.id).where(
-            OrderStatus.order_id == Order.id, OrderStatus.timestamp == requested.c.timestamp,
-            OrderStatus.status == requested.c.status).exists()
-        statement = (select(Order, SubmissionAttempt, history_recorded).options(load_only(SubmissionAttempt.state))
-                     .select_from(requested).outerjoin(Order, Order.id == requested.c.order_id)
-                     .outerjoin(SubmissionAttempt, SubmissionAttempt.order_id == Order.id))
+        requested = values(column('order_id', Order.id.type), name='requested_acks').data(
+            [(identity,) for identity in identities])
+        statement = select(Order).select_from(requested).outerjoin(Order, Order.id == requested.c.order_id)
         if tracking is not None:
             # Every ACK shares one checkpoint basis. Defer the previous JSON
             # so only a missing unresolved order needs to load it.
@@ -1523,8 +1527,29 @@ class MarketsRecorder:
         owner = session.info['worker_order_owner']
         with capture_prewrite_lock_failure(session):
             rows = owner.fence_recorder_session(session, nowait=True, evidence=statement)
-        tracking_basis = rows[0][3:-1] if tracking is not None else None
-        return {row[0].id: row[:3] for row in rows if row[0] is not None}, tracking_basis
+        tracking_basis = rows[0][1:-1] if tracking is not None else None
+        return {row[0].id: row[0] for row in rows if row[0] is not None}, tracking_basis
+
+    @staticmethod
+    def _write_creation_observations(session, acknowledgements):
+        """Append missing OPEN history and advance eligible attempts in one PostgreSQL statement."""
+        from hummingbot.model.runtime_journal import SubmissionAttempt
+
+        batch = values(column('order_id', Order.id.type), column('timestamp', OrderStatus.timestamp.type),
+                       column('status', OrderStatus.status.type), name='ack_values').data(acknowledgements)
+        received = select(*batch.c).distinct().cte('received_acks')
+        attempts = SubmissionAttempt.__table__
+        observed = attempts.update().where(
+            attempts.c.order_id == received.c.order_id,
+            attempts.c.state.not_in((*_ACK_PROTECTED_ATTEMPT_STATES, 'acknowledged')),
+        ).values(state='acknowledged').cte('observed_attempts')
+        history = OrderStatus.__table__
+        recorded = select(history.c.id).where(
+            history.c.order_id == received.c.order_id, history.c.timestamp == received.c.timestamp,
+            history.c.status == received.c.status).exists()
+        session.execute(history.insert().from_select(
+            ['order_id', 'timestamp', 'status'], select(*received.c).where(~recorded)
+        ).add_cte(observed))
 
     def finish_recorded_order_creation(self, market, evt):
         if evt.exchange_order_id and self._uses_reconstruction_history(market):
@@ -1544,7 +1569,7 @@ class MarketsRecorder:
     @staticmethod
     def _set_attempt_observation(attempt, state):
         if (attempt is not None and attempt.state != 'uncertain'
-                and not (state == 'acknowledged' and attempt.state in ('terminal', 'rejected'))):
+                and not (state == 'acknowledged' and attempt.state in _ACK_PROTECTED_ATTEMPT_STATES)):
             attempt.state = state
 
     @staticmethod

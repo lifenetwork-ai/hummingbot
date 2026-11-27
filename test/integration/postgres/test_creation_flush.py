@@ -3,6 +3,7 @@ import asyncio
 import json
 import time
 from contextlib import nullcontext
+from contextvars import copy_context
 from dataclasses import replace
 from decimal import Decimal
 from test.integration.postgres.test_ownership import intent, owned as _owned
@@ -41,13 +42,17 @@ def acknowledge(context, identity='order-1'):
         price=order.price, creation_timestamp=order.creation_timestamp))
 
 
-@pytest.mark.parametrize('outcome', ['committed', 'uncontended', 'cancelled', 'leader_cancelled', 'rejected', 'reply_lost', 'owner_lost'])
+@pytest.mark.parametrize('outcome', [
+    'committed', 'single', 'uncontended', 'cancelled', 'leader_cancelled', 'rejected', 'history_rejected',
+    'reply_lost', 'owner_lost',
+])
 def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeypatch, outcome):
     tracker = native.market._order_tracker
-    identities = {f'burst-ack-{i}' for i in range(6)}
-    existing_history = min(identities)
+    identities = {f'burst-ack-{i}' for i in range(1 if outcome == 'single' else 6)}
+    existing_history = set() if outcome == 'single' else {min(identities)}
     flushes, published, ack_connections = [], [], []
     ack_reads, ack_fences = [], []
+    metadata_writes = []
     publish = native.recorder.publish_recorded_order_event
     acquire = native.recorder.order_writes.acquire
     queued = asyncio.Event()
@@ -67,18 +72,29 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
                 DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
                 WHEN (NEW.id = 'burst-ack-3' AND NOT NEW.creation_pending) EXECUTE FUNCTION reject_burst_ack()
             """))
+    if outcome == 'history_rejected':
+        with native.engine.begin() as connection:
+            connection.execute(text("""
+                CREATE FUNCTION reject_ack_history() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION 'cannot append OPEN history' USING ERRCODE = '55P03'; END;
+                $$;
+                CREATE TRIGGER reject_ack_history BEFORE INSERT ON order_statuses FOR EACH ROW
+                WHEN (NEW.order_id = 'burst-ack-3' AND NEW.status = 'BuyOrderCreated')
+                EXECUTE FUNCTION reject_ack_history()
+            """))
 
     def inspect_flush(session, *_):
-        created = {row.order.id for row in session.new
-                   if isinstance(row, OrderStatus) and row.status == 'BuyOrderCreated'}
+        created = {row.id for row in session.dirty if isinstance(row, Order) and not row.creation_pending}
         if created:
             flushes.append(created)
             if reply_lost:
                 ack_connections.append(session.connection().connection.driver_connection)
 
     def inspect_read(connection, cursor, statement, parameters, context, executemany):
+        if track_waiters and ('UPDATE submission_attempts' in statement or 'INSERT INTO order_statuses' in statement):
+            metadata_writes.append(statement)
         if track_waiters and statement.startswith('SELECT') and (
-                'JOIN submission_attempts' in statement or 'array_agg(orders.id)' in statement):
+                'requested_acks' in statement or 'array_agg(orders.id)' in statement):
             ack_reads.append(statement)
         if track_waiters and 'pg_locks' in statement:
             ack_fences.append(statement)
@@ -128,9 +144,10 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
             identity = order.client_order_id
             native.owner._record_send_attempt(identity, {'clOrdId': identity}, 123456, {})
         # One order already has creation history at the shared timestamp.
-        with native.engine.begin() as connection:
-            connection.execute(OrderStatus.__table__.insert().values(
-                order_id=existing_history, timestamp=int(created_at * 1e3), status='BuyOrderCreated'))
+        for identity in existing_history:
+            with native.engine.begin() as connection:
+                connection.execute(OrderStatus.__table__.insert().values(
+                    order_id=identity, timestamp=int(created_at * 1e3), status='BuyOrderCreated'))
         slot = nullcontext() if outcome in ('uncontended', 'leader_cancelled') else native.recorder.order_writes
         async with slot:
             track_waiters = True
@@ -150,24 +167,26 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
     event.listen(native.engine, 'before_cursor_execute', inspect_read)
     event.listen(native.engine, 'after_cursor_execute', lose_owner_after_read)
     try:
-        with queries(native.engine) as statements:
-            orders, outcomes = native.loop.run_until_complete(exercise())
+        orders, outcomes = native.loop.run_until_complete(exercise())
     finally:
         event.remove(native.manager._session_cls, 'before_flush', inspect_flush)
         event.remove(native.engine, 'before_cursor_execute', inspect_read)
         event.remove(native.engine, 'after_cursor_execute', lose_owner_after_read)
-    assert flushes == [identities - {existing_history}]
-    evidence_reads = [statement for statement in statements if statement.startswith('SELECT')
-                      and 'JOIN submission_attempts' in statement and 'FROM order_status' in statement]
-    assert len(evidence_reads) == 1
+    assert flushes == [identities]
+    assert len(metadata_writes) == 1, metadata_writes
+    assert all(fragment in metadata_writes[0] for fragment in ('UPDATE submission_attempts', 'INSERT INTO order_statuses'))
     assert len(ack_reads) == 1
-    assert 'JOIN submission_attempts' in ack_reads[0] and 'array_agg(orders.id)' in ack_reads[0]
+    assert 'requested_acks' in ack_reads[0] and 'array_agg(orders.id)' in ack_reads[0]
     assert 'FOR SHARE NOWAIT' in ack_reads[0] and 'pg_locks' in ack_reads[0]
-    assert len(ack_fences) == 2 and ack_fences[0] == ack_reads[0] and 'FOR SHARE NOWAIT' not in ack_fences[1]
-    rolled_back = reject_commit or owner_lost
+    assert ack_fences[0] == ack_reads[0]
+    if outcome == 'history_rejected':
+        assert len(ack_fences) == 1  # The transaction aborts before the pre-COMMIT fence.
+    else:
+        assert len(ack_fences) == 2 and 'FOR SHARE NOWAIT' not in ack_fences[1]
+    rolled_back = reject_commit or owner_lost or outcome == 'history_rejected'
     with native.manager.get_new_session() as db:
         history = db.scalars(select(OrderStatus.order_id).where(OrderStatus.status == 'BuyOrderCreated')).all()
-        assert sorted(history) == ([existing_history] if rolled_back else sorted(identities))
+        assert sorted(history) == sorted(existing_history if rolled_back else identities)
         assert {row.state for row in db.query(SubmissionAttempt)} == {'possibly_sent' if rolled_back else 'acknowledged'}
         assert all(row.creation_pending is rolled_back for row in db.query(Order))
         snapshot = db.query(MarketState).one().saved_state
@@ -180,7 +199,7 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
     if owner_lost:
         assert all(isinstance(result, OwnershipLost) for result in outcomes)
         assert not published and native.owner.lost and not native.manager.persistence_healthy
-    elif reject_commit or reply_lost:
+    elif reject_commit or reply_lost or outcome == 'history_rejected':
         assert all(isinstance(result, OperationalError) for result in outcomes)
         assert not published and not native.manager.persistence_healthy
     else:
@@ -191,6 +210,32 @@ def test_ready_native_open_acks_share_a_commit_before_publishing(native, monkeyp
         assert outcomes == [None] * len(orders)
         assert set(published) == {(identity, len(identities)) for identity in identities}
     assert not native.owner.terminal_tasks and not native.recorder.order_writes.locked()
+
+
+def test_replaying_open_batch_preserves_protected_attempts_and_reconstructs_missing_order(owned):
+    states = ('possibly_sent', 'uncertain', 'terminal', 'rejected', 'acknowledged')
+    for state in states:
+        intent(owned, state)
+    with owned.engine.begin() as db:
+        for state in states:
+            db.execute(SubmissionAttempt.__table__.update().where(SubmissionAttempt.order_id == state).values(
+                state=state, receipt={'order': state}))
+
+    identities = (*states, 'missing-order')
+    plans = []
+    for index, identity in enumerate(identities):
+        event = replace(create(), order_id=identity, exchange_order_id='venue-' + identity)
+        plan = SimpleNamespace(tag=MarketEvent.BuyOrderCreated, event=event, tracking_state={'id': identity})
+        plans.append((index, copy_context(), plan))
+    for _ in range(2):
+        owned.loop.run_until_complete(owned.recorder._persist_open_acknowledgements(owned.market, plans))
+    with owned.manager.get_new_session() as db:
+        attempts = {row.order_id: (row.state, row.receipt) for row in db.query(SubmissionAttempt)}
+        assert attempts == {state: ('acknowledged' if state == 'possibly_sent' else state, {'order': state})
+                            for state in states}
+        history = db.scalars(select(OrderStatus.order_id).where(OrderStatus.status == 'BuyOrderCreated')).all()
+        assert sorted(history) == sorted(identities)
+        assert {row.id for row in db.query(Order) if not row.creation_pending} == set(identities)
 
 
 @pytest.mark.parametrize('outcome', ['confirmed', 'cancelled', 'commit_rejected'])
