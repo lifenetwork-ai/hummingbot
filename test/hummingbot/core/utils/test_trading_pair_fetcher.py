@@ -1,8 +1,8 @@
 import asyncio
 import json
-import unittest
 from decimal import Decimal
-from typing import Any, Awaitable, Dict
+from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from aioresponses import aioresponses
@@ -17,35 +17,15 @@ from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 from hummingbot.core.utils.trading_pair_fetcher import TradingPairFetcher
 
 
-class TestTradingPairFetcher(unittest.TestCase):
+class TestTradingPairFetcher(IsolatedAsyncioWrapperTestCase):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
         Security.decrypt_all()
 
-    @classmethod
-    async def wait_until_trading_pair_fetcher_ready(cls, tpf):
-        while True:
-            if tpf.ready:
-                break
-            else:
-                await asyncio.sleep(0)
-
     def setUp(self) -> None:
         super().setUp()
-        self._original_async_loop = asyncio.get_event_loop()
-        self.async_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.async_loop)
-
-    def tearDown(self) -> None:
-        super().tearDown()
-        self.async_loop.stop()
-        self.async_loop.close()
-        asyncio.set_event_loop(self._original_async_loop)
-
-    def async_run_with_timeout(self, coroutine: Awaitable, timeout: float = 1):
-        ret = self.async_loop.run_until_complete(asyncio.wait_for(coroutine, timeout))
-        return ret
+        self.enterContext(patch.object(TradingPairFetcher, "_sf_shared_instance", None))
 
     class MockConnectorSetting(MagicMock):
         def __init__(self, name, parent_name=None, connector=None, *args, **kwargs) -> None:
@@ -77,18 +57,14 @@ class TestTradingPairFetcher(unittest.TestCase):
         def non_trading_connector_instance_with_default_configuration(self, trading_pairs = None):
             return self._connector
 
-    @classmethod
-    def tearDownClass(cls) -> None:
-        # Need to reset TradingPairFetcher module so next time it gets imported it works as expected
-        TradingPairFetcher._sf_shared_instance = None
-
-    def test_trading_pair_fetcher_returns_same_instance_when_get_new_instance_once_initialized(self):
-        instance = TradingPairFetcher.get_instance()
+    @patch.object(TradingPairFetcher, "_all_connector_settings", return_value={})
+    async def test_trading_pair_fetcher_returns_same_instance_when_get_new_instance_once_initialized(self, _):
+        instance = TradingPairFetcher.get_instance(ClientConfigAdapter(ClientConfigMap()))
         self.assertIs(instance, TradingPairFetcher.get_instance())
+        await asyncio.wait_for(instance._fetch_task, timeout=1)
 
     @patch("hummingbot.core.utils.trading_pair_fetcher.TradingPairFetcher._all_connector_settings")
-    @patch("hummingbot.core.utils.trading_pair_fetcher.TradingPairFetcher._sf_shared_instance")
-    def test_fetched_connector_trading_pairs(self, _, mock_connector_settings):
+    async def test_fetched_connector_trading_pairs(self, mock_connector_settings):
         connector = AsyncMock()
         connector.all_trading_pairs.return_value = ["MOCK-HBOT"]
         mock_connector_settings.return_value = {
@@ -99,16 +75,15 @@ class TestTradingPairFetcher(unittest.TestCase):
         client_config_map = ClientConfigAdapter(ClientConfigMap())
         client_config_map.fetch_pairs_from_all_exchanges = True
         trading_pair_fetcher = TradingPairFetcher(client_config_map)
-        self.async_run_with_timeout(self.wait_until_trading_pair_fetcher_ready(trading_pair_fetcher), 1.0)
+        await asyncio.wait_for(trading_pair_fetcher._fetch_task, timeout=1)
         trading_pairs = trading_pair_fetcher.trading_pairs
         self.assertEqual(2, len(trading_pairs))
         self.assertEqual({"mockConnector": ["MOCK-HBOT"], "mock_paper_trade": ["MOCK-HBOT"]}, trading_pairs)
 
     @patch("hummingbot.core.utils.trading_pair_fetcher.TradingPairFetcher._all_connector_settings")
-    @patch("hummingbot.core.utils.trading_pair_fetcher.TradingPairFetcher._sf_shared_instance")
     @patch("hummingbot.client.config.security.Security.connector_config_file_exists")
     @patch("hummingbot.client.config.security.Security.wait_til_decryption_done")
-    def test_fetched_connected_trading_pairs(self, _, __: MagicMock, ___: AsyncMock, mock_connector_settings):
+    async def test_fetched_connected_trading_pairs(self, _, __: MagicMock, mock_connector_settings):
         connector = AsyncMock()
         connector.all_trading_pairs.return_value = ["MOCK-HBOT"]
         mock_connector_settings.return_value = {
@@ -120,14 +95,14 @@ class TestTradingPairFetcher(unittest.TestCase):
         client_config_map.fetch_pairs_from_all_exchanges = False
         self.assertTrue(Security.connector_config_file_exists("binance"))
         trading_pair_fetcher = TradingPairFetcher(client_config_map)
-        self.async_run_with_timeout(self.wait_until_trading_pair_fetcher_ready(trading_pair_fetcher), 1.0)
+        await asyncio.wait_for(trading_pair_fetcher._fetch_task, timeout=1)
         trading_pairs = trading_pair_fetcher.trading_pairs
         self.assertEqual(2, len(trading_pairs))
         self.assertEqual({"binance": ["MOCK-HBOT"], "mock_paper_trade": ["MOCK-HBOT"]}, trading_pairs)
 
     @aioresponses()
     @patch("hummingbot.core.utils.trading_pair_fetcher.TradingPairFetcher._all_connector_settings")
-    def test_fetch_all(self, mock_api, all_connector_settings_mock):
+    async def test_fetch_all(self, mock_api, all_connector_settings_mock):
         client_config_map = ClientConfigAdapter(ClientConfigMap())
         client_config_map.fetch_pairs_from_all_exchanges = True
         all_connector_settings_mock.return_value = {
@@ -248,7 +223,7 @@ class TestTradingPairFetcher(unittest.TestCase):
         mock_api.get(url, body=json.dumps(mock_response))
 
         fetcher = TradingPairFetcher(client_config_map)
-        asyncio.get_event_loop().run_until_complete(fetcher._fetch_task)
+        await asyncio.wait_for(fetcher._fetch_task, timeout=1)
         trading_pairs = fetcher.trading_pairs
 
         self.assertEqual(1, len(trading_pairs.keys()))
