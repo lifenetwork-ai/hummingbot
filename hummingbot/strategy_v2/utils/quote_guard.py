@@ -237,19 +237,22 @@ class QuoteGuard:
                     depth_recovery_after = max(self._own_depth_recovery_after, observation.book_at)
             self.invalidate()
             self._own_depth_recovery_after = depth_recovery_after
-        elif (self.blocked and sample and observation.token != self.last_token
-              and (self._own_depth_recovery_after is None
-                   or (observation.book_at is not None and observation.book_at > self._own_depth_recovery_after))):
-            if self.good_since is None or monotonic_now < self.good_since:
-                self.good_since, self.good_since_epoch = monotonic_now, observation.observed_at
-                self.valid_samples = 0
-            self.last_token = observation.token
-            self.valid_samples = min(2, self.valid_samples + 1)
+        elif self.blocked and sample:
             # A tracker-only correction or a different view of the same
             # public book cannot substitute for two newer qualified books.
             recovering_depth = self._own_depth_recovery_after is not None
-            if recovering_depth:
-                self._own_depth_recovery_after = observation.book_at
+            if (observation.token != self.last_token
+                    and (not recovering_depth
+                         or (observation.book_at is not None and observation.book_at > self._own_depth_recovery_after))):
+                if self.good_since is None or monotonic_now < self.good_since:
+                    self.good_since, self.good_since_epoch = monotonic_now, observation.observed_at
+                    self.valid_samples = 0
+                self.last_token = observation.token
+                self.valid_samples = min(2, self.valid_samples + 1)
+                if recovering_depth:
+                    self._own_depth_recovery_after = observation.book_at
+            # The current observation is still qualified. The timer can finish
+            # recovery once two distinct samples have already qualified.
             if self.valid_samples >= 2 and (recovering_depth or monotonic_now - self.good_since >= float(self.config.recovery_delay_seconds)):
                 self.blocked = False
                 self._own_depth_recovery_after = None

@@ -185,6 +185,19 @@ def test_recovery_uses_elapsed_time_and_new_public_observations_not_readiness_ca
     assert guard.evaluate(observation(timestamp=1011, now=1011), Decimal("100"), 11, sample=True)["ready"]
 
 
+@pytest.mark.parametrize('book_age, ready', [(1, True), (11, False)])
+def test_recovery_deadline_checks_the_latest_book_without_requiring_a_third_sample(book_age, ready):
+    guard = QuoteGuard(policy())
+    reference = Decimal('100')
+    guard.evaluate(observation(), reference, 0, sample=True)
+    second = observation(timestamp=1001, now=1001)
+    assert guard.evaluate(second, reference, 1, sample=True)['recovery_valid_samples'] == 2
+    assert guard.blocked
+    latest = observation(timestamp=1001, now=1001 + book_age)
+    assert not guard.evaluate(latest, reference, 2)['ready']
+    assert guard.evaluate(latest, reference, 2, sample=True)['ready'] is ready
+
+
 def test_recovery_requires_tighter_threshold_and_invalid_sample_resets_delay():
     guard = ready_guard()
     guard.evaluate(observation(), Decimal("110"), 3)

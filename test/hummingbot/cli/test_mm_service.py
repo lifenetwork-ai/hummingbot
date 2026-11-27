@@ -1,6 +1,7 @@
 import asyncio
 import random
 from contextlib import nullcontext
+from copy import deepcopy
 from decimal import Decimal
 from test.hummingbot.client.config.test_mm_profiles import CATALOGUE
 from types import SimpleNamespace
@@ -102,6 +103,60 @@ async def test_observer_wakes_when_strategy_start_finishes_without_waiting_for_t
         await asyncio.wait_for(observed.wait(), 2)
         startup.set_result(True)
         await asyncio.wait_for(task, 2)
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    assert host.observe_once.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_observer_rechecks_admission_when_the_controller_guard_recovers(monkeypatch):
+    from test.hummingbot.strategy_v2.controllers.test_quote_guard import observation
+
+    from controllers.market_making import life_mm
+
+    host, _, provider = await setup_host()
+    cfg = host._mm_controllers()[0].config.model_dump()
+    cfg['quote_guards'] = dict(enabled=True, max_deviation_bps='200', resume_deviation_bps='100', recovery_delay_seconds='5')
+    controller = LifeMMController(LifeMMConfig.model_validate(cfg), provider, asyncio.Queue())
+    controller.prefetch_reference_books = AsyncMock()
+    host.owner.reconcile = AsyncMock()
+    host._mm_controllers = lambda: [controller]
+    await host._reconcile_mm_startup(host.hb.trading_core)
+    assert not controller.session_admitted
+
+    now = 0
+    monkeypatch.setattr(life_mm, 'time', SimpleNamespace(monotonic=lambda: now))
+    first = observation()
+    assert not controller._evaluate_guard(first, first.market_mid, True)['ready']
+    now = 1
+    second = observation(timestamp=1001, now=1001)
+    assert not controller._evaluate_guard(second, second.market_mid, True)['ready']
+
+    host.bootstrap = AsyncMock()
+    waiting = asyncio.Event()
+    wait = asyncio.wait
+
+    async def block_until_signalled(triggers, **kwargs):
+        waiting.set()
+        return await wait(triggers, timeout=None, return_when=kwargs['return_when'])
+
+    def observe():
+        if waiting.is_set():
+            assert not controller._quote_guard.blocked
+            assert not controller.session_admitted
+            host.stop.set()
+
+    host.observe_once = AsyncMock(side_effect=observe)
+    monkeypatch.setattr(asyncio, 'wait', block_until_signalled)
+    task = asyncio.create_task(host.run())
+    try:
+        await asyncio.wait_for(waiting.wait(), 2)
+        now = 5
+        assert not controller._evaluate_guard(second, second.market_mid, False)['ready']
+        assert controller._evaluate_guard(second, second.market_mid, True)['ready']
+        await asyncio.wait_for(task, 1)
     finally:
         if not task.done():
             task.cancel()
@@ -750,6 +805,39 @@ def running_row(host, controllers, now):
     host.hb.trading_core.trade_fill_db = SimpleNamespace(persistence_healthy=True)
     host.hb.trading_core._strategy_running = True
     return row
+
+
+@pytest.mark.asyncio
+async def test_observer_reuses_validation_only_for_the_same_persisted_session(monkeypatch):
+    host, controllers, _ = await setup_host()
+    row = running_row(host, controllers, now=1001)
+    host.running = True
+    host.owner.listing_bootstrap = None
+    monkeypatch.setattr(MMSession, 'model_validate', MagicMock(wraps=MMSession.model_validate))
+
+    await host.observe_once()
+    assert MMSession.model_validate.call_count == 1
+    host.mm_session.anchors['life_spot']['sources']['BTC-USDT'] = '1'
+    row['mm_session'] = deepcopy(row['mm_session'])  # Each PostgreSQL read decodes a new dict.
+    await host.observe_once()
+    assert host.mm_session.anchors['life_spot']['sources']['BTC-USDT'] == '100'
+    assert MMSession.model_validate.call_count == 1
+
+    row['mm_session']['step_index'] += 1
+    await host.observe_once()
+    assert host.mm_session.step_index == 1
+    assert MMSession.model_validate.call_count == 2
+
+    row['mm_session']['step_index'] = 1.0
+    with pytest.raises(ValueError, match='step_index'):
+        await host.observe_once()
+    row['mm_session']['step_index'] = 1
+
+    # A changed catalogue must be checked even when the stored hash is identical.
+    row['mm_session']['catalogue']['max_total_amount_quote'] = '-1'
+    with pytest.raises(ValueError, match='max_total_amount_quote'):
+        await host.observe_once()
+    assert MMSession.model_validate.call_count == 4
 
 
 @pytest.mark.asyncio

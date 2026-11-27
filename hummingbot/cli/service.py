@@ -91,6 +91,8 @@ class ServiceHost:
         self.running = False
         self.halt_requested = False
         self.mm_session = None
+        self._mm_session_snapshot = None
+        self._mm_guard_recovered = asyncio.Event()
         self.mm_liquidity_state = None
         self.mm_overview_state = None
         self.overview_recovery_observer = None
@@ -120,6 +122,21 @@ class ServiceHost:
         self.observations = ServiceObservations()
         self.funding = FundingObserver(settings.bot_id, self.availability, self.log)
         self.revision = os.environ.get("K_REVISION") or os.environ.get("COMMIT_SHA") or "local"
+
+    def _validated_mm_session(self, state):
+        from hummingbot.core.mm_session import MMSession
+
+        # Compare the persisted payload, including types and the full catalogue.
+        # The configuration hash alone cannot prove that the row is unchanged.
+        try:
+            key = json.dumps(state, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        except (TypeError, ValueError):
+            return MMSession.model_validate(state)
+        cached = self._mm_session_snapshot
+        if cached is None or key != cached[0]:
+            cached = key, MMSession.model_validate(deepcopy(state))
+            self._mm_session_snapshot = cached
+        return deepcopy(cached[1])
 
     def mm_effective_config(self, session):
         from controllers.market_making.life_mm import LifeMMConfig
@@ -606,8 +623,7 @@ class ServiceHost:
             connectors = set(settings.required_exchanges)
         else:
             if kind == "mm-session":
-                from hummingbot.core.mm_session import MMSession
-                data = self.mm_effective_config(MMSession.model_validate(row["mm_session"]))
+                data = self.mm_effective_config(self._validated_mm_session(row["mm_session"]))
             else:
                 data = controller_runner_config(name) if kind == "controller" else read_yaml(config_path(kind, name))
             module = data.get("script_file_name", "").removesuffix(".py")
@@ -641,10 +657,9 @@ class ServiceHost:
         from hummingbot.client.runner import load_and_start_strategy
         options = {"v1-strategy": "config_file_name", "v2-script": "v2_conf", "controller": "controller_conf"}
         if row["config_type"] == "mm-session":
-            from hummingbot.core.mm_session import MMSession
             self.hb.strategy_file_name = row["config_file_path"]
             self.hb.trading_core.strategy_name = "v2_with_controllers"
-            session = MMSession.model_validate(row["mm_session"])
+            session = self._validated_mm_session(row["mm_session"])
             preparation = self.profile_switch
             options = {}
             if preparation is not None:
@@ -668,6 +683,8 @@ class ServiceHost:
         try:
             await self.owner.reconcile(core)
             await asyncio.gather(*tasks)
+            for controller in controllers:
+                controller.quote_guard_recovered = self._mm_guard_recovered
             preparation = self.profile_switch
             if (preparation is not None and preparation.promoted and self.mm_session is not None
                     and preparation.identity == (self.mm_session.id, self.mm_session.generation)):
@@ -938,8 +955,7 @@ class ServiceHost:
         if row["config_type"] == "mm-session" and row.get("mm_session"):
             from random import SystemRandom
 
-            from hummingbot.core.mm_session import MMSession
-            self.mm_session = MMSession.model_validate(row["mm_session"])
+            self.mm_session = self._validated_mm_session(row["mm_session"])
             rng = SystemRandom()
             self.prepare_next_random_profile(row, self.mm_session, rng)
             session_expired = (self.mm_session.expires_at is not None
@@ -1375,8 +1391,7 @@ class ServiceHost:
         if operation.get("action") != "credentials_disconnect":
             return False
         if row.get("mm_session"):
-            from hummingbot.core.mm_session import MMSession
-            self.mm_session = MMSession.model_validate(row["mm_session"])
+            self.mm_session = self._validated_mm_session(row["mm_session"])
         self.running = False
         self.phase = "disconnecting"
         if self.credential_cleanup_task is not None:
@@ -1495,22 +1510,27 @@ class ServiceHost:
                 self.log.warning('Engine diagnostics could not start',
                                  extra={'event': 'engine_diagnostics_unavailable', 'scope': 'runtime'})
         stopping = asyncio.create_task(self.stop.wait())
+        guard_recovered = asyncio.create_task(self._mm_guard_recovered.wait())
         noticed_startup = None
         try:
             while not self.stop.is_set():
                 self.observer_progress_at = time.monotonic()
                 await self.observe_once()
                 self.observer_progress_at = time.monotonic()
-                triggers = {stopping}
+                triggers = {stopping, guard_recovered}
                 startup = self.start_task
                 if startup is not None and startup is not noticed_startup:
                     triggers.add(startup)
                 done, _ = await asyncio.wait(triggers, timeout=0.5, return_when=asyncio.FIRST_COMPLETED)
                 if startup in done:
                     noticed_startup = startup  # A recovery branch may defer consuming it.
+                if guard_recovered in done:
+                    self._mm_guard_recovered.clear()
+                    guard_recovered = asyncio.create_task(self._mm_guard_recovered.wait())
         finally:
             stopping.cancel()
-            await asyncio.gather(stopping, return_exceptions=True)
+            guard_recovered.cancel()
+            await asyncio.gather(stopping, guard_recovered, return_exceptions=True)
 
     async def close(self):
         from hummingbot.core.order_submission_guard import install_guard

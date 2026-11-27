@@ -85,12 +85,16 @@ async def test_strict_managed_guard_reevaluates_at_its_recovery_deadline(monkeyp
     await controller._wait_for_control_tick()
     assert intervals == [.25]
     current = 15
-    # A timeout only schedules the check. A fresh market observation still
-    # has to qualify through the regular sampled controller path.
-    assert not controller._evaluate_guard(observation(timestamp=1004, now=1004), reference, True)['ready']
+    # The controller must run again immediately if its work crossed the deadline.
+    await controller._wait_for_control_tick()
+    assert intervals == [.25]
+    # A current, still-fresh book qualifies at the deadline after two samples.
+    # A final authority check cannot advance recovery on its own.
+    latest = observation(timestamp=1004, now=1005)
+    assert not controller._evaluate_guard(latest, reference, False)['ready']
+    assert controller._evaluate_guard(latest, reference, True)['ready']
     await controller._wait_for_control_tick()
     assert intervals[-1] == controller.update_interval
-    assert controller._evaluate_guard(observation(timestamp=1005, now=1005), reference, True)['ready']
     assert not controller._executor_progress.is_set()
     # A final authority check can discover invalid data between controller
     # ticks. Wake the loop to cancel and resample without qualifying here.

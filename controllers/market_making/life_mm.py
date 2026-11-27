@@ -251,6 +251,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         self._startup_stage = "not_started"
         self._startup_retry_sleep = asyncio.sleep
         self._quote_guard = QuoteGuard(config.quote_guards, config.sideways_range)
+        self.quote_guard_recovered: Optional[asyncio.Event] = None
         self._profile_guard_sample: Optional[ProfileGuardSample] = None
         self._spread_policy = SpreadPolicy(config.spread_policy)
         # None: no initial preparation yet; False: use fallback and retry
@@ -435,6 +436,8 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             status = guard.evaluate(observation, reference, time.monotonic(), sample=sample)
             if not sample and was_ready and guard.blocked and self._executor_progress is not None:
                 self._executor_progress.set()
+            if not was_ready and not guard.blocked and not self._session_admitted and self.quote_guard_recovered is not None:
+                self.quote_guard_recovered.set()
             return status
         return self._bootstrap.evaluate(observation, reference, time.monotonic(), sample=sample,
                                         reference_model=bool(self.config.references),
@@ -877,6 +880,9 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         guard = self._quote_guard
         if self._bootstrap is None and guard.blocked and guard.good_since is not None:
             remaining = guard.good_since + float(guard.config.recovery_delay_seconds) - time.monotonic()
+            if remaining <= 0 and guard.valid_samples >= 2:
+                await asyncio.sleep(0)
+                return
             if remaining > 0:
                 delay = min(delay, remaining)
         try:
