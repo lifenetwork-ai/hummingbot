@@ -31,7 +31,7 @@ def test_ready_to_dispatch_p95_includes_a_quote_burst_waiting_behind_an_ack(nati
         final_waiting = asyncio.Event()
         prepared_count = queued_count = 0
         venue = native.transport.call.side_effect
-        persist_ack = native.recorder._persist_open_acknowledgements
+        persist_ack = native.recorder._persist_order_acknowledgements
         authorize = native.owner.authorize_rest
         acquire = native.recorder.order_writes.acquire
 
@@ -70,7 +70,7 @@ def test_ready_to_dispatch_p95_includes_a_quote_burst_waiting_behind_an_ack(nati
                                                   OrderType.LIMIT_MAKER, Decimal('10'))
 
         monkeypatch.setattr(native.transport.call, 'side_effect', reply)
-        monkeypatch.setattr(native.recorder, '_persist_open_acknowledgements', hold_ack)
+        monkeypatch.setattr(native.recorder, '_persist_order_acknowledgements', hold_ack)
         monkeypatch.setattr(native.owner, 'authorize_rest', final_authority)
         monkeypatch.setattr(native.recorder.order_writes, 'acquire', observe_queue)
         tasks = [asyncio.create_task(quote(0))]

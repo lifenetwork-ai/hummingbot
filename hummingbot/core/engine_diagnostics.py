@@ -68,8 +68,9 @@ _SUBMISSION_TIMING_OPERATIONS = {
 }
 _LATENCY_SAMPLE_LIMIT = 1024
 _RECORDER_WAIT_SLOW_NS = 250_000_000
-_RECORDER_WRITE_TYPES = frozenset({'intent', 'final_authority', 'transport_receipt', 'open_ack', 'tracker_update',
-                                   'fill', 'position_checkpoint', 'session_update', 'other_write'})
+_RECORDER_WRITE_TYPES = frozenset({'intent', 'final_authority', 'transport_receipt', 'open_ack', 'cancel_ack',
+                                   'tracker_update', 'outflow_terminal_proof', 'fill', 'position_checkpoint',
+                                   'session_update', 'other_write'})
 _QUOTE_LIMIT = 64
 _QUOTE_LINK_TTL_NS = 120_000_000_000
 _QUOTE_SLOW_NS = 1_000_000_000

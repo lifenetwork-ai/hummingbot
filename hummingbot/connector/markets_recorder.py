@@ -65,8 +65,8 @@ _ORDER_FENCE_RETRY_INTERVAL = 0.1
 _ORDER_FENCE_FIRST_WRITE_RETRY = 0.0125
 _ACK_RETRY_EXPIRED = object()
 _ACK_PROTECTED_ATTEMPT_STATES = ('uncertain', 'terminal', 'rejected')
-# Take one full ready quote-side burst per commit without waiting for more ACKs.
-MAX_OPEN_ACK_BATCH = 10
+# One full quote side per commit.
+MAX_ORDER_ACK_BATCH = 10
 
 
 @dataclass
@@ -178,9 +178,9 @@ class MarketsRecorder:
             yield
 
     @asynccontextmanager
-    async def native_order_write(self, market):
+    async def native_order_write(self, market, *, operation='tracker_update'):
         with self.native_order_activity() as owner:
-            async with self.native_order_lock(market, owner):
+            async with self.native_order_lock(market, owner, operation=operation):
                 yield
 
     @staticmethod
@@ -208,7 +208,12 @@ class MarketsRecorder:
 
         await self._retry_acknowledgement(attempt)
 
-    async def record_order_acknowledgement(self, market, owner, prepare):
+    async def record_order_acknowledgement(self, market, owner, prepare, *, cancellation=False):
+        if cancellation:
+            # Queue immediately in arrival order. Already received terminal
+            # evidence must stay ahead of a send that depends on its commit.
+            return await self._acknowledgement_turn(_QueuedAcknowledgement(market, owner, prepare, None), cancellation=True)
+
         async def attempt(deadline):
             return await self._acknowledgement_turn(_QueuedAcknowledgement(market, owner, prepare, deadline))
 
@@ -249,15 +254,14 @@ class MarketsRecorder:
             raise interrupted or cancelled
         return result
 
-    async def _acknowledgement_turn(self, work):
+    async def _acknowledgement_turn(self, work, *, cancellation=False):
         from hummingbot.core.order_submission_guard import SubmissionBlocked, active_guard
 
         slot = self.order_writes
         with submission_timing('tracker_recorder_wait_ms') as acquired:
             work.on_claim = acquired
-            # The venue has accepted this order. Use the same bounded
-            # priority as transport receipts to publish that durable fact.
-            result = await slot.acquire(final=True, work=work, operation='open_ack')
+            result = await slot.acquire(final=not cancellation, work=work,
+                                        operation='cancel_ack' if cancellation else 'open_ack')
         if result is not True:
             if isinstance(result, BaseException):
                 raise result
@@ -267,21 +271,20 @@ class MarketsRecorder:
         results = [None]
         cancelled = None
         try:
-            # Let ACKs already runnable join this turn even if the slot was
-            # idle. Do not add a timed wait to an isolated acknowledgement.
-            try:
-                await asyncio.sleep(0)
-            except asyncio.CancelledError as error:
-                cancelled = error
+            if not cancellation:
+                # Allow OPENs already runnable to join the receipt-priority turn.
+                try:
+                    await asyncio.sleep(0)
+                except asyncio.CancelledError as error:
+                    cancelled = error
             if (active_guard() is not work.owner or work.owner.engine is not self._sql_manager.engine
                     or self.service_recorder_for(work.market) is not self):
                 raise SubmissionBlocked('The queued recorder event no longer belongs to the active owner.')
-            # The HTTP writer updates the receipt field independently. Keep
-            # its next turn, but let this batch include ready private OPEN
-            # events on either side of that single intervening waiter.
-            peers = slot.take_work(MAX_OPEN_ACK_BATCH - 1, lambda peer: (
+            # Cancellations take only consecutive ordinary waiters. OPENs may
+            # also collect across one HTTP receipt on their separate queue.
+            peers = slot.take_work(MAX_ORDER_ACK_BATCH - 1, lambda peer: (
                 isinstance(peer, _QueuedAcknowledgement) and peer.market is work.market and peer.owner is work.owner),
-                final=True, across_receipt=True)
+                final=not cancellation, across_receipt=not cancellation)
             results.extend([None] * len(peers))
             prepared = []
             now = asyncio.get_running_loop().time()
@@ -297,7 +300,7 @@ class MarketsRecorder:
                     if plan is not None:
                         prepared.append((index, item.context, plan))
             if prepared:
-                write_cancelled = await self._persist_open_acknowledgements(work.market, prepared)
+                write_cancelled = await self._persist_order_acknowledgements(work.market, prepared)
                 cancelled = write_cancelled or cancelled
                 for index, context, plan in prepared:
                     try:
@@ -325,32 +328,45 @@ class MarketsRecorder:
             raise results[0]
         return results[0]
 
-    async def _persist_open_acknowledgements(self, market, prepared):
+    async def _persist_order_acknowledgements(self, market, prepared):
+        cancellation = prepared[0][2].tag is MarketEvent.OrderCancelled
         tracking = dict(market.tracking_states)
-        fresh_order = None
+        last_plan = prepared[-1][2]
         for _, _, plan in prepared:
-            if plan.event.order_id in tracking:
-                fresh_order = plan.event.order_id
-                tracking[fresh_order] = plan.tracking_state
+            identity = plan.event.order_id
+            if identity in tracking:
+                # A serial checkpoint already retired the preceding cancels.
+                if cancellation and plan is not last_plan:
+                    del tracking[identity]
+                else:
+                    tracking[identity] = plan.tracking_state
 
         def stage(session):
-            acknowledgements = [(plan.event.order_id, int(plan.event.creation_timestamp * 1e3), plan.tag.name)
-                                for _, _, plan in prepared]
+            identities = [plan.event.order_id for _, _, plan in prepared]
+            orders, acknowledgements = [], []
             with session.no_autoflush:
-                existing, tracking_basis = self._read_creation_orders(
-                    session, [identity for identity, _, _ in acknowledgements],
-                    tracking=tracking if fresh_order is not None else None, market_name=market.display_name)
-                orders = [context.run(self._stage_order_creation, session, plan.tag.value, market, plan.event,
-                                      batch_orders=existing)
-                          for _, context, plan in prepared]
-                self.save_market_states(self._config_file_path, market, session, new_order_id=fresh_order,
+                existing, tracking_basis = self._read_acknowledgement_orders(
+                    session, identities, tracking, market.display_name)
+                for _, context, plan in prepared:
+                    if cancellation:
+                        order, timestamp = context.run(self._stage_order_status, session, plan.tag.value, market, plan.event,
+                                                       batch_orders=existing)
+                    else:
+                        order = context.run(self._stage_order_creation, session, plan.tag.value, market, plan.event,
+                                            batch_orders=existing)
+                        timestamp = int(plan.event.creation_timestamp * 1e3)
+                    orders.append(order)
+                    acknowledgements.append((order.id, timestamp, plan.tag.name))
+                self.save_market_states(self._config_file_path, market, session,
                                         tracking_states=tracking, staged_orders=orders, tracking_basis=tracking_basis)
             # An OPEN can reconstruct a missing Order. Its row must exist
             # before the history insert checks the foreign key.
             session.flush()
-            self._write_creation_observations(session, acknowledgements)
+            self._write_acknowledgement_observations(session, acknowledgements, cancellation=cancellation)
 
-        _, cancelled = await self._run_native_write(stage, defer_contention=OrderAcknowledgementBusy)
+        # A received terminal holds its FIFO position through confirmed
+        # prewrite contention. Only OPENs release and retry on their own queue.
+        _, cancelled = await self._run_native_write(stage, defer_contention=None if cancellation else OrderAcknowledgementBusy)
         return cancelled
 
     async def _run_native_write(self, stage, *args, defer_contention=None):
@@ -1514,35 +1530,34 @@ class MarketsRecorder:
                     MarketState.config_file_path == self._config_file_path, MarketState.market == market_name))
                 .options(defer(MarketState.saved_state)))
 
-    def _read_creation_orders(self, session, identities, *, tracking, market_name):
+    def _read_acknowledgement_orders(self, session, identities, tracking, market_name):
         from hummingbot.model.intent_admission import capture_prewrite_lock_failure
 
         requested = values(column('order_id', Order.id.type), name='requested_acks').data(
             [(identity,) for identity in identities])
         statement = select(Order).select_from(requested).outerjoin(Order, Order.id == requested.c.order_id)
-        if tracking is not None:
-            # Every ACK shares one checkpoint basis. Defer the previous JSON
-            # so only a missing unresolved order needs to load it.
-            statement = self._with_tracking_basis(statement, tracking, market_name)
+        statement = self._with_tracking_basis(statement, tracking, market_name)
         owner = session.info['worker_order_owner']
         with capture_prewrite_lock_failure(session):
             rows = owner.fence_recorder_session(session, nowait=True, evidence=statement)
-        tracking_basis = rows[0][1:-1] if tracking is not None else None
+        tracking_basis = rows[0][1:-1]
         return {row[0].id: row[0] for row in rows if row[0] is not None}, tracking_basis
 
     @staticmethod
-    def _write_creation_observations(session, acknowledgements):
-        """Append missing OPEN history and advance eligible attempts in one PostgreSQL statement."""
+    def _write_acknowledgement_observations(session, acknowledgements, *, cancellation):
+        """Append missing history and advance eligible attempts in the same PostgreSQL statement."""
         from hummingbot.model.runtime_journal import SubmissionAttempt
 
         batch = values(column('order_id', Order.id.type), column('timestamp', OrderStatus.timestamp.type),
                        column('status', OrderStatus.status.type), name='ack_values').data(acknowledgements)
         received = select(*batch.c).distinct().cte('received_acks')
         attempts = SubmissionAttempt.__table__
+        state = 'terminal' if cancellation else 'acknowledged'
+        protected = ('uncertain', 'terminal') if cancellation else (*_ACK_PROTECTED_ATTEMPT_STATES, 'acknowledged')
         observed = attempts.update().where(
             attempts.c.order_id == received.c.order_id,
-            attempts.c.state.not_in((*_ACK_PROTECTED_ATTEMPT_STATES, 'acknowledged')),
-        ).values(state='acknowledged').cte('observed_attempts')
+            attempts.c.state.not_in(protected),
+        ).values(state=state).cte('observed_attempts')
         history = OrderStatus.__table__
         recorded = select(history.c.id).where(
             history.c.order_id == received.c.order_id, history.c.timestamp == received.c.timestamp,
@@ -1813,7 +1828,8 @@ class MarketsRecorder:
         return cancelled
 
     @trace_runtime('order.terminal', order_parameter='evt')
-    def _stage_order_status(self, session, event_tag, market, evt, *, tracking_states=None, coalesce_snapshot=False):
+    def _stage_order_status(self, session, event_tag, market, evt, *, tracking_states=None, coalesce_snapshot=False,
+                            batch_orders=None):
         timestamp: int = self.db_timestamp
         event_type: MarketEvent = self.market_event_tag_map[event_tag]
         order_id: str = evt.order_id
@@ -1822,7 +1838,9 @@ class MarketsRecorder:
 
         evidence = None
         tracking_basis = None
-        if self.durable_position_checkpoints:
+        if batch_orders is not None:
+            order_record = batch_orders.get(order_id)
+        elif self.durable_position_checkpoints:
             coalesce_snapshot = coalesce_snapshot and self.cleanup_operation_id is None
             if coalesce_snapshot and tracking_states is None:
                 tracking_states = market.tracking_states
@@ -1856,6 +1874,8 @@ class MarketsRecorder:
                     order_record.exchange_order_id = exchange_id
                     order_record.creation_pending = False
             self._record_latest_status(order_record, event_type.name, timestamp)
+            if batch_orders is not None:
+                return order_record, timestamp
             with session.no_autoflush:
                 if evidence is None:
                     self._add_order_status(session, order_record, timestamp, event_type.name)

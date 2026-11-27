@@ -503,7 +503,7 @@ class SpotOutflowGuard:
             raise ValueError("Order changed during terminal proof")
         self.terminal_stages[client_id] = 'recording'
         recorder = MarketsRecorder._shared_instance
-        async with recorder.native_order_write(connector):
+        async with recorder.native_order_write(connector, operation='outflow_terminal_proof'):
             if apply_terminal:
                 self._check_terminal_identity(connector, order)
             created = BuyOrderCreatedEvent(

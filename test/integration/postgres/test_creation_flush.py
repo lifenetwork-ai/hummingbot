@@ -228,7 +228,7 @@ def test_replaying_open_batch_preserves_protected_attempts_and_reconstructs_miss
         plan = SimpleNamespace(tag=MarketEvent.BuyOrderCreated, event=event, tracking_state={'id': identity})
         plans.append((index, copy_context(), plan))
     for _ in range(2):
-        owned.loop.run_until_complete(owned.recorder._persist_open_acknowledgements(owned.market, plans))
+        owned.loop.run_until_complete(owned.recorder._persist_order_acknowledgements(owned.market, plans))
     with owned.manager.get_new_session() as db:
         attempts = {row.order_id: (row.state, row.receipt) for row in db.query(SubmissionAttempt)}
         assert attempts == {state: ('acknowledged' if state == 'possibly_sent' else state, {'order': state})

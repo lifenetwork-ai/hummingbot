@@ -119,7 +119,7 @@ def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native
     reply = native.transport.call.side_effect
     slot = native.recorder.order_writes
     acquire = slot.acquire
-    persist = native.recorder._persist_open_acknowledgements
+    persist = native.recorder._persist_order_acknowledgements
 
     async def venue(request):
         identity = json.loads(request.data)['clOrdId']
@@ -173,7 +173,7 @@ def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native
 
     native.transport.call.side_effect = venue
     monkeypatch.setattr(slot, 'acquire', observe_queue)
-    monkeypatch.setattr(native.recorder, '_persist_open_acknowledgements', persist_acks)
+    monkeypatch.setattr(native.recorder, '_persist_order_acknowledgements', persist_acks)
     native.loop.run_until_complete(asyncio.wait_for(exercise(), 10))
     assert ordinary_observations == [[False] * size]
     assert writes == ([ids, (receipt_id,)] if interleave_receipt else [ids])
@@ -190,7 +190,7 @@ def test_received_open_acks_commit_as_a_batch_before_queued_recorder_work(native
 @pytest.mark.parametrize('previous_ack_limit', [8, None], ids=['previous', 'candidate'])
 def test_two_sided_ladder_uses_native_persistence_with_production_batch_limits(native, monkeypatch, previous_ack_limit):
     if previous_ack_limit is not None:
-        monkeypatch.setattr(markets_recorder, 'MAX_OPEN_ACK_BATCH', previous_ack_limit)
+        monkeypatch.setattr(markets_recorder, 'MAX_ORDER_ACK_BATCH', previous_ack_limit)
     first_ready = 0.0
     dispatched, opened = {}, {}
     reply = native.transport.call.side_effect
@@ -233,7 +233,7 @@ def test_two_sided_ladder_uses_native_persistence_with_production_batch_limits(n
         assert db.query(SubmissionAttempt).filter_by(state='acknowledged').count() == 20
         assert db.query(Order).filter_by(creation_pending=False).count() == 20
     assert not native.store.read()['recovery_state'].get('halt')
-    report(f'two_sided_ladder_ack_{markets_recorder.MAX_OPEN_ACK_BATCH}', {
+    report(f'two_sided_ladder_ack_{markets_recorder.MAX_ORDER_ACK_BATCH}', {
         'first_dispatch_ms': min(dispatched.values()), 'last_dispatch_ms': max(dispatched.values()),
         'last_open_ms': max(opened.values()), 'sql_statements': len(statements),
     })

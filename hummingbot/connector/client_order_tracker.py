@@ -33,9 +33,9 @@ if TYPE_CHECKING:
 cot_logger = None
 
 
-class _StagedOpenAcknowledgement(NamedTuple):
+class _StagedOrderAcknowledgement(NamedTuple):
     tag: MarketEvent
-    event: Union[BuyOrderCreatedEvent, SellOrderCreatedEvent]
+    event: Union[BuyOrderCreatedEvent, SellOrderCreatedEvent, OrderCancelledEvent]
     tracking_state: dict
     apply: Callable
     publish: Callable
@@ -428,36 +428,42 @@ class ClientOrderTracker:
 
                 def can_apply():
                     current = self.fetch_order(update.client_order_id, update.exchange_order_id)
-                    return (current is order and not self._late_order_update(order, update)
-                            and (not retry_open or order.is_pending_create))
-
-                async def apply():
-                    if not can_apply():
-                        return
+                    if (current is not order or self._late_order_update(order, update)
+                            or (retry_open and not order.is_pending_create)):
+                        return False
                     if proved_fills is not None and tuple(order.order_fills) != proved_fills:
                         # Let normal polling obtain a proof with the new fills.
                         order._terminal_proof_pending = True
-                        return
-                    await self._persist_order_update(recorder, order, update, defer_ack_contention=retry_open)
+                        return False
+                    return True
 
-                if (retry_open and update.exchange_order_id and recorder.cleanup_operation_id is None
-                        and order.client_order_id in owner.sent_intents):
+                async def apply():
+                    if can_apply():
+                        await self._persist_order_update(recorder, order, update, defer_ack_contention=retry_open)
+
+                cancel_ack = (update.new_state is OrderState.CANCELED and order.is_open and not order.is_pending_create
+                              and update.exchange_order_id == order.exchange_order_id)
+                if (update.exchange_order_id and recorder.cleanup_operation_id is None
+                        and (cancel_ack or retry_open and order.client_order_id in owner.sent_intents)):
                     def prepare():
                         if not can_apply():
                             return None
                         staged = self._stage_tracker_update(order, update)
                         if staged is None:
                             return None
-                        tag, event = self._creation_event(staged)
+                        tag, event = self._cancellation_event(staged) if cancel_ack else self._creation_event(staged)
 
                         def publish():
-                            self._finish_tracker_creation(recorder, order, update.new_state, event)
+                            if not cancel_ack:
+                                self._finish_tracker_creation(recorder, order, update.new_state, event)
                             recorder.publish_recorded_order_event(self._connector, tag, event)
+                            if cancel_ack:
+                                self._finish_tracker_terminal(order, update, tag)
 
-                        return _StagedOpenAcknowledgement(tag, event, staged.to_json(),
-                                                          lambda: order.update_with_order_update(update), publish)
+                        return _StagedOrderAcknowledgement(
+                            tag, event, staged.to_json(), lambda: order.update_with_order_update(update), publish)
 
-                    await recorder.record_order_acknowledgement(self._connector, owner, prepare)
+                    await recorder.record_order_acknowledgement(self._connector, owner, prepare, cancellation=cancel_ack)
                 elif retry_open:
                     await recorder.retry_order_acknowledgement(self._connector, owner, apply)
                 else:
@@ -494,6 +500,13 @@ class ClientOrderTracker:
         recorder.finish_recorded_order_creation(self._connector, event)
         self._note_creation(order, state)
 
+    def _finish_tracker_terminal(self, order, update, tag):
+        self._note_completion(order, update, tag)
+        if (tag in (MarketEvent.BuyOrderCompleted, MarketEvent.OrderCancelled)
+                and self._connector.name == 'okx' and order.trade_type is TradeType.BUY):
+            from hummingbot.core.order_submission_guard import spot_outflow_terminal_committed
+            spot_outflow_terminal_committed(self._connector, order)
+
     async def _persist_order_update(self, recorder, order, update, *, defer_ack_contention=False):
         staged = self._stage_tracker_update(order, update)
         if staged is None:
@@ -518,11 +531,7 @@ class ClientOrderTracker:
         for tag, payload in events:
             recorder.publish_recorded_order_event(self._connector, tag, payload)
         if not staged.is_open:
-            self._note_completion(order, update, terminal[0] if terminal else None)
-            if (terminal is not None and terminal[0] in (MarketEvent.BuyOrderCompleted, MarketEvent.OrderCancelled)
-                    and self._connector.name == 'okx' and order.trade_type is TradeType.BUY):
-                from hummingbot.core.order_submission_guard import spot_outflow_terminal_committed
-                spot_outflow_terminal_committed(self._connector, order)
+            self._finish_tracker_terminal(order, update, terminal[0] if terminal else None)
         if cancelled is not None:
             raise cancelled
 
