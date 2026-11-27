@@ -396,7 +396,7 @@ def test_terminal_replay_of_filled_base_fee_buy_keeps_committed_cash_and_clears_
         assert db.query(TradeFill).count() == 1
 
 
-def fully_executed_buy(owned, *, commit=True):
+def fully_executed_buy(owned, *, commit=True, projection_clock_behind=False):
     session, _ = setup(owned, window_seconds=3600)
     item = buy(owned, session, amount=".00071681", price="69266")
     item.update_exchange_order_id("42")
@@ -404,7 +404,8 @@ def fully_executed_buy(owned, *, commit=True):
         timestamp=item.creation_timestamp, type=item.order_type, trading_pair=item.trading_pair,
         amount=item.amount, price=item.price, order_id=item.client_order_id,
         creation_timestamp=item.creation_timestamp, exchange_order_id=item.exchange_order_id))
-    stamp = int(time.time() * 1000) - 1000
+    projection = owned.owner.spot_outflow.projection
+    stamp = projection.now_ms if projection_clock_behind else int(time.time() * 1000) - 1000
     raw = dict(tradeId="1", ordId=item.exchange_order_id, fillSz=str(item.amount), fillPx=str(item.price),
                fee="-.000000573448", feeCcy="LIFE", ts=str(stamp))
     owned.market._trade_update_from_fill = MethodType(OkxExchange._trade_update_from_fill, owned.market)
@@ -418,8 +419,37 @@ def fully_executed_buy(owned, *, commit=True):
         amount=update.fill_base_amount, trade_fee=update.fee, exchange_trade_id=update.trade_id)
     if commit:
         owned.recorder._did_fill_order(MarketEvent.OrderFilled.value, owned.market, evt)
-    owned.owner.spot_outflow.projection.advance(stamp + 2000)
+    if not projection_clock_behind:
+        projection.advance(stamp + 2000)
     return item, evt
+
+
+def test_committed_full_buy_avoids_rest_while_projection_clock_catches_up(owned):
+    item, evt = fully_executed_buy(owned, projection_clock_behind=True)
+    guard = owned.owner.spot_outflow
+    initial_risk = guard.projection.reserved()
+    assert initial_risk > 0 and guard.projection.net == 0
+    assert guard.projection.reservations['a'].committed == 0
+    detail = dict(ordId=item.exchange_order_id, clOrdId='a', instId=item.trading_pair, side='buy',
+                  sz=str(item.amount), px=str(item.price), state='filled', accFillSz=str(item.amount),
+                  uTime=str(int(evt.timestamp * 1000)))
+    owned.market._request_order_update = AsyncMock(return_value=dict(code='0', data=[detail]))
+    owned.market._request_order_fills = AsyncMock(return_value=dict(code='0', data=[]))  # Lagging OKX fill history.
+
+    assert asyncio.run(guard.reconcile_terminal())
+    owned.market._request_order_update.assert_not_awaited()
+    owned.market._request_order_fills.assert_not_awaited()
+    assert not guard.terminal_pending and not guard.orders
+    assert guard.projection.reserved() == initial_risk
+    assert guard.projection.reservations['a'].terminal_amount == item.amount
+    assert guard.preview(owned.market, Decimal(1), Decimal(49)) == Decimal('49.49')
+    assert guard.preview(owned.market, Decimal(1), Decimal(51)) is None
+
+    guard.projection.advance(guard.projection.now_ms + 1)
+    assert not guard.projection.reservations
+    assert guard.projection.net == item.amount * item.price
+    with owned.manager.get_new_session() as db:
+        assert db.query(TradeFill).count() == 1
 
 
 def test_native_terminal_wakes_outflow_after_terminal_commit(owned):

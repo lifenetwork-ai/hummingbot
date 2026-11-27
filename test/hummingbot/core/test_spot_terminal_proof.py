@@ -42,6 +42,28 @@ def test_positive_receipt_uses_original_fee_without_changing_cash_or_native_fill
     assert before == (projection.status(), order.order_fills)
 
 
+@pytest.mark.parametrize('corruption', [None, 'missing_fill', 'unexpected_applied_key', 'future_already_applied'])
+def test_full_fill_proof_joins_applied_and_future_committed_fills(corruption):
+    projection, connector, order = completed()
+    trade = order.order_fills['1']
+    order.amount *= 2
+    reservation = projection.reservations['buy']
+    reservation.amount = order.amount
+    assert order.update_with_trade_update(trade._replace(trade_id='2', fill_timestamp=100.001))
+    key = ('okx', 'buy', '2')
+    projection.add_fill(dict(market='okx', symbol=order.trading_pair, order_id='buy', exchange_trade_id='2',
+                             timestamp=100001, trade_type='BUY', price=trade.fill_price, amount=trade.fill_base_amount,
+                             trade_fee=trade.fee.to_json()))
+    if corruption == 'missing_fill':
+        projection.entries.pop(key)
+    elif corruption == 'unexpected_applied_key':
+        reservation.seen.add(('okx', 'buy', 'other'))
+    elif corruption == 'future_already_applied':
+        reservation.seen.add(key)
+        reservation.committed += trade.fill_base_amount
+    assert committed_full_fill(projection, connector, order) is (corruption is None)
+
+
 @pytest.mark.parametrize('mutation', ['uncommitted', 'partial', 'overfilled', 'approximate', 'state', 'fee', 'exchange',
                                       'missing_native', 'missing_receipt', 'reservation', 'invalid', 'side', 'pair',
                                       'price', 'quote', 'trade_identity', 'future', 'expired'])
