@@ -1,5 +1,6 @@
 """Prepare public feeds before cutover and executor history after the final archive."""
 import asyncio
+import logging
 
 from controllers.market_making.life_mm import LifeMMConfig, LifeMMController
 from hummingbot.core.startup_history import StartupHistoryRead
@@ -49,7 +50,8 @@ class ProfileSwitchPreparation:
 
     @property
     def guards_ready(self):
-        return all(self.guard_samples.get(controller.config.id) is not None for controller in self.strict_guards)
+        samples = (self.guard_samples.get(controller.config.id) for controller in self.strict_guards)
+        return all(sample is not None and sample.ready for sample in samples)
 
     async def prepare(self):
         async with asyncio.timeout(PREPARE_SECONDS):
@@ -101,11 +103,15 @@ class ProfileSwitchPreparation:
             await asyncio.sleep(.25)
 
     def apply_guards(self, controllers):
-        previews = {controller.config.id: controller for controller in self.controllers}
+        previews = {controller.config.id: controller for controller in self.strict_guards}
         for controller in controllers:
-            preview = previews.get(controller.config.id)
+            identity = controller.config.id
+            preview = previews.get(identity)
             if preview is not None:
-                controller.use_profile_guard(preview, self.guard_samples.get(controller.config.id))
+                reason = controller.use_profile_guard(preview, self.guard_samples.get(identity))
+                logging.getLogger(__name__).info(
+                    "Quote guard handoff for %s: %s", identity, reason,
+                    extra={"event": "mm_profile_guard_handoff", "scope": identity, "reason_code": reason})
         if self.guard_task is not None:
             self.guard_task.cancel()
 

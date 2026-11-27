@@ -357,13 +357,18 @@ async def test_hot_random_repeat_extends_the_window_without_replacing_quote_auth
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('failure', [None, 'stale-reference', 'missing-reference', 'stale-sample', 'replaced-book'])
-async def test_hot_switch_can_reuse_strict_guard_samples_from_the_target_profile(monkeypatch, failure):
+@pytest.mark.parametrize('case, reason', [
+    ('ready', 'guard_ready'), ('partial', 'guard_recovering'), ('one-sample', 'guard_recovering'),
+    ('stale-reference', 'guard_recheck_failed'), ('missing-reference', 'guard_recheck_failed'),
+    ('stale-sample', 'guard_sample_stale'), ('replaced-book', 'guard_feed_changed'),
+    ('replaced-preview-book', 'guard_recovering'), ('replaced-after-handoff', 'guard_recovering'),
+])
+async def test_hot_switch_can_reuse_strict_guard_samples_from_the_target_profile(monkeypatch, caplog, case, reason):
     _, controllers, provider = await setup_host()
     old = controllers["life_spot"]
     cfg = LifeMMConfig.model_validate({**old.config.model_dump(), 'mm_generation': 1,
                                        'quote_guards': dict(enabled=True, max_deviation_bps="200",
-                                                            resume_deviation_bps="100", recovery_delay_seconds="2")})
+                                                            resume_deviation_bps="100", recovery_delay_seconds="5")})
     preview, target = (LifeMMController(cfg, provider, asyncio.Queue()) for _ in range(2))
     connector = provider.get_connector_with_fallback('okx')
     connector.name = 'okx'
@@ -392,25 +397,58 @@ async def test_hot_switch_can_reuse_strict_guard_samples_from_the_target_profile
     publish(book)
     preview.sample_profile_guard()
     assert preview._quote_guard.blocked
-    now[:] = [1002, 52]
+    recovering = reason == 'guard_recovering'
+    now[:] = [1004, 54] if recovering else [1005, 55]
     preview.sample_profile_guard()  # Re-reading the same book does not count.
     assert preview._quote_guard.blocked
-    publish(book)
+    if case == 'replaced-preview-book':
+        book = OrderBook()
+    if case != 'one-sample':
+        publish(book)
     witness = preview.sample_profile_guard()
-    assert not preview._quote_guard.blocked and not preview.session_admitted
-    if failure == 'stale-reference':
+    assert preview._quote_guard.blocked is recovering
+    preparation = profile_switch.ProfileSwitchPreparation.__new__(profile_switch.ProfileSwitchPreparation)
+    preparation.strict_guards = [preview]
+    preparation.guard_samples = {cfg.id: witness}
+    preparation.guard_task = None
+    assert preparation.guards_ready is not recovering
+    assert not preview.session_admitted
+    if case == 'stale-reference':
         reference_age[0] = 60
-    elif failure == 'missing-reference':
+    elif case == 'missing-reference':
         reference_available[0] = False
-    elif failure == 'stale-sample':
+    elif case == 'stale-sample':
         now[1] += 2
-    elif failure == 'replaced-book':
+    elif case == 'replaced-book':
         book = OrderBook()
         publish(book)
-    target.use_profile_guard(preview, witness)
-    target.update_reference()
-    assert target.processed_data['ready'] is (failure is None)
+    with caplog.at_level('INFO', logger=profile_switch.__name__):
+        preparation.apply_guards([target])
+    handoff = [record for record in caplog.records if getattr(record, 'event', None) == 'mm_profile_guard_handoff']
+    assert [(record.scope, record.reason_code) for record in handoff] == [(cfg.id, reason)]
+    target.update_reference(sample_guard=True)
+    assert target.processed_data['ready'] is (case == 'ready')
     assert not target.session_admitted
+    if recovering:
+        cold = LifeMMController(cfg, provider, asyncio.Queue())
+        cold.update_reference(sample_guard=True)
+        now[:] = [1005, 55]
+        if case == 'replaced-after-handoff':
+            book = OrderBook()
+        if case == 'one-sample':
+            target.update_reference(sample_guard=True)
+            assert not target.processed_data['ready']
+        publish(book)
+        target.update_reference(sample_guard=True)
+        cold.update_reference(sample_guard=True)
+        # Four seconds of qualified recovery count only for the uninterrupted feed.
+        assert target.processed_data['ready'] is (case in ('partial', 'one-sample'))
+        assert not cold.processed_data['ready']
+        assert not target.session_admitted
+        now[:] = [1009, 59]
+        publish(book)
+        cold.update_reference(sample_guard=True)
+        assert cold.processed_data['ready']
 
 
 @pytest.mark.asyncio

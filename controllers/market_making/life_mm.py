@@ -3,6 +3,7 @@ import asyncio
 import math
 import time
 from copy import copy, deepcopy
+from dataclasses import dataclass
 from decimal import ROUND_CEILING, ROUND_DOWN, Decimal, localcontext
 from typing import Dict, List, Literal, Optional
 
@@ -50,6 +51,14 @@ class _ExecutorUpdateEvent(asyncio.Event):
         super().set()
         self.revision += 1
         self.progress.set()
+
+
+@dataclass(frozen=True)
+class ProfileGuardSample:
+    sampled_at: float
+    connector: object
+    book: object
+    ready: bool
 
 
 class ReferencePair(BaseModel):
@@ -242,6 +251,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         self._startup_stage = "not_started"
         self._startup_retry_sleep = asyncio.sleep
         self._quote_guard = QuoteGuard(config.quote_guards, config.sideways_range)
+        self._profile_guard_sample: Optional[ProfileGuardSample] = None
         self._spread_policy = SpreadPolicy(config.spread_policy)
         # None: no initial preparation yet; False: use fallback and retry
         # without parking normal freshness/cancellation cycles.
@@ -437,12 +447,17 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
         if cfg.trading_pair not in connector.trading_rules:
             raise ValueError("reference_pair_unavailable")
         book = provider.get_order_book(cfg.connector_name, cfg.trading_pair)
+        sample = self._profile_guard_sample
+        if sample is not None and (sample.connector is not connector or sample.book is not book):
+            # Prepared recovery samples belong to one feed instance.
+            self._quote_guard.invalidate()
+            self._profile_guard_sample = None
         observation = observe_market(connector, book, cfg.trading_pair, now=provider.time(),
                                      max_age_seconds=cfg.max_data_age_seconds, max_levels=cfg.quote_guards.max_book_levels,
                                      max_orders=cfg.quote_guards.max_own_orders)
         return connector, book, observation
 
-    def sample_profile_guard(self):
+    def sample_profile_guard(self) -> Optional[ProfileGuardSample]:
         """Sample strict public readiness while the old strategy owns the account."""
         if not self.config.quote_guards.enabled or self._bootstrap is not None or self._life_anchor is not None:
             return None
@@ -456,25 +471,32 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 raise ValueError("Unavailable market price for profile guard")
         except (ValueError, TypeError, ArithmeticError, AttributeError, LookupError, OSError):
             self._quote_guard.invalidate()
+            self._profile_guard_sample = None
             return None
         now = time.monotonic()
         # Startup without anchors evaluates the outside midpoint as its reference.
         status = self._quote_guard.evaluate(observation, mid, now, sample=True)
-        return (now, connector, book) if status["ready"] else None
+        self._profile_guard_sample = (ProfileGuardSample(now, connector, book, status["ready"])
+                                      if self._quote_guard.good_since is not None else None)
+        return self._profile_guard_sample
 
-    def use_profile_guard(self, preview, witness):
-        if (witness is None or self.config != preview.config or preview._quote_guard.blocked
-                or self._life_anchor is not None or self._bootstrap is not None):
-            return
-        sampled_at, connector, book = witness
-        age = time.monotonic() - sampled_at
+    def use_profile_guard(self, preview, witness: Optional[ProfileGuardSample]) -> str:
+        if witness is None or witness is not preview._profile_guard_sample:
+            return "guard_sample_unavailable"
+        if self.config != preview.config or self._life_anchor is not None or self._bootstrap is not None:
+            return "guard_profile_changed"
+        age = time.monotonic() - witness.sampled_at
         if not 0 <= age <= min(1, self.config.max_data_age_seconds):
-            return
-        cold_guard = self._quote_guard
+            return "guard_sample_stale"
+        cold_guard, cold_sample = self._quote_guard, self._profile_guard_sample
+        # The live guard still checks the remaining recovery delay and fresh samples.
         self._quote_guard = copy(preview._quote_guard)
+        self._profile_guard_sample = witness
         current = self.sample_profile_guard()
-        if current is None or current[1] is not connector or current[2] is not book:
-            self._quote_guard = cold_guard
+        if current is not None and current.connector is witness.connector and current.book is witness.book:
+            return "guard_ready" if current.ready else "guard_recovering"
+        self._quote_guard, self._profile_guard_sample = cold_guard, cold_sample
+        return "guard_feed_changed" if current is not None else "guard_recheck_failed"
 
     def admit_session(self, session_id, generation):
         if (session_id, generation) != (self.config.mm_session_id, self.config.mm_generation):
@@ -783,6 +805,7 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                     self.check_maker_crossing(price, self.get_trade_type_from_level_id(level))
             # Capture the complete basket together; a missing member never saves partial anchors.
             self._life_anchor, self._source_anchors = life_anchor, dict(source_anchors)
+            self._profile_guard_sample = None
             self.processed_data["ready"] = guard_status is None or guard_status["ready"]
             if not self.processed_data["ready"]:
                 self.processed_data["reason"] = guard_status["reason_code"]
