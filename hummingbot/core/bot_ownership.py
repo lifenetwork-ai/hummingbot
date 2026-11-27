@@ -36,6 +36,7 @@ from hummingbot.core.order_submission_guard import (
 )
 from hummingbot.core.startup_order_reconciliation import UntrackedOpenOrders, reconcile_open_order_visibility
 from hummingbot.core.submission_admission import QueuedIntent, SubmissionAdmission
+from hummingbot.core.utils.read_retry import shutdown_order_read
 from hummingbot.model.bot_state import BotState
 from hummingbot.model.bot_state_store import BotStateStore
 from hummingbot.model.db_migration.postgres.connection import IDLE_SESSION_TIMEOUT_SECONDS, connect_for_observation
@@ -1688,7 +1689,7 @@ class BotOwnership:
 
     @staticmethod
     async def _refresh_orders(connector, orders, *, limiter=None, terminal_guard=None, local_rejection=None,
-                              wait_for_local_rejection=None, cancellation=None, worker_limit=3):
+                              wait_for_local_rejection=None, cancellation=None, worker_limit=3, retry_deadline=None):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         from hummingbot.connector.okx_order_status import OKXOrderNotFoundError
 
@@ -1709,12 +1710,13 @@ class BotOwnership:
                     if local_rejection is not None and local_rejection(order):
                         continue
                     if terminal_guard is not None and await asyncio.wait_for(
-                            terminal_guard.refresh_canceled_order(connector, order), timeout=10):
+                            terminal_guard.refresh_canceled_order(connector, order, retry_deadline=retry_deadline), timeout=10):
                         continue  # Strong status/fills/status proof already applied native fills and terminal state.
                     if local_rejection is not None and local_rejection(order):
                         continue
                     try:
-                        status = await asyncio.wait_for(connector._request_order_status(order), timeout=5)
+                        status = await asyncio.wait_for(
+                            shutdown_order_read(connector._request_order_status, order, deadline=retry_deadline), timeout=5)
                     except OKXOrderNotFoundError:
                         # The create coroutine may reject this exact object at
                         # the final send gate while the status GET is awaiting
@@ -1727,7 +1729,8 @@ class BotOwnership:
                         raise
                     if status.exchange_order_id:
                         order.update_exchange_order_id(status.exchange_order_id)
-                    fills = await asyncio.wait_for(connector._all_trade_updates_for_order(order), timeout=5)
+                    fills = await asyncio.wait_for(
+                        shutdown_order_read(connector._all_trade_updates_for_order, order, deadline=retry_deadline), timeout=5)
                     recorder = MarketsRecorder.service_recorder_for(connector)
                     for fill in fills:
                         if recorder is not None:
@@ -1938,7 +1941,7 @@ class BotOwnership:
                     await self._refresh_orders(connector, remote_orders, limiter=limiter,
                                                terminal_guard=self.spot_outflow, local_rejection=local_rejection,
                                                wait_for_local_rejection=wait_for_local_rejection, cancellation=cancellation,
-                                               worker_limit=SHUTDOWN_ORDER_PROOF_CONCURRENCY)
+                                               worker_limit=SHUTDOWN_ORDER_PROOF_CONCURRENCY, retry_deadline=deadline)
                 if cancellation is not None:
                     await asyncio.shield(cancellation)
                 while any(not order.is_done and order.client_order_id not in deferred for order in orders):
@@ -1948,7 +1951,7 @@ class BotOwnership:
                                                            if not order.is_done and order.client_order_id not in deferred],
                                                limiter=limiter, local_rejection=local_rejection,
                                                wait_for_local_rejection=wait_for_local_rejection,
-                                               worker_limit=SHUTDOWN_ORDER_PROOF_CONCURRENCY)
+                                               worker_limit=SHUTDOWN_ORDER_PROOF_CONCURRENCY, retry_deadline=deadline)
 
             refreshes = [asyncio.create_task(refresh_connector(connector, orders)) for connector, orders in tracked]
             if cancellation is not None:
@@ -1963,10 +1966,7 @@ class BotOwnership:
                 await asyncio.gather(*refreshes, return_exceptions=True)
             core.trade_fill_db.assert_persistence_healthy()
             if self.spot_outflow is not None:
-                if deferred:
-                    await self.spot_outflow.reconcile_terminal(all_orders=True, deferred=deferred)
-                else:
-                    await self.spot_outflow.reconcile_terminal(all_orders=True)
+                await self.spot_outflow.reconcile_terminal(all_orders=True, deferred=deferred, retry_deadline=deadline)
 
         def changed_orders():
             return {order.client_order_id for _, orders in tracked for order in orders

@@ -1,10 +1,12 @@
 """Read retries are bounded and never classify a mutation for the caller."""
+import asyncio
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from hummingbot.cli.service_availability import ServiceAvailability
-from hummingbot.core.utils.read_retry import retry_delay, transient_read
+from hummingbot.core.utils.read_retry import retry_delay, shutdown_order_read, transient_read
 
 
 @pytest.mark.parametrize("status,expected", [(401, False), (403, False), (404, False), (408, True), (429, True), (503, True)])
@@ -18,6 +20,17 @@ def test_retry_delay_caps_jitter_and_respects_available_retry_after():
     assert retry_delay(1, SimpleNamespace(headers={"Retry-After": "45"})) == 45
     assert .8 <= retry_delay(1, SimpleNamespace(headers={"Retry-After": "NaN"})) <= 1
     assert not transient_read(ValueError("invalid configuration"))
+
+
+@pytest.mark.asyncio
+async def test_shutdown_retry_preserves_the_error_when_no_retry_fits_in_the_deadline():
+    error = OSError("HTTP status is 503. unavailable")
+    read = AsyncMock(side_effect=error)
+    deadline = asyncio.get_running_loop().time() + .05
+    with pytest.raises(OSError) as caught:
+        await shutdown_order_read(read, deadline=deadline)
+    assert caught.value is error
+    read.assert_awaited_once_with()
 
 
 def test_incident_collections_are_bounded_and_recovery_clears_old_failures():

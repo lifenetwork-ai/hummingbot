@@ -21,6 +21,51 @@ from hummingbot.model.trade_fill import TradeFill
 owned = _owned
 
 
+@pytest.mark.parametrize('failure', ['status', 'fills', 'persistent', 'unauthorized', 'malformed'])
+def test_prepared_cutover_retries_only_transient_venue_reads(owned, failure):
+    core = reconciliation_core(owned)
+    core.strategy.executor_orchestrator = object()
+    core.cancel_outstanding_orders = AsyncMock(return_value=True)
+    order = make_order('sell', TradeType.SELL, state=OrderState.CANCELED, exchange_id='venue-sell')
+    owned.market.in_flight_orders = {order.client_order_id: order}
+    owned.market._order_tracker.process_order_update = AsyncMock()
+    status = SimpleNamespace(exchange_order_id=order.exchange_order_id)
+    unavailable = OSError('Error executing request GET offline. HTTP status is 503. Error: unavailable')
+    if failure == 'persistent':
+        statuses = [unavailable] * 3
+    elif failure == 'unauthorized':
+        statuses = [OSError('Error executing request GET offline. HTTP status is 401. Error: unauthorized'), status]
+    elif failure == 'malformed':
+        statuses = [OSError('Malformed OKX order-status data.'), status]
+    else:
+        statuses = [unavailable, status, status] if failure == 'status' else [status, status]
+    owned.market._request_order_status = AsyncMock(side_effect=statuses)
+    owned.market._all_trade_updates_for_order = AsyncMock(side_effect=[unavailable, [], []] if failure == 'fills' else [[], []])
+
+    async def shutdown(**kwargs):
+        assert kwargs['keep_market_data']
+        proof = await core.before_position_checkpoint({'sell': ('okx', order)})
+        assert set(proof) == {'sell'}
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = shutdown
+    if failure in ('status', 'fills'):
+        assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, keep_market_data=True))
+        assert owned.market._request_order_status.await_count == (3 if failure == 'status' else 2)
+        assert owned.market._all_trade_updates_for_order.await_count == (3 if failure == 'fills' else 2)
+        assert owned.market._order_tracker.process_order_update.await_count == 2
+        assert not owned.store.read()['recovery_state'].get('halt')
+    else:
+        with pytest.raises(OSError):
+            owned.loop.run_until_complete(owned.owner.shutdown_core(core, keep_market_data=True))
+        assert owned.market._request_order_status.await_count == (3 if failure == 'persistent' else 1)
+        owned.market._all_trade_updates_for_order.assert_not_awaited()
+        owned.market._order_tracker.process_order_update.assert_not_awaited()
+        assert owned.store.read()['recovery_state']['halt']
+    assert not owned.owner.allow_new_orders
+
+
 def test_sideways_rollover_proves_twenty_orders_with_six_shared_read_slots(owned):
     core = reconciliation_core(owned)
     core.strategy.executor_orchestrator = object()
@@ -108,6 +153,33 @@ def canceled_buy(owned, monkeypatch, *, delayed=False):
     core.strategy.executor_orchestrator = object()
     core.cancel_outstanding_orders = AsyncMock(return_value=True)
     return core, order, state, fills, requests
+
+
+def test_cutover_retries_the_same_canceled_buy_recheck_without_replaying_fills(owned, monkeypatch):
+    core, order, _, _, requests = canceled_buy(owned, monkeypatch)
+    read_status = owned.market._request_order_update.side_effect
+
+    async def status(order):
+        if requests.count('status') == 1 and 'unavailable' not in requests:
+            requests.append('unavailable')
+            raise OSError('Error executing request GET offline. HTTP status is 503.')
+        return await read_status(order)
+
+    owned.market._request_order_update.side_effect = status
+
+    async def shutdown(**kwargs):
+        proof = await core.before_position_checkpoint({'a': ('okx', order)})
+        assert Decimal(proof['a']['executed_amount_base']) == 2
+        await core.after_order_cancellation()
+        return True
+
+    core.shutdown = shutdown
+    assert owned.loop.run_until_complete(owned.owner.shutdown_core(core, keep_market_data=True))
+    assert requests == ['status', 'fills', 'unavailable', 'status', 'status', 'fills']
+    assert owned.owner.spot_outflow.status()['reserved_quote'] == 0
+    with owned.manager.get_new_session() as db:
+        assert db.query(TradeFill).count() == 1
+    assert not owned.store.read()['recovery_state'].get('halt')
 
 
 @pytest.mark.parametrize('native_state', [OrderState.CANCELED, OrderState.PENDING_CANCEL, OrderState.OPEN, OrderState.PARTIALLY_FILLED])

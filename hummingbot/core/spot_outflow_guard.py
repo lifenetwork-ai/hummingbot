@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from decimal import Decimal
+from functools import partial
 from itertools import islice
 from types import SimpleNamespace
 
@@ -22,6 +23,7 @@ from hummingbot.core.spot_outflow import (
     SpotOutflowPolicy,
     SpotOutflowProjection,
 )
+from hummingbot.core.utils.read_retry import shutdown_order_read
 from hummingbot.model.order import Order
 from hummingbot.model.trade_fill import TradeFill
 
@@ -320,13 +322,14 @@ class SpotOutflowGuard:
             if order.is_done:
                 self.mark_terminal_pending(client_id)
 
-    async def reconcile_terminal(self, *, all_orders=False, deferred=()):
+    async def reconcile_terminal(self, *, all_orders=False, deferred=(), retry_deadline=None):
         """Reconcile a bounded batch and report when it drains terminal work."""
         for client_id, (_, order) in self.orders.items():
             if order.is_done or all_orders:
                 self.mark_terminal_pending(client_id)
         candidates = tuple(islice((identity for identity in self.terminal_pending if identity not in deferred),
                                   MAX_FILLS if all_orders else 4))
+        confirm = self._confirm if retry_deadline is None else partial(self._confirm, retry_deadline=retry_deadline)
         for client_id in candidates:
             if client_id not in self.terminal_pending:
                 continue  # An earlier awaited proof may have removed an unsent order.
@@ -335,7 +338,7 @@ class SpotOutflowGuard:
             self.terminal_pending.pop(client_id)
             self.terminal_pending[client_id] = None
             try:
-                if not self._confirm_committed_fill(client_id) and not await asyncio.wait_for(self._confirm(client_id), timeout=10):
+                if not self._confirm_committed_fill(client_id) and not await asyncio.wait_for(confirm(client_id), timeout=10):
                     self._terminal_failure(client_id, 'not_terminal')
                     continue
             except (ValueError, OSError, asyncio.TimeoutError, KeyError, ArithmeticError) as error:
@@ -361,7 +364,7 @@ class SpotOutflowGuard:
         self.projection.confirm_terminal(client_id, order.amount)
         return True
 
-    async def refresh_canceled_order(self, connector, order):
+    async def refresh_canceled_order(self, connector, order, *, retry_deadline=None):
         """One fresh strong proof can serve shutdown and this cash reservation.
 
         Only an exact retained Spot BUY with a venue ID is supported. A cancel
@@ -376,7 +379,7 @@ class SpotOutflowGuard:
             return False
         self._check_terminal_identity(connector, order)
         self.mark_terminal_pending(order.client_order_id)
-        if not await self._confirm(order.client_order_id, apply_terminal=True):
+        if not await self._confirm(order.client_order_id, apply_terminal=True, retry_deadline=retry_deadline):
             return False  # Stale/nonterminal venue data retains the native polling path.
         self._forget_terminal_order(order.client_order_id)
         return True
@@ -425,9 +428,10 @@ class SpotOutflowGuard:
         except (ValueError, TypeError, KeyError, ArithmeticError):
             return False
 
-    async def _confirm(self, client_id, *, apply_terminal=False):
+    async def _confirm(self, client_id, *, apply_terminal=False, retry_deadline=None):
         from hummingbot.connector.markets_recorder import MarketsRecorder
         connector, order = self.orders[client_id]
+        read = partial(shutdown_order_read, deadline=retry_deadline)
         self.terminal_stages[client_id] = 'order_read'
         # Shutdown already has a bound venue identity for the order. Fetch
         # the first page alongside status, use it only if it covers the final
@@ -436,7 +440,7 @@ class SpotOutflowGuard:
                  if apply_terminal else None)
         prefetched = None
         try:
-            response = await connector._request_order_update(order)
+            response = await read(connector._request_order_update, order)
             if str(response.get("code")) != "0" or len(response.get("data", [])) != 1:
                 raise ValueError("Incomplete terminal order")
             first = response["data"][0]
@@ -467,7 +471,7 @@ class SpotOutflowGuard:
         for page_index in range(100):
             self.terminal_stages[client_id] = 'fills_read'
             response = (prefetched if page_index == 0 and prefetched is not None
-                        else await connector._request_order_fills(order, after=after, limit=100))
+                        else await read(connector._request_order_fills, order, after=after, limit=100))
             if str(response.get("code")) != "0" or not isinstance(response.get("data"), list):
                 raise ValueError("Incomplete terminal fills")
             page = response["data"]
@@ -492,7 +496,7 @@ class SpotOutflowGuard:
         if total != expected_amount or (first["state"] == "filled" and total != order.amount):
             raise ValueError("Terminal cumulative fills are incomplete")
         self.terminal_stages[client_id] = 'order_recheck'
-        final = await connector._request_order_update(order)
+        final = await read(connector._request_order_update, order)
         keys = ("ordId", "clOrdId", "instId", "side", "sz", "px", "state", "accFillSz", "uTime")
         if (str(final.get("code")) != "0" or len(final.get("data", [])) != 1
                 or any(final["data"][0].get(key) != first.get(key) for key in keys)):
