@@ -59,19 +59,14 @@ OWNER_SESSION_REFRESH_SECONDS = IDLE_SESSION_TIMEOUT_SECONDS / 3
 
 
 @contextmanager
-def _ownership_read(connection):
-    """One fresh SELECT on the lock-owning session, without a read-COMMIT wait.
-
-    Restore transaction mode before any recovery mutation uses this connection.
-    SQLAlchemy still ends its logical transaction; DBAPI commit is a no-op only
-    inside this read scope. Never reconnect an invalidated ownership session.
-    """
+def _ownership_autocommit(connection):
+    """Use one implicit PostgreSQL transaction on an idle owner session."""
     from psycopg2.extensions import TRANSACTION_STATUS_IDLE
 
     raw = connection.connection.driver_connection
     autocommit = raw.autocommit
-    # Preserve the original SELECT/commit behavior for an already-open read
-    # transaction, including one opened by a direct DBAPI cursor.
+    # Preserve the mode of an already-open transaction, including one opened
+    # by a direct DBAPI cursor.
     change_mode = not connection.in_transaction() and raw.get_transaction_status() == TRANSACTION_STATUS_IDLE
     try:
         # Repeated SQLAlchemy isolation execution_options register unbounded
@@ -79,7 +74,7 @@ def _ownership_read(connection):
         # the documented Psycopg flag; SQLAlchemy's transaction is ended below.
         if change_mode:
             raw.autocommit = True
-        yield
+        yield change_mode
     finally:
         if not connection.closed:
             try:
@@ -265,7 +260,8 @@ class BotOwnership:
         return connection
 
     @trace_runtime('owner.read')
-    def _read_owner(self, *, identity_only=False, include_pending=False, order_authority=False, isolated_order_id=None):
+    def _read_owner(self, *, identity_only=False, include_pending=False, order_authority=False, isolated_order_id=None,
+                    send_order_id=None):
         """Fresh proof on the physical owner session; writes need no state JSON."""
         connection = self.require_owner_connection()
         try:
@@ -303,6 +299,11 @@ class BotOwnership:
                     FROM (SELECT id, market FROM public.orders
                           WHERE creation_pending IS true LIMIT :pending_limit) p) AS pending_intents"""
                 parameters["pending_limit"] = MAX_ATTEMPTS + 1
+            if send_order_id is not None:
+                columns += """, (SELECT a.context FROM public.submission_attempts a
+                    WHERE b.config_type='mm-session' AND a.order_id=:send_order_id
+                    AND a.state='prepared') AS prepared_send_context"""
+                parameters["send_order_id"] = send_order_id
             if order_authority and self.scoped_recovery_enabled and self.automatic_recovery.active:
                 # The same statement must see the owner, both bounded attempt
                 # sets and the active credential basis. Keep receipt evidence
@@ -320,7 +321,7 @@ class BotOwnership:
                     (SELECT context->'order' FROM public.submission_attempts
                         WHERE order_id=:isolated_order_id) AS scoped_original_order"""
                 parameters["isolated_order_id"] = isolated_order_id
-            with _ownership_read(connection):
+            with _ownership_autocommit(connection):
                 row = connection.execute(text(f"""
                     SELECT {columns} FROM public.bot_state b
                     WHERE bot_id=:bot_id AND owner_uuid=:owner AND owner_generation=:generation
@@ -380,7 +381,7 @@ class BotOwnership:
             BotState.owner_generation == self.generation, self._advisory_lock_exists())
 
         def select_state(connection):
-            with _ownership_read(connection):
+            with _ownership_autocommit(connection):
                 row = connection.execute(statement).mappings().first()
                 connection.commit()
                 return row
@@ -418,11 +419,13 @@ class BotOwnership:
     async def observe_halt(self):
         return bool((await self.observe_state(halt_only=True))['halt'])
 
-    def check_owner(self, *, new_risk=False, allow_setup=False, include_pending=False, order_authority=False, isolated_order_id=None):
+    def check_owner(self, *, new_risk=False, allow_setup=False, include_pending=False, order_authority=False,
+                    isolated_order_id=None, send_order_id=None):
         if new_risk:
             self._check_shutdown()
         if order_authority:
-            row = self._read_owner(include_pending=True, order_authority=True, isolated_order_id=isolated_order_id)
+            row = self._read_owner(include_pending=True, order_authority=True, isolated_order_id=isolated_order_id,
+                                   send_order_id=send_order_id)
         else:
             row = self._read_owner(include_pending=True) if include_pending else self._read_owner()
         # A signal can arrive while the synchronous database check is in flight.
@@ -1044,37 +1047,59 @@ class BotOwnership:
             BotState.owner_generation == self.generation, func.pg_backend_pid() == self.backend_pid,
             self._advisory_lock_exists()).exists()
 
-    def _record_send_attempt(self, client_id, data, deadline, headers):
+    def _record_send_attempt(self, client_id, data, deadline, headers, prepared_context=None):
         """A committed, immutable transport identity precedes any network call."""
         from hummingbot.model.runtime_journal import SubmissionAttempt, digest
         connection = self.require_owner_connection()
+        transition = update(SubmissionAttempt).where(
+            SubmissionAttempt.order_id == client_id, SubmissionAttempt.state == 'prepared',
+            self._physical_owner_exists()).values(state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline)
+
+        if prepared_context is not None and not connection.in_transaction():
+            self._validate_send_context(prepared_context, client_id, data, headers)
+            with _ownership_autocommit(connection) as autocommit:
+                if autocommit:
+                    # Revalidate the exact durable context in the statement
+                    # that commits the marker. No Python validation remains after it.
+                    already_sent = client_id in self.sent_intents
+                    self.sent_intents.add(client_id)
+                    changed = connection.execute(transition.where(SubmissionAttempt.context == prepared_context)).rowcount
+                    connection.commit()  # Close SQLAlchemy's transaction. The statement has already committed.
+                    if changed == 1:
+                        return
+                    if changed == 0 and not already_sent:
+                        self.sent_intents.discard(client_id)
+            if autocommit:
+                self._read_owner(identity_only=True)
+                raise SubmissionBlocked('Submission attempt was changed before the transport marker could commit.')
+
         # A lost COMMIT reply is ambiguous even though this coroutine will not
         # deliberately invoke transport after the exception.
         with connection.begin():
             # Recheck physical ownership at the journal write. The earlier
             # authority read alone cannot authorize this transition.
-            row = connection.execute(update(SubmissionAttempt).where(
-                SubmissionAttempt.order_id == client_id, SubmissionAttempt.state == 'prepared', self._physical_owner_exists()).values(
-                state='possibly_sent', payload_hash=digest(data), deadline_ms=deadline).returning(
-                SubmissionAttempt.context)).mappings().one_or_none()
+            row = connection.execute(transition.returning(SubmissionAttempt.context)).mappings().one_or_none()
             if row is not None:
-                context = row['context']
-                if context['owner_uuid'] != self.owner_uuid or context['generation'] != self.generation:
-                    raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
-                self._validate_close_transport(context, client_id, data)
-                from hummingbot.core.automatic_recovery import eligible
-                if eligible(context):
-                    key = headers.get('OK-ACCESS-KEY')
-                    expected = digest(['credential_identity', context['environment'],
-                                       context['executor']['connector_name'], key])
-                    if not key or expected != context['credential_fingerprint']:
-                        raise SubmissionBlocked('Authenticated transport identity does not match its recorded account scope.')
+                self._validate_send_context(row['context'], client_id, data, headers)
                 self.sent_intents.add(client_id)
                 return
         # A skipped UPDATE is harmless. Distinguish a stale attempt from
         # ownership loss without adding a round trip to successful sends.
         self._read_owner(identity_only=True)
         raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
+
+    def _validate_send_context(self, context, client_id, data, headers):
+        from hummingbot.core.automatic_recovery import eligible
+        from hummingbot.model.runtime_journal import digest
+
+        if context['owner_uuid'] != self.owner_uuid or context['generation'] != self.generation:
+            raise SubmissionBlocked('Submission attempt was already sent or belongs to another owner.')
+        self._validate_close_transport(context, client_id, data)
+        if eligible(context):
+            key = headers.get('OK-ACCESS-KEY')
+            expected = digest(['credential_identity', context['environment'], context['executor']['connector_name'], key])
+            if not key or expected != context['credential_fingerprint']:
+                raise SubmissionBlocked('Authenticated transport identity does not match its recorded account scope.')
 
     def _validate_close_transport(self, context, identity, data):
         """Bind a managed close to its immutable intent at the existing SQL gate."""
@@ -1260,7 +1285,8 @@ class BotOwnership:
         with submission_timing('final_owner_read_ms'):
             row = self.check_owner(new_risk=order_authority, include_pending=path == ORDER_PATH,
                                    order_authority=order_authority,
-                                   isolated_order_id=client_id if isinstance(client_id, str) else None)
+                                   isolated_order_id=client_id if isinstance(client_id, str) else None,
+                                   send_order_id=client_id if order_authority and isinstance(client_id, str) else None)
         if path == ORDER_PATH:
             if cleanup is not None:
                 from hummingbot.connector.markets_recorder import MarketsRecorder
@@ -1348,7 +1374,7 @@ class BotOwnership:
             if order is not None and getattr(order, '_managed_before_transport', False) is True:
                 order._managed_before_transport = False
             with submission_timing('final_journal_ms'):
-                self._record_send_attempt(client_id, data, expiry, headers)
+                self._record_send_attempt(client_id, data, expiry, headers, row.get('prepared_send_context'))
             return None
         if path not in ACCOUNT_PATHS:
             raise SubmissionBlocked("Unreviewed authenticated exchange mutation is blocked.")

@@ -2,10 +2,11 @@
 import asyncio
 import json
 import threading
+import time
 from copy import deepcopy
 from decimal import Decimal
 from test.integration.postgres.test_ownership import Throttler, assistant, intent, owned as owned_fixture
-from test.integration.postgres.test_performance import queries
+from test.integration.postgres.test_performance import queries, report
 from test.integration.postgres.test_submission_admission_fairness import native as native_fixture
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -277,6 +278,129 @@ def test_send_transition_uses_one_journal_roundtrip_and_keeps_immutable_context(
         assert row.state == 'possibly_sent' and row.context == original
         assert row.payload_hash == digest(payload) and row.deadline_ms == 123456 and row.receipt is None
     assert owned.owner.sent_intents == {'order-1'}
+
+
+@pytest.mark.parametrize('legacy', [False, True], ids=['implicit-commit', 'explicit-commit'])
+def test_native_final_send_commits_before_transport(native, monkeypatch, legacy):
+    transitions = []
+    commits = []
+    started = None
+    journal_pending = False
+    venue = native.transport.call.side_effect
+    owner_read = native.owner._read_owner
+    driver = native.owner.connection.connection.driver_connection
+    commit = type(driver).commit
+
+    def read(*args, **kwargs):
+        if legacy:
+            kwargs.pop('send_order_id', None)
+        return owner_read(*args, **kwargs)
+
+    def observe(connection, cursor, statement, parameters, *_):
+        nonlocal journal_pending, started
+        if statement.startswith('UPDATE submission_attempts') and 'possibly_sent' in parameters.values():
+            journal_pending = True
+            started = time.perf_counter()
+            raw = connection.connection.driver_connection
+            transitions.append((raw.get_backend_pid(), raw.autocommit))
+
+    def delayed_commit(connection):
+        nonlocal journal_pending
+        if connection is driver and journal_pending:
+            journal_pending = False
+            if not connection.autocommit:
+                commits.append(True)
+                time.sleep(.035)  # Inject only the physical COMMIT response wait.
+        return commit(connection)
+
+    async def dispatch(request):
+        report(f'native_send_explicit_commit_{legacy}', {'journal_to_transport_ms': (time.perf_counter() - started) * 1000,
+                                                         'explicit_commits': len(commits)})
+        identity = json.loads(request.data)['clOrdId']
+        with native.manager.get_new_session() as db:
+            row = db.get(SubmissionAttempt, identity)
+            assert row.state == 'possibly_sent'
+            assert row.payload_hash == digest(json.loads(request.data))
+        assert not native.owner.connection.connection.driver_connection.autocommit
+        return await venue(request)
+
+    async def exercise():
+        with session_order_scope(native.session.id, native.session.generation):
+            await native.market._create_order(TradeType.SELL, 'one-write', 'LIFE-USDT', Decimal('1'),
+                                              OrderType.LIMIT_MAKER, Decimal('10'))
+
+    monkeypatch.setattr(native.owner, '_read_owner', read)
+    monkeypatch.setattr(type(driver), 'commit', delayed_commit)
+    event.listen(native.engine, 'before_cursor_execute', observe)
+    try:
+        with patch.object(native.transport.call, 'side_effect', dispatch):
+            native.loop.run_until_complete(exercise())
+    finally:
+        event.remove(native.engine, 'before_cursor_execute', observe)
+    native.transport.call.assert_awaited_once()
+    assert transitions == [(native.owner.backend_pid, not legacy)]
+    assert len(commits) == int(legacy)
+    with native.manager.get_new_session() as db:
+        assert db.get(SubmissionAttempt, 'one-write').state == 'acknowledged'
+
+
+@pytest.mark.parametrize('change', ['context', 'advisory_lock', 'credentials'])
+def test_implicit_send_marker_requires_durable_context_owner_and_credentials(owned, change):
+    intent(owned)
+    with owned.manager.get_new_session() as db:
+        context = db.get(SubmissionAttempt, 'order-1').context
+    if change == 'context':
+        with owned.engine.begin() as db:
+            db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == 'order-1').values(
+                context={**context, 'generation': -1}))
+    elif change == 'advisory_lock':
+        owned.owner.connection.exec_driver_sql('SELECT pg_advisory_unlock_all()')
+        owned.owner.connection.commit()
+    else:
+        context = dict(
+            context, session=['mm', 0], order={**context['order'], 'order_type': 'LIMIT_MAKER'},
+            executor={'type': 'position_executor', 'connector_name': 'okx', 'side': 'BUY', 'mm_session_id': 'mm',
+                      'mm_generation': 0},
+            credential_fingerprint=digest(['credential_identity', context['environment'], 'okx', 'expected-key']),
+        )
+        with owned.engine.begin() as db:
+            db.execute(update(SubmissionAttempt).where(SubmissionAttempt.order_id == 'order-1').values(context=context))
+    reason = 'Authenticated transport identity' if change == 'credentials' else None
+    with pytest.raises(OwnershipLost if change == 'advisory_lock' else SubmissionBlocked, match=reason):
+        owned.owner._record_send_attempt('order-1', {'clOrdId': 'order-1'}, 123456, {'OK-ACCESS-KEY': 'other-key'}, context)
+    assert not owned.owner.sent_intents
+    assert not owned.owner.connection.connection.driver_connection.autocommit
+    with owned.manager.get_new_session() as db:
+        row = db.get(SubmissionAttempt, 'order-1')
+        assert row.state == 'prepared' and row.payload_hash is None
+
+
+@pytest.mark.parametrize('committed', [False, True], ids=['statement-not-delivered', 'statement-reply-lost'])
+def test_uncertain_implicit_send_marker_keeps_identity_reserved(owned, committed):
+    intent(owned)
+    with owned.manager.get_new_session() as db:
+        context = db.get(SubmissionAttempt, 'order-1').context
+    connection = owned.owner.connection
+    hook = 'after_cursor_execute' if committed else 'before_cursor_execute'
+
+    def lose_reply(conn, cursor, statement, *_):
+        if conn is connection and statement.startswith('UPDATE submission_attempts'):
+            conn.invalidate()
+            raise OperationalError('test lost implicit send marker response')
+
+    event.listen(owned.engine, hook, lose_reply)
+    try:
+        with pytest.raises((DBAPIError, OperationalError)):
+            owned.owner._record_send_attempt('order-1', {'clOrdId': 'order-1'}, 123456, {}, context)
+    finally:
+        event.remove(owned.engine, hook, lose_reply)
+    assert owned.owner.sent_intents == {'order-1'}
+    with owned.manager.get_new_session() as db:
+        row = db.get(SubmissionAttempt, 'order-1')
+        assert row.state == ('possibly_sent' if committed else 'prepared')
+        assert (row.payload_hash is not None) is committed
+    with pytest.raises(OwnershipLost):
+        owned.owner._record_send_attempt('order-1', {'clOrdId': 'order-1'}, 123456, {}, context)
 
 
 def test_send_transition_checks_advisory_lock_after_final_authority_read(owned):

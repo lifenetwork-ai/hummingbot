@@ -62,7 +62,7 @@ def test_owner_loss_preserves_specific_safe_code_and_closes_admission(kind, code
         original = RuntimeError('private-dsn-and-password')
         original.pgcode = '08006'
         owner.connection.execute.side_effect = OperationalError('private query', {}, original, connection_invalidated=True)
-    with patch('hummingbot.core.bot_ownership._ownership_read', lambda connection: nullcontext()):
+    with patch('hummingbot.core.bot_ownership._ownership_autocommit', lambda connection: nullcontext()):
         with pytest.raises(OwnershipLost) as caught:
             owner._read_owner()
     assert caught.value.reason_code == code
@@ -80,7 +80,7 @@ def test_followup_ownership_checks_report_first_connection_failure():
     original = RuntimeError('private-dsn')
     original.pgcode = '08006'
     owner.connection.execute.side_effect = OperationalError('private query', {}, original, connection_invalidated=True)
-    with patch('hummingbot.core.bot_ownership._ownership_read', lambda connection: nullcontext()):
+    with patch('hummingbot.core.bot_ownership._ownership_autocommit', lambda connection: nullcontext()):
         with pytest.raises(OwnershipLost) as first:
             owner.check_owner()
         with pytest.raises(OwnershipLost) as later:

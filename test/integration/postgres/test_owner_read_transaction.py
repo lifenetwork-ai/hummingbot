@@ -239,7 +239,7 @@ def test_failed_mode_restore_discards_physical_session_instead_of_returning_auto
 
 def test_paired_owner_read_keeps_every_select_and_avoids_explicit_read_commits(owned, monkeypatch):
     connection = owned.owner.connection
-    original = bot_ownership._ownership_read
+    original = bot_ownership._ownership_autocommit
     commits, selects = [], []
     samples = []
 
@@ -256,7 +256,7 @@ def test_paired_owner_read_keeps_every_select_and_avoids_explicit_read_commits(o
         selects.clear()
         mode = (lambda conn: nullcontext()) if legacy else original
         with monkeypatch.context() as patch:
-            patch.setattr(bot_ownership, '_ownership_read', mode)
+            patch.setattr(bot_ownership, '_ownership_autocommit', mode)
             started = time.perf_counter_ns()
             for _ in range(25):
                 row = owned.owner.check_owner(new_risk=True)
@@ -287,7 +287,7 @@ def test_paired_owner_read_keeps_every_select_and_avoids_explicit_read_commits(o
 
 def test_read_commit_jitter_blocks_the_real_probe_only_with_the_legacy_transaction(owned, monkeypatch):
     """Controlled mechanism, not attribution of the earlier seven incidents."""
-    original_scope, original_commit = bot_ownership._ownership_read, DeadlineConnection.commit
+    original_scope, original_commit = bot_ownership._ownership_autocommit, DeadlineConnection.commit
     raw = owned.owner.connection.connection.driver_connection
     results = []
 
@@ -322,7 +322,7 @@ def test_read_commit_jitter_blocks_the_real_probe_only_with_the_legacy_transacti
                         observed.append(probe_health(port, '/live'))
 
                 with monkeypatch.context() as patch:
-                    patch.setattr(bot_ownership, '_ownership_read',
+                    patch.setattr(bot_ownership, '_ownership_autocommit',
                                   (lambda conn: nullcontext()) if legacy else original_scope)
                     patch.setattr(DeadlineConnection, 'commit', commit)
                     worker = threading.Thread(target=client)
