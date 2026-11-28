@@ -179,6 +179,36 @@ def test_btc_minimum_sell_respects_existing_buy_reservations(reserved, expected)
         assert 'allocation_limit' in item.quote_diagnostics['reasons']['SELL']
 
 
+@pytest.mark.parametrize('reserved,has_sell', [('80', True), ('99', False)])
+def test_managed_sell_uses_only_allocatable_remainder(reserved, has_sell, monkeypatch):
+    from controllers.market_making import life_mm
+
+    waits = []
+    monkeypatch.setattr(life_mm, 'observe_spot_quote_controller',
+                        lambda config, stage, **detail: waits.append(detail.get('reason')))
+    item, connector = btc_edge_controller('.5', runtime_config_managed=True, mm_session_id='mm', mm_generation=1)
+    item.admit_session('mm', 1)
+    _, original = item.get_price_and_amount('sell_0')
+    item.executors_info = [SimpleNamespace(
+        is_active=True, is_trading=False, status=RunnableStatus.RUNNING, custom_info={'level_id': 'buy_0'},
+        config=SimpleNamespace(side=TradeType.BUY, amount=Decimal(reserved) / 64000, entry_price=Decimal(64000)),
+    )]
+    actions = item.create_actions_proposal()
+    sells = [action.executor_config for action in actions if action.executor_config.side is TradeType.SELL]
+    assert Decimal(reserved) + sum(action.executor_config.amount * action.executor_config.entry_price
+                                   for action in actions) <= 100
+    if has_sell:
+        sell, = sells
+        remaining = Decimal(100) - Decimal(reserved)
+        assert connector.trading_rules['BTC-USDT'].min_order_size <= sell.amount < original
+        assert Decimal(0) <= remaining - sell.amount * sell.entry_price < Decimal('.001')
+        armed = item.prepare_entry_order(sell.model_copy(update={'controller_id': item.config.id}))
+        assert armed is not None and armed.amount * armed.entry_price <= remaining
+    else:
+        assert sells == []
+        assert 'allocation_budget_exhausted' in waits
+
+
 def test_btc_minimum_sell_never_exceeds_available_base():
     item, connector = btc_edge_controller('.4802')
     available_quote = connector.get_available_balance('USDT')

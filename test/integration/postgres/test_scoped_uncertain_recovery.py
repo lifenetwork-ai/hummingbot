@@ -32,8 +32,10 @@ def isolate(context, exchange, recorder):
     context.owner._mutate_recovery(lambda state: state.update(spot_outflow={
         'policy': {'max_net_outflow_quote': '50'}}))
     exchange._account_available_balances['BTC'] = Decimal('.5')
-    exchange.account_balance_observations['BTC'] = {'cash_balance': Decimal('.5'), 'observed_at': time.time()}
     assert context.owner.automatic_recovery.pause('auto-order')
+    # Admission compares this synthetic snapshot to the PostgreSQL clock.
+    observed_at = float(context.owner.check_owner()['database_now'])
+    exchange.account_balance_observations['BTC'] = {'cash_balance': Decimal('.5'), 'observed_at': observed_at}
 
 
 def test_busy_order_keeps_reservation_and_does_not_close_all_admission(managed_native):
@@ -188,7 +190,7 @@ def test_native_sell_rechecks_reservations_after_auth_before_transport(managed_n
             body['side'] = 'buy'
             request.data = json.dumps(body)
         elif changed_after_auth == 'stale_balance':
-            exchange.account_balance_observations['BTC']['observed_at'] = time.time() - 10
+            exchange.account_balance_observations['BTC']['observed_at'] -= 10
         elif changed_after_auth == 'fee':
             from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, TokenAmount
             exchange.get_fee = lambda *args, **kwargs: AddedToCostTradeFee(flat_fees=[TokenAmount('BTC', Decimal('1'))])

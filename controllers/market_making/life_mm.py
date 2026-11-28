@@ -1158,12 +1158,14 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 return []
             accepted = []
             planned_buy_quote = Decimal("0")
+            limit_allocation = self.config.inventory_skew.enabled or self._spread_policy.defense is not None
+            quote_budget = self._quote_budget() if limit_allocation else None
             pending_allocation = sum((executor.config.amount * executor.config.entry_price for executor in self.executors_info
                                       if executor.is_active or executor.status == RunnableStatus.SHUTTING_DOWN), Decimal("0")) \
-                if self.config.inventory_skew.enabled or self._spread_policy.defense is not None else Decimal("0")
+                if limit_allocation else Decimal("0")
             if self._spread_policy.defense is not None and any(
                     executor.status == RunnableStatus.SHUTTING_DOWN for executor in self.executors_info):
-                self._quote_reason('allocation_limit')
+                self._quote_reason('allocation_limit', trace_reason='allocation_waiting_retirement')
                 return []
             actions = super().create_actions_proposal()
             if self._inventory_sell_floor is not None:
@@ -1175,9 +1177,14 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
                 if not recovery_side_permitted(self.config.connector_name, config.side):
                     self._quote_reason('uncertain_order_risk_paused', config.side, level_id=config.level_id)
                     continue
-                if (self.config.inventory_skew.enabled or self._spread_policy.defense is not None) and pending_allocation + config.amount * config.entry_price > self._quote_budget():
-                    self._quote_reason('allocation_limit', config.side, level_id=config.level_id)
-                    continue
+                if quote_budget is not None and pending_allocation + config.amount * config.entry_price > quote_budget:
+                    fitted = self._fit_managed_spot_sell(connector, config, quote_budget - pending_allocation)
+                    if fitted is None:
+                        self._quote_reason('allocation_limit', config.side, level_id=config.level_id,
+                                           trace_reason='allocation_budget_exhausted')
+                        continue
+                    config = fitted
+                    action = action.model_copy(update={'executor_config': config})
                 is_buy = config.side == TradeType.BUY
                 proposed_long = long + config.amount if is_buy else long
                 proposed_short = short + config.amount if not is_buy and self.config.connector_name == "okx_perpetual" else short
@@ -1218,6 +1225,26 @@ class LifeMMController(PerpetualReductionMixin, pmm_simple.PMMSimpleController):
             self._quote_diagnostics['error_type'] = type(error).__name__
             self._quote_reason('proposal_evaluation_unavailable')
             return []
+
+    def _fit_managed_spot_sell(self, connector, config, remaining_quote):
+        """Use free allocation while retaining the full reservation of every working order."""
+        if (not self.config.runtime_config_managed or not self.config.mm_session_id or self.config.connector_name != 'okx'
+                or config.side is not TradeType.SELL or not self.config.inventory_skew.enabled
+                or config.triple_barrier_config.open_order_type is not OrderType.LIMIT_MAKER
+                or self._spread_policy.defense is not None or remaining_quote <= 0):
+            return None
+        if self._bootstrap is not None and not self._bootstrap.market_qualified:
+            return None
+        pair = self.config.trading_pair
+        price = config.entry_price
+        with localcontext() as context:
+            context.rounding = ROUND_DOWN
+            amount = connector.quantize_order_amount(pair, remaining_quote / price)
+        if (amount >= config.amount or price * amount > remaining_quote
+                or not self._meets_order_minimum(connector.trading_rules[pair], price, amount)
+                or not self.spread_quote_valid(config.side, price, amount, level_id=config.level_id)):
+            return None
+        return config.model_copy(update={'amount': amount})
 
     def executors_to_refresh(self):
         now = self.market_data_provider.time()
